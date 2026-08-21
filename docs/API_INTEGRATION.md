@@ -56,12 +56,18 @@ hard-coded product data or a model evaluation.
 - Forecast heatmaps extend only through current time plus 12 hours.
 - Basic/Startup heatmap AOIs are limited to 10 mi²; Premium is limited to
   50 mi².
+- The client preflights polygon area against a configurable limit (10 mi² by
+  default) before any POST. Widely separated job points can be split into
+  deterministic compact AOI clusters.
 - Credits are deducted after successful task completion. Exact per-task credit
   calculation is not publicly specified, so requests should be spatially
   batched, cached, and kept no larger than necessary.
 - A generic full-day range response is not documented as an hour-by-hour time
   series. CertiRoute will use single-hour requests until live evidence proves a
   stronger temporal contract.
+- Normalized requests can be fingerprinted and archived locally without API
+  credentials. Forecasts and later same-vendor realizations are stored with
+  explicit UTC valid times for future residual calibration.
 
 ## Known documentation ambiguities
 
@@ -79,4 +85,3 @@ hard-coded product data or a model evaluation.
 - <https://docs-api.fortyguard.com/docs/check-status>
 - <https://docs-api.fortyguard.com/docs/quickstart>
 - <https://docs-api.fortyguard.com/docs/limitations>
-

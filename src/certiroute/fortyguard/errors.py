@@ -5,6 +5,18 @@ class FortyGuardError(RuntimeError):
     """Base class for safe, application-facing FortyGuard errors."""
 
 
+class FortyGuardAOITooLarge(FortyGuardError):
+    """A heatmap AOI exceeds the configured plan allowance."""
+
+    def __init__(self, area_square_miles: float, limit_square_miles: float) -> None:
+        self.area_square_miles = area_square_miles
+        self.limit_square_miles = limit_square_miles
+        super().__init__(
+            f"AOI area {area_square_miles:.3f} mi² exceeds the configured "
+            f"{limit_square_miles:.3f} mi² plan limit"
+        )
+
+
 class FortyGuardHTTPError(FortyGuardError):
     """An HTTP response indicated that the API request failed."""
 

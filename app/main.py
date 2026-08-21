@@ -24,7 +24,7 @@ from certiroute.optimization import (
     TemperatureProfile,
     compare_schedules,
 )
-from certiroute.risk import estimate_ambient_exposure
+from certiroute.risk import estimate_ambient_exposure, relative_exposure_reduction
 from certiroute.sample_conditions import build_demo_profile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -112,9 +112,11 @@ def schedule_rows(plan: SchedulePlan) -> pd.DataFrame:
                 "Finish": minute_label(stop.finish_minute),
                 "Travel (min)": stop.inbound_travel_minutes,
                 "Temperature (°C)": stop.temperature_c,
+                "Peak (°C)": stop.peak_temperature_c,
                 "Certainty": stop.certainty,
                 "Raw units": stop.raw_exposure_units,
                 "Adjusted units": stop.certainty_adjusted_units,
+                "Minutes ≥35 °C": stop.minutes_above_planning_threshold,
             }
             for stop in plan.stops
         ]
@@ -207,9 +209,9 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
     )
     original = plans[ScheduleStrategy.ORIGINAL]
     recommended = plans[ScheduleStrategy.CERTAINTY_AWARE]
-    reduction = 1 - (
-        recommended.total_adjusted_exposure_units
-        / original.total_adjusted_exposure_units
+    reduction = relative_exposure_reduction(
+        original.total_adjusted_exposure_units,
+        recommended.total_adjusted_exposure_units,
     )
     threshold_delta = (
         recommended.minutes_above_planning_threshold
@@ -219,8 +221,11 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
     first, second, third, fourth = st.columns(4)
     first.metric(
         "Adjusted exposure reduction",
-        f"{reduction:.1%}",
-        help="Relative to the uploaded/original order in this synthetic scenario.",
+        "N/A" if reduction is None else f"{reduction:.1%}",
+        help=(
+            "No reduction ratio exists when the original plan has zero modeled "
+            "exposure. Otherwise, this is relative to the original order."
+        ),
     )
     second.metric(
         "Recommended travel",
@@ -233,8 +238,8 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
     )
     third.metric(
         "High-screening-temperature work",
-        f"{recommended.minutes_above_planning_threshold} min",
-        delta=f"{threshold_delta:+d} min vs original",
+        f"{recommended.minutes_above_planning_threshold:.1f} min",
+        delta=f"{threshold_delta:+.1f} min vs original",
         delta_color="inverse",
     )
     fourth.metric("Return to depot", minute_label(recommended.route_finish_minute))
@@ -248,6 +253,8 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
                 "Raw exposure": plan.total_raw_exposure_units,
                 "Adjusted exposure": plan.total_adjusted_exposure_units,
                 "Minutes ≥35 °C": plan.minutes_above_planning_threshold,
+                "Priority-weighted delay": plan.priority_weighted_delay_minutes,
+                "Dropped": ", ".join(plan.dropped_job_ids) or "—",
                 "Depot return": minute_label(plan.route_finish_minute),
             }
             for plan in plans.values()
@@ -275,7 +282,9 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
     st.caption(
         "Sample mode uses a synthetic diurnal profile anchored to committed demo "
         "values. ‘35 °C’ is a configurable comparison threshold, not a universal "
-        "occupational safety limit."
+        "occupational safety limit. Exposure integrates the interpolated profile "
+        "across each job interval. Every strategy uses the same feasible job set; "
+        "if the full day is infeasible, lowest-priority work is listed as dropped."
     )
 
 

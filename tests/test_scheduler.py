@@ -124,3 +124,70 @@ def test_certainty_aware_strategy_can_change_the_job_order() -> None:
         stop.job_id for stop in plans[ScheduleStrategy.CERTAINTY_AWARE].stops
     ]
     assert certainty_order[0] == "B"
+
+
+def test_priority_weighted_delay_schedules_important_jobs_earlier() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    shared_location = GeoPoint(latitude=33.455, longitude=-112.068)
+    jobs = [
+        Job(
+            job_id="LOW",
+            name="Low priority",
+            location=shared_location,
+            duration_minutes=90,
+            priority=1,
+        ),
+        Job(
+            job_id="HIGH",
+            name="High priority",
+            location=shared_location,
+            duration_minutes=90,
+            priority=5,
+        ),
+    ]
+    profiles = {
+        "LOW": make_profile("LOW", morning=32, noon=39),
+        "HIGH": make_profile("HIGH", morning=32, noon=39),
+    }
+
+    plans = compare_schedules(jobs, profiles, depot=depot, beam_width=10)
+
+    # Same place, same conditions, same duration: travel and heat cannot
+    # separate the two orders, so the priority-weighted delay term must put
+    # the high-priority job into the earlier slot for every optimized plan.
+    for strategy in (
+        ScheduleStrategy.EFFICIENCY,
+        ScheduleStrategy.HEAT_AWARE,
+        ScheduleStrategy.CERTAINTY_AWARE,
+    ):
+        assert plans[strategy].stops[0].job_id == "HIGH"
+    assert plans[strategy].priority_weighted_delay_minutes > 0
+
+
+def test_infeasible_day_uses_one_priority_preserving_job_set() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    jobs = [
+        Job(
+            job_id="KEEP",
+            name="High priority",
+            location=depot,
+            duration_minutes=300,
+            priority=5,
+        ),
+        Job(
+            job_id="DROP",
+            name="Low priority",
+            location=depot,
+            duration_minutes=300,
+            priority=1,
+        ),
+    ]
+    profiles = {
+        job.job_id: make_profile(job.job_id, morning=30, noon=36) for job in jobs
+    }
+
+    plans = compare_schedules(jobs, profiles, depot=depot, beam_width=10)
+
+    for plan in plans.values():
+        assert [stop.job_id for stop in plan.stops] == ["KEEP"]
+        assert plan.dropped_job_ids == ("DROP",)

@@ -11,7 +11,10 @@ from certiroute.fortyguard import (
     SingleHourDateTime,
     bounding_polygon,
 )
-from certiroute.fortyguard.errors import FortyGuardTaskFailed
+from certiroute.fortyguard.errors import (
+    FortyGuardAOITooLarge,
+    FortyGuardTaskFailed,
+)
 
 
 def heatmap_request() -> HeatmapRequest:
@@ -145,3 +148,62 @@ def test_rate_limit_honors_retry_after_header() -> None:
 
     assert result == {"stats_data": {}}
     assert delays == [7]
+
+
+def test_submit_rejects_oversized_aoi_before_network_request() -> None:
+    network_calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal network_calls
+        network_calls += 1
+        return httpx.Response(500)
+
+    oversized_request = HeatmapRequest(
+        polygon_aoi=bounding_polygon(
+            [
+                GeoPoint(latitude=33.45, longitude=-112.07),
+                GeoPoint(latitude=33.50, longitude=-112.00),
+            ]
+        ),
+        date_time=SingleHourDateTime(
+            start_date=date(2025, 7, 15), start_time=time(14, 0)
+        ),
+    )
+
+    with FortyGuardClient(
+        api_key="test-secret",
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        with pytest.raises(FortyGuardAOITooLarge):
+            client.submit_heatmap(oversized_request)
+
+    assert network_calls == 0
+
+
+def test_submit_accepts_a_configured_larger_plan_limit() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"error": False, "data": {"activity_id": "premium-request"}},
+        )
+
+    request = HeatmapRequest(
+        polygon_aoi=bounding_polygon(
+            [
+                GeoPoint(latitude=33.45, longitude=-112.07),
+                GeoPoint(latitude=33.50, longitude=-112.00),
+            ]
+        ),
+        date_time=SingleHourDateTime(
+            start_date=date(2025, 7, 15), start_time=time(14, 0)
+        ),
+    )
+
+    with FortyGuardClient(
+        api_key="test-secret",
+        max_aoi_area_square_miles=20,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        activity_id = client.submit_heatmap(request)
+
+    assert activity_id == "premium-request"

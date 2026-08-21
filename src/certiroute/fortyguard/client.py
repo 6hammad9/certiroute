@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any
 
 import httpx
@@ -15,6 +16,10 @@ from certiroute.fortyguard.errors import (
     FortyGuardProtocolError,
     FortyGuardTaskFailed,
     FortyGuardTaskTimeout,
+)
+from certiroute.fortyguard.geometry import (
+    DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
+    validate_aoi_area,
 )
 from certiroute.fortyguard.schemas import HeatmapRequest
 
@@ -59,6 +64,7 @@ class FortyGuardClient:
         api_key: str | SecretStr,
         base_url: str = "https://api.fortyguard.com/v1",
         timeout_seconds: float = 30.0,
+        max_aoi_area_square_miles: float = DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if isinstance(api_key, SecretStr):
@@ -69,6 +75,10 @@ class FortyGuardClient:
             raise ValueError("FortyGuard API key is required")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be greater than zero")
+        if not isfinite(max_aoi_area_square_miles) or max_aoi_area_square_miles <= 0:
+            raise ValueError(
+                "max_aoi_area_square_miles must be a finite value greater than zero"
+            )
 
         normalized_base_url = f"{base_url.rstrip('/')}/"
         self._client = httpx.Client(
@@ -81,6 +91,7 @@ class FortyGuardClient:
             timeout=timeout_seconds,
             transport=transport,
         )
+        self._max_aoi_area_square_miles = max_aoi_area_square_miles
 
     def __enter__(self) -> FortyGuardClient:
         return self
@@ -94,6 +105,10 @@ class FortyGuardClient:
     def submit_heatmap(self, request: HeatmapRequest) -> str:
         """Submit one heatmap activity and return its identifier."""
 
+        validate_aoi_area(
+            request.polygon_aoi,
+            max_area_square_miles=self._max_aoi_area_square_miles,
+        )
         payload = request.model_dump(mode="json", exclude_none=True)
         response = self._request_json("POST", "heatmap", json=payload)
         data = self._require_mapping(response.get("data"), "data")

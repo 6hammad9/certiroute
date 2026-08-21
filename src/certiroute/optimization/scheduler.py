@@ -13,7 +13,6 @@ from certiroute.optimization.models import (
     ScheduleStrategy,
     TemperatureProfile,
 )
-from certiroute.risk import estimate_ambient_exposure
 
 
 class InfeasibleScheduleError(RuntimeError):
@@ -29,7 +28,8 @@ class _Candidate:
     travel_minutes: int
     raw_exposure_units: float
     adjusted_exposure_units: float
-    threshold_minutes: int
+    threshold_minutes: float
+    priority_weighted_delay_minutes: float
 
 
 def compare_schedules(
@@ -44,9 +44,10 @@ def compare_schedules(
     planning_threshold_c: float = 35.0,
     uncertainty_penalty: float = 0.5,
     heat_weight: float = 4.0,
+    priority_weight: float = 0.2,
     beam_width: int = 5000,
 ) -> dict[ScheduleStrategy, SchedulePlan]:
-    """Build the original plan and three directly comparable alternatives."""
+    """Build four plans over one shared, priority-preserving feasible job set."""
 
     common = {
         "profiles": profiles,
@@ -58,24 +59,45 @@ def compare_schedules(
         "planning_threshold_c": planning_threshold_c,
         "uncertainty_penalty": uncertainty_penalty,
         "heat_weight": heat_weight,
+        "priority_weight": priority_weight,
     }
-    plans = {
-        ScheduleStrategy.ORIGINAL: evaluate_job_order(
-            jobs, strategy=ScheduleStrategy.ORIGINAL, **common
-        )
-    }
-    for strategy in (
-        ScheduleStrategy.EFFICIENCY,
-        ScheduleStrategy.HEAT_AWARE,
-        ScheduleStrategy.CERTAINTY_AWARE,
-    ):
-        plans[strategy] = optimize_job_order(
-            jobs,
-            strategy=strategy,
-            beam_width=beam_width,
-            **common,
-        )
-    return plans
+    active_jobs = list(jobs)
+    dropped_job_ids: list[str] = []
+    while True:
+        try:
+            plans = {
+                ScheduleStrategy.ORIGINAL: evaluate_job_order(
+                    active_jobs,
+                    strategy=ScheduleStrategy.ORIGINAL,
+                    **common,
+                )
+            }
+            for strategy in (
+                ScheduleStrategy.EFFICIENCY,
+                ScheduleStrategy.HEAT_AWARE,
+                ScheduleStrategy.CERTAINTY_AWARE,
+            ):
+                plans[strategy] = optimize_job_order(
+                    active_jobs,
+                    strategy=strategy,
+                    beam_width=beam_width,
+                    **common,
+                )
+        except InfeasibleScheduleError:
+            if len(active_jobs) <= 1:
+                raise
+            dropped = min(
+                active_jobs,
+                key=lambda job: (job.priority, -job.duration_minutes, job.job_id),
+            )
+            active_jobs = [job for job in active_jobs if job.job_id != dropped.job_id]
+            dropped_job_ids.append(dropped.job_id)
+        else:
+            dropped = tuple(dropped_job_ids)
+            return {
+                strategy: plan.model_copy(update={"dropped_job_ids": dropped})
+                for strategy, plan in plans.items()
+            }
 
 
 def evaluate_job_order(
@@ -91,6 +113,7 @@ def evaluate_job_order(
     planning_threshold_c: float,
     uncertainty_penalty: float,
     heat_weight: float,
+    priority_weight: float,
 ) -> SchedulePlan:
     """Evaluate one fixed order using the same constraints as optimization."""
 
@@ -99,6 +122,8 @@ def evaluate_job_order(
         profiles,
         average_travel_speed_kph=average_travel_speed_kph,
         heat_weight=heat_weight,
+        priority_weight=priority_weight,
+        uncertainty_penalty=uncertainty_penalty,
     )
     candidate = _initial_candidate(depot, shift_start)
     for job in jobs:
@@ -124,6 +149,7 @@ def evaluate_job_order(
         shift_end=shift_end,
         average_travel_speed_kph=average_travel_speed_kph,
         heat_weight=heat_weight,
+        priority_weight=priority_weight,
     )
 
 
@@ -140,6 +166,7 @@ def optimize_job_order(
     planning_threshold_c: float,
     uncertainty_penalty: float,
     heat_weight: float,
+    priority_weight: float,
     beam_width: int = 5000,
 ) -> SchedulePlan:
     """Find a strong feasible order while bounding combinatorial growth."""
@@ -153,6 +180,8 @@ def optimize_job_order(
         profiles,
         average_travel_speed_kph=average_travel_speed_kph,
         heat_weight=heat_weight,
+        priority_weight=priority_weight,
+        uncertainty_penalty=uncertainty_penalty,
     )
 
     jobs_by_id = {job.job_id: job for job in jobs}
@@ -182,7 +211,12 @@ def optimize_job_order(
             )
         expanded.sort(
             key=lambda candidate: (
-                _candidate_score(candidate, strategy, heat_weight),
+                _candidate_score(
+                    candidate,
+                    strategy,
+                    heat_weight=heat_weight,
+                    priority_weight=priority_weight,
+                ),
                 candidate.current_minute,
                 candidate.order,
             )
@@ -200,6 +234,7 @@ def optimize_job_order(
                     shift_end=shift_end,
                     average_travel_speed_kph=average_travel_speed_kph,
                     heat_weight=heat_weight,
+                    priority_weight=priority_weight,
                 )
             )
         except InfeasibleScheduleError:
@@ -223,7 +258,8 @@ def _initial_candidate(depot: GeoPoint, shift_start: time) -> _Candidate:
         travel_minutes=0,
         raw_exposure_units=0.0,
         adjusted_exposure_units=0.0,
-        threshold_minutes=0,
+        threshold_minutes=0.0,
+        priority_weighted_delay_minutes=0.0,
     )
 
 
@@ -258,15 +294,21 @@ def _extend_candidate(
     if finish > latest:
         return None
 
-    midpoint = start + job.duration_minutes / 2
-    temperature, certainty = profile.condition_at(midpoint)
-    exposure = estimate_ambient_exposure(
-        temperature_c=temperature,
-        duration_minutes=job.duration_minutes,
-        certainty=certainty,
-        reference_temperature_c=reference_temperature_c,
+    start_f, finish_f = float(start), float(finish)
+    mean_temperature = profile.mean_temperature(start_f, finish_f)
+    peak_temperature = profile.peak_temperature(start_f, finish_f)
+    mean_certainty = profile.mean_certainty(start_f, finish_f)
+    raw_units = profile.degree_hours_above(reference_temperature_c, start_f, finish_f)
+    threshold_minutes = profile.minutes_at_or_above(
+        planning_threshold_c, start_f, finish_f
+    )
+    adjusted_units = profile.certainty_adjusted_degree_hours_above(
+        reference_temperature_c,
+        start_f,
+        finish_f,
         uncertainty_penalty=uncertainty_penalty,
     )
+    priority_delay = (job.priority / 5) * (start - earliest)
     stop = ScheduledStop(
         sequence=len(candidate.stops) + 1,
         job_id=job.job_id,
@@ -277,10 +319,12 @@ def _extend_candidate(
         start_minute=start,
         finish_minute=finish,
         inbound_travel_minutes=travel,
-        temperature_c=round(temperature, 2),
-        certainty=round(certainty, 4),
-        raw_exposure_units=exposure.raw_exposure_units,
-        certainty_adjusted_units=exposure.certainty_adjusted_units,
+        temperature_c=round(mean_temperature, 2),
+        peak_temperature_c=round(peak_temperature, 2),
+        certainty=round(mean_certainty, 4),
+        raw_exposure_units=round(raw_units, 3),
+        certainty_adjusted_units=round(adjusted_units, 3),
+        minutes_above_planning_threshold=round(threshold_minutes, 1),
     )
     return _Candidate(
         order=(*candidate.order, job.job_id),
@@ -288,13 +332,11 @@ def _extend_candidate(
         last_location=job.location,
         current_minute=finish,
         travel_minutes=candidate.travel_minutes + travel,
-        raw_exposure_units=(candidate.raw_exposure_units + exposure.raw_exposure_units),
-        adjusted_exposure_units=(
-            candidate.adjusted_exposure_units + exposure.certainty_adjusted_units
-        ),
-        threshold_minutes=(
-            candidate.threshold_minutes
-            + (job.duration_minutes if temperature >= planning_threshold_c else 0)
+        raw_exposure_units=candidate.raw_exposure_units + raw_units,
+        adjusted_exposure_units=candidate.adjusted_exposure_units + adjusted_units,
+        threshold_minutes=candidate.threshold_minutes + threshold_minutes,
+        priority_weighted_delay_minutes=(
+            candidate.priority_weighted_delay_minutes + priority_delay
         ),
     )
 
@@ -307,6 +349,7 @@ def _finalize_candidate(
     shift_end: time,
     average_travel_speed_kph: float,
     heat_weight: float,
+    priority_weight: float,
 ) -> SchedulePlan:
     return_travel = _travel_minutes(
         candidate.last_location,
@@ -323,6 +366,8 @@ def _finalize_candidate(
         adjusted_exposure_units=candidate.adjusted_exposure_units,
         strategy=strategy,
         heat_weight=heat_weight,
+        priority_weight=priority_weight,
+        priority_weighted_delay_minutes=(candidate.priority_weighted_delay_minutes),
     )
     return SchedulePlan(
         strategy=strategy,
@@ -330,14 +375,21 @@ def _finalize_candidate(
         total_travel_minutes=travel,
         total_raw_exposure_units=round(candidate.raw_exposure_units, 3),
         total_adjusted_exposure_units=round(candidate.adjusted_exposure_units, 3),
-        minutes_above_planning_threshold=candidate.threshold_minutes,
+        minutes_above_planning_threshold=round(candidate.threshold_minutes, 1),
+        priority_weighted_delay_minutes=round(
+            candidate.priority_weighted_delay_minutes, 1
+        ),
         route_finish_minute=finish,
         objective_value=round(objective, 3),
     )
 
 
 def _candidate_score(
-    candidate: _Candidate, strategy: ScheduleStrategy, heat_weight: float
+    candidate: _Candidate,
+    strategy: ScheduleStrategy,
+    *,
+    heat_weight: float,
+    priority_weight: float,
 ) -> float:
     return _score_values(
         travel_minutes=candidate.travel_minutes,
@@ -345,6 +397,8 @@ def _candidate_score(
         adjusted_exposure_units=candidate.adjusted_exposure_units,
         strategy=strategy,
         heat_weight=heat_weight,
+        priority_weight=priority_weight,
+        priority_weighted_delay_minutes=(candidate.priority_weighted_delay_minutes),
     )
 
 
@@ -355,12 +409,15 @@ def _score_values(
     adjusted_exposure_units: float,
     strategy: ScheduleStrategy,
     heat_weight: float,
+    priority_weight: float,
+    priority_weighted_delay_minutes: float,
 ) -> float:
+    priority_cost = priority_weight * priority_weighted_delay_minutes
     if strategy in (ScheduleStrategy.ORIGINAL, ScheduleStrategy.EFFICIENCY):
-        return float(travel_minutes)
+        return travel_minutes + priority_cost
     if strategy is ScheduleStrategy.HEAT_AWARE:
-        return travel_minutes + heat_weight * raw_exposure_units
-    return travel_minutes + heat_weight * adjusted_exposure_units
+        return travel_minutes + heat_weight * raw_exposure_units + priority_cost
+    return travel_minutes + heat_weight * adjusted_exposure_units + priority_cost
 
 
 def _validate_inputs(
@@ -369,6 +426,8 @@ def _validate_inputs(
     *,
     average_travel_speed_kph: float,
     heat_weight: float,
+    priority_weight: float,
+    uncertainty_penalty: float,
 ) -> None:
     if not jobs:
         raise ValueError("at least one job is required")
@@ -383,6 +442,10 @@ def _validate_inputs(
         raise ValueError("average_travel_speed_kph must be greater than zero")
     if heat_weight < 0:
         raise ValueError("heat_weight cannot be negative")
+    if priority_weight < 0:
+        raise ValueError("priority_weight cannot be negative")
+    if uncertainty_penalty < 0:
+        raise ValueError("uncertainty_penalty cannot be negative")
 
 
 def _travel_minutes(

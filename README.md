@@ -7,13 +7,14 @@ with lower modeled exposure instead of stopping at maps or threshold alerts.
 The working product and research brief is in
 [`docs/PROJECT_IDEA.md`](docs/PROJECT_IDEA.md).
 
-## Planned stack
+## Stack
 
 - Python 3.11–3.13 (Python 3.12 is used for local development)
 - Streamlit for the hackathon dashboard
 - `httpx` for the FortyGuard API integration
-- OR-Tools for constrained scheduling and route optimization
-- Plotly/PyDeck for charts and maps
+- Pure-Python beam-search scheduling (heavier solvers such as OR-Tools are
+  deferred until scenario-based optimization requires them)
+- PyDeck for maps and route schematics
 - Pytest and Ruff for verification
 
 ## Repository layout
@@ -25,6 +26,7 @@ docs/                        Product, research, and build documentation
 notebooks/                   Exploration and model experiments
 src/certiroute/
   fortyguard/                FortyGuard API adapter
+  collection/                Secret-aware forecast/residual archive
   risk/                      Exposure and certainty calculations
   optimization/              Schedule/route optimization
   domain/                    Shared data models
@@ -58,4 +60,6 @@ Never commit `.env` or an API key.
 
 See [`docs/API_INTEGRATION.md`](docs/API_INTEGRATION.md) for the verified API
 contract and current unknowns. See [`docs/SAFETY_MODEL.md`](docs/SAFETY_MODEL.md)
-for the product's occupational-heat boundaries and planned risk model.
+for the product's occupational-heat boundaries and planned risk model. The
+black-box calibration claim and evidence plan are in
+[`docs/RELIABILITY_METHOD.md`](docs/RELIABILITY_METHOD.md).

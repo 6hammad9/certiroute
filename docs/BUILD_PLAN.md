@@ -1,34 +1,42 @@
 # Build Plan
 
+Status as of 2026-08-21: the vertical slice and deterministic four-strategy
+comparison are working. The current focus is collecting the evidence needed to
+replace synthetic certainty inputs with calibrated forecast intervals.
+
 ## Phase 1 — Data contract and vertical slice
 
-- Confirm the FortyGuard endpoints, payloads, units, timestamps, limits, and
+- [x] Confirm the FortyGuard endpoints, payloads, units, timestamps, limits, and
   forecast behavior.
-- Define the job, temperature observation, risk estimate, and schedule models.
-- Build one API request through to one visible dashboard result.
-- Add a deterministic sample-data mode so the demo never depends entirely on a
+- [x] Define the job, temperature observation, risk estimate, and schedule models.
+- [x] Build one API request through to one visible dashboard result.
+- [x] Add a deterministic sample-data mode so the demo never depends entirely on a
   live external call.
 
 ## Phase 2 — Baseline scheduling
 
-- Implement the original-order and efficiency baselines.
-- Define and document the first heat-exposure score.
-- Implement a heat-aware scheduling objective.
-- Add tests for time windows, durations, and infeasible schedules.
+- [x] Implement the original-order and efficiency baselines.
+- [x] Define and document the first heat-exposure score.
+- [x] Integrate exposure and threshold duration over full job intervals.
+- [x] Implement heat-aware and certainty-adjusted scheduling objectives.
+- [x] Make priority operational through delay cost and infeasible-day triage.
+- [ ] Add explicit time-window and infeasible-single-job tests.
 
 ## Phase 3 — Certainty-aware model
 
-- Choose reference/calibration data and distribution-shift features.
-- Implement a simple, measurable certainty baseline.
-- Calibrate the score on held-out temporal or geographic data.
-- Add uncertainty-aware objectives and probabilistic constraints.
+- [x] Add a normalized request cache and vendor-relative residual archive.
+- [ ] Collect forecast/realization pairs across horizons and days.
+- [ ] Choose stable, non-confounded reliability and distribution-shift features.
+- [ ] Implement pooled and horizon-conditioned conformal intervals.
+- [ ] Calibrate and evaluate intervals on held-out temporal/geographic data.
+- [ ] Add coherent scenario objectives and probabilistic screening constraints.
 
 ## Phase 4 — Product demo
 
-- Build the map, schedule timeline, comparison cards, and explanation panel.
-- Create one realistic customer scenario and one shifted-data scenario.
-- Report safety/efficiency trade-offs and downloadable results.
-- Add error handling, caching, and API-rate-limit protection.
+- [x] Build the first map, schedule table, comparison cards, and method panel.
+- [x] Create one realistic customer scenario and one synthetic shifted scenario.
+- [ ] Add a timeline, Pareto trade-off control, and downloadable results.
+- [x] Add bounded polling, retry handling, caching primitives, and AOI guards.
 
 ## Phase 5 — Submission
 
@@ -36,4 +44,3 @@
 - Finalize methodology, limitations, and reproducibility instructions.
 - Record the three-minute demo.
 - Publish/review the repository and submit before the deadline buffer.
-
