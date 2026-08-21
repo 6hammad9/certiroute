@@ -1,10 +1,14 @@
-"""Streamlit entry point for the CertiRoute demonstration dashboard.
+"""One-page Streamlit interface for the CertiRoute hackathon product.
 
-The page is written for a first-time visitor: it states the problem, shows one
-recommendation in plain language, proves it with a time-of-day picture, and
-only then exposes the underlying tables and controls.
+The product path is deliberately simple: review one fictional workday, load
+real FortyGuard temperature evidence, and compare an operations baseline with
+a heat-aware schedule. Technical provenance and limitations remain available
+below the decision instead of competing with it.
 """
 
+from __future__ import annotations
+
+import os
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
@@ -24,7 +28,6 @@ from certiroute.domain import GeoPoint, Job
 from certiroute.fortyguard import (
     DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
     FortyGuardClient,
-    cluster_points_into_aois,
     polygon_area_square_miles,
 )
 from certiroute.fortyguard.errors import FortyGuardError
@@ -37,232 +40,269 @@ from certiroute.optimization import (
     compare_schedules,
 )
 from certiroute.real_conditions import (
-    DEFAULT_REAL_SAMPLE_TIMES,
+    HeatmapCollectionPlan,
     RealTemperatureBatch,
     build_profile_requests,
-    collect_real_temperature_batch,
+    collect_real_temperature_batch_from_plan,
     plan_profile_collection,
 )
-from certiroute.risk import estimate_ambient_exposure, relative_exposure_reduction
-from certiroute.sample_conditions import build_demo_profile
+from certiroute.risk import relative_exposure_reduction
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_JOBS_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
-HEATMAP_CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
-
-REAL_DATA_SOURCE = "FortyGuard API (real)"
-SYNTHETIC_DATA_SOURCE = "Synthetic fallback"
-SAMPLE_TIME_OPTIONS = {
-    "3 samples — 08:00, 12:00, 17:00": DEFAULT_REAL_SAMPLE_TIMES,
-    "5 samples — 08:00, 10:00, 12:00, 14:00, 17:00": (
-        time(8),
-        time(10),
-        time(12),
-        time(14),
-        time(17),
-    ),
-    "10 hourly samples — 08:00–17:00": tuple(time(hour) for hour in range(8, 18)),
-}
+DEFAULT_CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
 
 DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
+DEFAULT_REPLAY_DATE = date(2026, 7, 15)
+SHIFT_START = time(8)
+SHIFT_END = time(17)
+HOURLY_SAMPLE_TIMES = tuple(time(hour) for hour in range(8, 18))
+GRANULARITY_METRES = 60
 REFERENCE_TEMPERATURE_C = 27.0
 PLANNING_THRESHOLD_C = 35.0
-STRESS_TEST_JOB = "PHX-101"
-STRESS_TEST_CERTAINTY = 0.15
+HEAT_WEIGHT = 8.0
+ANCHOR_DAY = datetime(2026, 7, 15)
 
-# Plain-language names for the four strategies. The enum values are precise but
-# read as internal vocabulary to anyone seeing the tool for the first time.
 PLAN_LABELS = {
-    ScheduleStrategy.ORIGINAL: "As dispatched",
-    ScheduleStrategy.EFFICIENCY: "Standard route (shortest driving)",
-    ScheduleStrategy.HEAT_AWARE: "Heat-aware",
-    ScheduleStrategy.CERTAINTY_AWARE: "CertiRoute recommendation",
+    ScheduleStrategy.EFFICIENCY: "Distance-efficient operations baseline",
+    ScheduleStrategy.HEAT_AWARE: "Heat-aware recommendation",
 }
-PLAN_EXPLANATIONS = {
-    ScheduleStrategy.ORIGINAL: "The order the jobs arrived in.",
-    ScheduleStrategy.EFFICIENCY: (
-        "What an ordinary routing tool returns: least driving, heat ignored."
-    ),
-    ScheduleStrategy.HEAT_AWARE: "Avoids heat, but trusts every forecast equally.",
-    ScheduleStrategy.CERTAINTY_AWARE: (
-        "Avoids heat and hedges harder where the forecast is unreliable."
-    ),
+TIMELINE_LABELS = {
+    ScheduleStrategy.EFFICIENCY: "Operations baseline",
+    ScheduleStrategy.HEAT_AWARE: "Heat-aware plan",
 }
-ANCHOR_DAY = datetime(2025, 7, 15)
 
 
 @st.cache_data
 def load_sample_jobs() -> pd.DataFrame:
-    """Load the deterministic demonstration jobs committed with the project."""
+    """Load the committed, non-sensitive demonstration work orders."""
 
     return pd.read_csv(SAMPLE_JOBS_PATH)
 
 
-def add_exposure_scores(jobs: pd.DataFrame) -> pd.DataFrame:
-    """Calculate the transparent planning score for every sample job."""
+def cache_path() -> Path:
+    """Return an injectable cache root so tests and deployments stay isolated."""
 
-    scored = jobs.copy()
-    estimates = [
-        estimate_ambient_exposure(
-            temperature_c=row.sample_temperature_c,
-            duration_minutes=row.duration_minutes,
-            certainty=row.sample_certainty,
-        )
-        for row in scored.itertuples(index=False)
-    ]
-    scored["raw_exposure_units"] = [item.raw_exposure_units for item in estimates]
-    scored["adjusted_exposure_units"] = [
-        item.certainty_adjusted_units for item in estimates
-    ]
-    return scored
+    configured = os.getenv("CERTIROUTE_HEATMAP_CACHE_PATH")
+    return Path(configured) if configured else DEFAULT_CACHE_PATH
 
 
-def build_domain_jobs(jobs: pd.DataFrame) -> list[Job]:
-    """Convert input rows into the optimizer's validated job models."""
+def build_domain_jobs(frame: pd.DataFrame) -> list[Job]:
+    """Convert input rows into validated scheduler jobs."""
 
-    domain_jobs: list[Job] = []
-    for row in jobs.itertuples(index=False):
-        domain_jobs.append(
-            Job(
-                job_id=row.job_id,
-                name=row.name,
-                location=GeoPoint(
-                    latitude=row.latitude,
-                    longitude=row.longitude,
-                ),
-                duration_minutes=row.duration_minutes,
-                priority=row.priority,
-                earliest_start=time.fromisoformat(row.earliest_start),
-                latest_finish=time.fromisoformat(row.latest_finish),
-            )
-        )
-    return domain_jobs
-
-
-def build_demo_inputs(
-    jobs: pd.DataFrame,
-    *,
-    certainty_overrides: dict[str, float] | None = None,
-) -> tuple[list[Job], dict[str, TemperatureProfile]]:
-    """Build the explicitly synthetic fallback profiles."""
-
-    certainty_overrides = certainty_overrides or {}
-    domain_jobs = build_domain_jobs(jobs)
-    profiles: dict[str, TemperatureProfile] = {}
-    for row in jobs.itertuples(index=False):
-        profiles[row.job_id] = build_demo_profile(
+    return [
+        Job(
             job_id=row.job_id,
-            anchor_temperature_c=row.sample_temperature_c,
-            certainty=certainty_overrides.get(row.job_id, row.sample_certainty),
-            diurnal_amplitude=row.diurnal_amplitude,
+            name=row.name,
+            location=GeoPoint(latitude=row.latitude, longitude=row.longitude),
+            duration_minutes=row.duration_minutes,
+            priority=row.priority,
+            earliest_start=time.fromisoformat(row.earliest_start),
+            latest_finish=time.fromisoformat(row.latest_finish),
         )
-    return domain_jobs, profiles
+        for row in frame.itertuples(index=False)
+    ]
 
 
-def minute_label(minute_of_day: int) -> str:
-    """Format a minute offset as a compact 24-hour clock value."""
+def minute_label(minute_of_day: int | float) -> str:
+    """Format minutes after midnight as a compact 24-hour time."""
 
-    hours, minutes = divmod(minute_of_day, 60)
+    rounded = int(round(minute_of_day))
+    hours, minutes = divmod(rounded, 60)
     return f"{hours:02d}:{minutes:02d}"
 
 
-def clock(minute_of_day: float) -> datetime:
-    """Place a minute-of-day on the anchor date so charts get a time axis."""
+def chart_clock(minute_of_day: int | float) -> datetime:
+    """Place a minute-of-day on an arbitrary anchor date for Altair."""
 
     return ANCHOR_DAY + timedelta(minutes=float(minute_of_day))
 
 
-def schedule_rows(plan: SchedulePlan) -> pd.DataFrame:
-    """Build the operator-facing table for one schedule."""
+def api_key_available() -> bool:
+    """Check configuration without rendering or exposing the secret."""
 
-    return pd.DataFrame(
-        [
-            {
-                "Sequence": stop.sequence,
-                "Job": stop.job_id,
-                "Name": stop.job_name,
-                "Arrive": minute_label(stop.arrival_minute),
-                "Start": minute_label(stop.start_minute),
-                "Finish": minute_label(stop.finish_minute),
-                "Travel (min)": stop.inbound_travel_minutes,
-                "Average (°C)": stop.temperature_c,
-                "Peak (°C)": stop.peak_temperature_c,
-                "Certainty": stop.certainty,
-                "Raw units": stop.raw_exposure_units,
-                "Adjusted units": stop.certainty_adjusted_units,
-                "Minutes ≥35 °C": stop.minutes_above_planning_threshold,
-            }
-            for stop in plan.stops
-        ]
+    try:
+        settings = get_settings()
+    except ValidationError:
+        return False
+    return bool(settings.fortyguard_api_key.get_secret_value().strip())
+
+
+def inject_styles() -> None:
+    """Add a small product layer without hiding native Streamlit behavior."""
+
+    st.markdown(
+        """
+        <style>
+        .stApp { background: #f6f8f7; }
+        .block-container { max-width: 1180px; padding-top: 1.6rem; }
+        h1 { letter-spacing: -0.045em; }
+        h2, h3 { letter-spacing: -0.025em; }
+        .hero-copy {
+            color: #334155; font-size: 1.12rem; line-height: 1.6;
+            max-width: 820px; margin-top: -0.5rem;
+        }
+        .eyebrow {
+            color: #087f5b; font-size: .77rem; font-weight: 800;
+            letter-spacing: .12em; text-transform: uppercase;
+        }
+        .badge {
+            display: inline-block; border: 1px solid #b8d8cd;
+            background: #edf8f4; color: #116149; border-radius: 999px;
+            padding: .28rem .62rem; margin: .15rem .3rem .15rem 0;
+            font-size: .72rem; font-weight: 750; letter-spacing: .035em;
+        }
+        .step-number {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.7rem; height: 1.7rem; border-radius: 50%;
+            color: white; background: #087f5b; font-weight: 800;
+            margin-right: .35rem;
+        }
+        .step-copy { color: #475569; line-height: 1.45; }
+        .empty-state {
+            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #9fb7af;
+            border-radius: .75rem; background: #fbfdfc;
+        }
+        .safety-note {
+            border-left: 4px solid #d97706; background: #fff9ed;
+            padding: .85rem 1rem; border-radius: .35rem; color: #5f430b;
+        }
+        div[data-testid="stMetric"] {
+            background: white; border: 1px solid #dce5e1;
+            padding: .85rem 1rem; border-radius: .7rem;
+        }
+        button[kind="primary"] {
+            background: #087f5b; border-color: #087f5b;
+        }
+        button[kind="primary"]:hover {
+            background: #06694b; border-color: #06694b;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
 
-def timeline_frame(
-    plans: dict[ScheduleStrategy, SchedulePlan],
-    strategies: list[ScheduleStrategy],
-) -> pd.DataFrame:
-    """Flatten selected plans into one row per scheduled job for charting."""
+def render_hero() -> None:
+    """Explain the customer, decision, and evidence before any controls."""
 
-    rows = []
-    for strategy in strategies:
+    st.markdown(
+        '<div class="eyebrow">Heat-aware field operations</div>',
+        unsafe_allow_html=True,
+    )
+    st.title("CertiRoute")
+    st.subheader("Put outdoor work in cooler feasible hours.")
+    st.markdown(
+        """
+        <div class="hero-copy">
+        A fictional utility crew has six work orders at real Phoenix landmarks.
+        CertiRoute uses hourly, street-level FortyGuard temperatures to ask a
+        practical question: <strong>can the same work be moved—not
+        cancelled—to reduce modeled ambient-heat load?</strong>
+        </div>
+        <div style="margin-top:.7rem">
+          <span class="badge">DEMONSTRATION WORK ORDERS</span>
+          <span class="badge">REAL FORTYGUARD TEMPERATURES</span>
+          <span class="badge">HISTORICAL REPLAY</span>
+          <span class="badge">NO SUBSTITUTE DATA</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_three_steps() -> None:
+    """Give a first-time visitor a persistent three-step mental model."""
+
+    st.markdown("### One workday, one clear decision")
+    columns = st.columns(3)
+    steps = (
+        (
+            "Review the work",
+            "Six jobs keep their durations, priorities, deadlines, and depot return.",
+        ),
+        (
+            "Load the heat",
+            "Ten hourly FortyGuard heatmaps provide temperature at every site.",
+        ),
+        (
+            "Read the trade-off",
+            "See modeled exposure change, hot-work time, and added estimated travel.",
+        ),
+    )
+    for index, (title, copy) in enumerate(steps, start=1):
+        with columns[index - 1].container(border=True):
+            st.markdown(
+                f'<span class="step-number">{index}</span><strong>{title}</strong>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(f'<div class="step-copy">{copy}</div>', unsafe_allow_html=True)
+
+
+def timeline_frame(plans: dict[ScheduleStrategy, SchedulePlan]) -> pd.DataFrame:
+    """Flatten the two customer-facing plans for the schedule timeline."""
+
+    rows: list[dict[str, object]] = []
+    for strategy in (ScheduleStrategy.EFFICIENCY, ScheduleStrategy.HEAT_AWARE):
         for stop in plans[strategy].stops:
             rows.append(
                 {
                     "Plan": PLAN_LABELS[strategy],
+                    "Lane": TIMELINE_LABELS[strategy],
                     "Job": stop.job_id,
                     "Name": stop.job_name,
-                    "Start": clock(stop.start_minute),
-                    "Finish": clock(stop.finish_minute),
-                    "Mid": clock((stop.start_minute + stop.finish_minute) / 2),
+                    "Start": chart_clock(stop.start_minute),
+                    "Finish": chart_clock(stop.finish_minute),
+                    "Mid": chart_clock((stop.start_minute + stop.finish_minute) / 2),
                     "Temperature": stop.temperature_c,
                     "Peak": stop.peak_temperature_c,
-                    "Certainty": stop.certainty,
                     "Window": (
-                        f"{minute_label(stop.start_minute)}"
-                        f"–{minute_label(stop.finish_minute)}"
+                        f"{minute_label(stop.start_minute)}–"
+                        f"{minute_label(stop.finish_minute)}"
                     ),
                 }
             )
     return pd.DataFrame(rows)
 
 
-def render_timeline(
-    frame: pd.DataFrame,
-    lane_order: list[str],
-    *,
-    show_certainty: bool = True,
-) -> None:
-    """Draw the when-does-each-job-happen picture that carries the whole idea."""
+def render_timeline(plans: dict[ScheduleStrategy, SchedulePlan]) -> None:
+    """Show when every job happens and how hot it is while work occurs."""
 
-    colour = alt.Color(
-        "Temperature:Q",
-        scale=alt.Scale(scheme="redyellowblue", reverse=True, domain=[28, 42]),
-        legend=alt.Legend(
-            title="Temperature while working (°C)", orient="top", gradientLength=220
-        ),
-    )
+    frame = timeline_frame(plans)
+    lane_order = [
+        TIMELINE_LABELS[ScheduleStrategy.EFFICIENCY],
+        TIMELINE_LABELS[ScheduleStrategy.HEAT_AWARE],
+    ]
     tooltip = [
-        alt.Tooltip("Name:N", title="Job"),
+        alt.Tooltip("Plan:N", title="Plan"),
+        alt.Tooltip("Name:N", title="Work order"),
         alt.Tooltip("Window:N", title="Scheduled"),
         alt.Tooltip("Temperature:Q", title="Average °C", format=".1f"),
         alt.Tooltip("Peak:Q", title="Peak °C", format=".1f"),
     ]
-    if show_certainty:
-        tooltip.append(
-            alt.Tooltip("Certainty:Q", title="Forecast certainty", format=".0%")
-        )
     bars = (
         alt.Chart(frame)
-        .mark_bar(cornerRadius=4, height=34, stroke="white", strokeWidth=1)
+        .mark_bar(cornerRadius=5, height=34, stroke="white", strokeWidth=1)
         .encode(
             x=alt.X(
                 "Start:T",
-                title="Time of day",
+                title="Phoenix local shift time",
                 axis=alt.Axis(format="%H:%M", tickCount=10, grid=True),
             ),
             x2="Finish:T",
-            y=alt.Y("Plan:N", title=None, sort=lane_order),
-            color=colour,
+            y=alt.Y("Lane:N", title=None, sort=lane_order),
+            color=alt.Color(
+                "Temperature:Q",
+                scale=alt.Scale(
+                    domain=[25, 35, 45],
+                    range=["#2563eb", "#f59e0b", "#b91c1c"],
+                ),
+                legend=alt.Legend(
+                    title="Ambient °C while working",
+                    orient="top",
+                    gradientLength=250,
+                ),
+            ),
             tooltip=tooltip,
         )
     )
@@ -271,78 +311,27 @@ def render_timeline(
         .mark_text(fontSize=11, fontWeight="bold", color="white")
         .encode(
             x=alt.X("Mid:T"),
-            y=alt.Y("Plan:N", sort=lane_order),
+            y=alt.Y("Lane:N", sort=lane_order),
             text=alt.Text("Job:N"),
             tooltip=tooltip,
         )
     )
-    st.altair_chart(
-        (bars + labels).properties(height=90 + 46 * len(lane_order)),
-        width="stretch",
-    )
-
-
-def temperature_curve_frame(
-    profiles: dict[str, TemperatureProfile], jobs: pd.DataFrame
-) -> pd.DataFrame:
-    """Sample every site's profile across the shift for the explanatory chart."""
-
-    names = dict(zip(jobs["job_id"], jobs["name"], strict=True))
-    rows = []
-    for job_id, profile in profiles.items():
-        for minute in range(8 * 60, 17 * 60 + 1, 15):
-            temperature, _ = profile.condition_at(minute)
-            rows.append(
-                {
-                    "Job": job_id,
-                    "Site": f"{job_id} · {names.get(job_id, job_id)}",
-                    "Time": clock(minute),
-                    "Temperature": round(temperature, 2),
-                }
-            )
-    return pd.DataFrame(rows)
-
-
-def render_temperature_curves(frame: pd.DataFrame) -> None:
-    """Show why the time of day matters more than the distance between sites."""
-
-    chart = (
-        alt.Chart(frame)
-        .mark_line(strokeWidth=2.5)
-        .encode(
-            x=alt.X("Time:T", title="Time of day", axis=alt.Axis(format="%H:%M")),
-            y=alt.Y(
-                "Temperature:Q",
-                title="Temperature (°C)",
-                scale=alt.Scale(zero=False),
-            ),
-            color=alt.Color("Site:N", title="Job site"),
-            tooltip=[
-                alt.Tooltip("Site:N"),
-                alt.Tooltip("Time:T", format="%H:%M"),
-                alt.Tooltip("Temperature:Q", format=".1f"),
-            ],
-        )
-        .properties(height=320)
-    )
-    st.altair_chart(chart, width="stretch")
+    st.altair_chart((bars + labels).properties(height=190), width="stretch")
 
 
 def biggest_improvement(
-    baseline: SchedulePlan, recommended: SchedulePlan
-) -> dict | None:
-    """Find the single job whose move best explains the recommendation."""
+    baseline: SchedulePlan, recommendation: SchedulePlan
+) -> dict[str, object] | None:
+    """Return the moved job with the largest modeled cooling difference."""
 
-    baseline_stops = {stop.job_id: stop for stop in baseline.stops}
-    best = None
-    for stop in recommended.stops:
-        prior = baseline_stops.get(stop.job_id)
-        if prior is None:
-            continue
+    baseline_by_job = {stop.job_id: stop for stop in baseline.stops}
+    best: dict[str, object] | None = None
+    for stop in recommendation.stops:
+        prior = baseline_by_job[stop.job_id]
         cooler_by = prior.temperature_c - stop.temperature_c
         if cooler_by <= 0.05:
             continue
-        if best is None or cooler_by > best["cooler_by"]:
+        if best is None or cooler_by > float(best["cooler_by"]):
             best = {
                 "job_id": stop.job_id,
                 "name": stop.job_name,
@@ -355,593 +344,73 @@ def biggest_improvement(
     return best
 
 
-def render_headline(
-    baseline: SchedulePlan, recommended: SchedulePlan, reduction: float | None
-) -> None:
-    """State the recommendation as a sentence before showing any numbers."""
+def maximum_site_spread(profiles: dict[str, TemperatureProfile]) -> tuple[float, int]:
+    """Return the largest same-hour temperature spread across all job sites."""
 
-    extra_travel = recommended.total_travel_minutes - baseline.total_travel_minutes
-    move = biggest_improvement(baseline, recommended)
-
-    if move is None:
-        st.info(
-            "**No reordering needed today.** On this job set the heat-aware plan "
-            "is already the efficient one, so the crew keeps the standard route."
-        )
-        return
-
-    saved = (
-        ""
-        if reduction is None
-        else f" cutting the crew's modelled heat load by **{reduction:.0%}**"
-    )
-    cost = (
-        "at no extra driving"
-        if extra_travel <= 0
-        else f"for **{extra_travel} more minutes** of driving"
-    )
-    st.success(
-        f"**Move {move['name']} ({move['job_id']}) from "
-        f"{move['from_time']} to {move['to_time']}.** The crew works it at "
-        f"**{move['to_temp']:.0f} °C instead of {move['from_temp']:.0f} °C**"
-        f"{saved} — {cost}. Same five jobs, same shift, different order."
-    )
-
-
-def render_real_temperature_controls(
-    domain_jobs: list[Job],
-) -> RealTemperatureBatch | None:
-    """Collect or reuse the exact real heatmaps that drive a schedule."""
-
-    st.caption(
-        "Historical replay using per-tile temperatures returned by FortyGuard. "
-        "No API request is made until you explicitly authorize the missing tasks."
-    )
-    date_column, sample_column, granularity_column = st.columns([1, 1.6, 1])
-    yesterday = date.today() - timedelta(days=1)
-    selected_date = date_column.date_input(
-        "Historical replay date",
-        value=min(date(2026, 7, 15), yesterday),
-        min_value=date(2021, 1, 1),
-        max_value=yesterday,
-        help=(
-            "This first real-data workflow is a historical replay. Current-day "
-            "and 12-hour forecast scheduling will use the same adapter next."
-        ),
-    )
-    sample_option = sample_column.selectbox(
-        "Temperature samples",
-        options=list(SAMPLE_TIME_OPTIONS),
-        index=0,
-        help=(
-            "Each sample is one single-hour heatmap task. Temperatures between "
-            "samples are linearly interpolated for interval scoring."
-        ),
-    )
-    granularity = granularity_column.selectbox(
-        "Map granularity (metres)", options=[100, 80, 60], index=0
-    )
-    sample_times = SAMPLE_TIME_OPTIONS[sample_option]
-
-    requests = build_profile_requests(
-        domain_jobs,
-        target_date=selected_date,
-        sample_times=sample_times,
-        granularity=granularity,
-    )
-    planned_polygon = next(iter(requests.values())).polygon_aoi
-    planned_area = polygon_area_square_miles(planned_polygon)
-    oversized = planned_area > DEFAULT_MAX_AOI_AREA_SQUARE_MILES
-    if oversized:
-        clusters = cluster_points_into_aois(
-            [job.location for job in domain_jobs],
-            max_area_square_miles=DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
-        )
-        st.error(
-            f"These jobs require {len(clusters)} bounded AOIs. Multi-AOI real "
-            "collection is not enabled yet, so no request can be submitted."
-        )
-
-    store = HeatmapSnapshotStore(HEATMAP_CACHE_PATH)
-    try:
-        collection_plan = plan_profile_collection(
-            requests,
-            store,
-            now_utc=datetime.now(UTC),
-        )
-    except CacheCorruptionError as exc:
-        st.error(f"The local FortyGuard snapshot cache failed integrity checks: {exc}")
-        return None
-
-    st.caption(
-        f"Exact request plan: **{collection_plan.request_count} heatmap tasks** "
-        f"for one {planned_area:.2f} mi² AOI — "
-        f"{collection_plan.cache_hit_count} reusable local snapshots and "
-        f"{collection_plan.new_task_count} new credit-consuming tasks."
-    )
-    request_key = tuple(
-        heatmap_request_fingerprint(request) for request in requests.values()
-    )
-    batch = None
-    if st.session_state.get("real_temperature_request_key") == request_key:
-        candidate = st.session_state.get("real_temperature_batch")
-        if isinstance(candidate, RealTemperatureBatch):
-            batch = candidate
-
-    if batch is None and collection_plan.new_task_count == 0:
-        try:
-            batch = collect_real_temperature_batch(
-                domain_jobs,
-                requests,
-                store,
-                client=None,
-                max_new_tasks=0,
-                now_utc=datetime.now(UTC),
+    temperatures_by_minute: dict[int, list[float]] = {}
+    for profile in profiles.values():
+        for point in profile.points:
+            temperatures_by_minute.setdefault(point.minute_of_day, []).append(
+                point.temperature_c
             )
-        except (CacheCorruptionError, FortyGuardError, ValueError) as exc:
-            st.error(f"The cached real-temperature profile could not be loaded: {exc}")
-            return None
-
-    if batch is None and collection_plan.new_task_count:
-        api_available = live_api_available()
-        if not api_available:
-            st.error(
-                "A FortyGuard API key is required for the missing samples. Add "
-                "FORTYGUARD_API_KEY to .env, or choose Synthetic fallback."
-            )
-        authorization = st.checkbox(
-            "I authorize up to "
-            f"{collection_plan.new_task_count} new credit-consuming FortyGuard "
-            "heatmap tasks for this exact date, AOI and sampling plan."
-        )
-        submit = st.button(
-            f"Fetch {collection_plan.new_task_count} missing real heatmaps",
-            type="primary",
-            disabled=not authorization or not api_available or oversized,
-        )
-        if submit:
-            settings = get_settings()
-            try:
-                with st.spinner(
-                    "Collecting the confirmed heatmaps. Completed samples are "
-                    "cached so an interrupted batch can resume safely..."
-                ):
-                    with FortyGuardClient(
-                        api_key=settings.fortyguard_api_key,
-                        base_url=settings.fortyguard_api_base_url,
-                        timeout_seconds=settings.fortyguard_timeout_seconds,
-                    ) as client:
-                        batch = collect_real_temperature_batch(
-                            domain_jobs,
-                            requests,
-                            store,
-                            client=client,
-                            poll_interval_seconds=(
-                                settings.fortyguard_poll_interval_seconds
-                            ),
-                            max_attempts=settings.fortyguard_max_poll_attempts,
-                            max_new_tasks=collection_plan.new_task_count,
-                            now_utc=datetime.now(UTC),
-                        )
-            except (CacheCorruptionError, FortyGuardError, ValueError) as exc:
-                st.error(str(exc))
-                st.info(
-                    "Any samples that completed before the failure were saved. "
-                    "Rerun the page to see the reduced remaining task count."
-                )
-                return None
-
-    if batch is None:
-        st.info(
-            "Authorize and fetch the missing heatmaps above. Until then, no "
-            "schedule is presented as real-data-driven."
-        )
-        return None
-
-    st.session_state["real_temperature_request_key"] = request_key
-    st.session_state["real_temperature_batch"] = batch
-    st.success(
-        "The schedule below is driven by real FortyGuard per-tile API output, "
-        "not the synthetic temperature curves."
-    )
-    with st.expander("Verify temperatures and API provenance", expanded=False):
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Requested hour": minute_label(sample.minute_of_day),
-                        "Activity ID": sample.activity_id,
-                        "Collected (UTC)": sample.collected_at_utc,
-                        "Retrieval": (
-                            "Local cache" if sample.cache_hit else "Fetched now"
-                        ),
-                    }
-                    for sample in batch.samples
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
-        )
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Job": job_id,
-                        **{
-                            minute_label(point.minute_of_day): point.temperature_c
-                            for point in profile.points
-                        },
-                    }
-                    for job_id, profile in batch.profiles.items()
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
-        )
-        st.caption(batch.request_time_assumption)
-    return batch
+    spreads = {
+        minute: max(values) - min(values)
+        for minute, values in temperatures_by_minute.items()
+        if values
+    }
+    minute = max(spreads, key=spreads.get)
+    return spreads[minute], minute
 
 
-def render_synthetic_plan_tab(jobs: pd.DataFrame) -> None:
-    """The main narrative: situation, recommendation, proof, then detail."""
+def timing_change(start_minute: int, baseline_start: int) -> str:
+    """Translate a start-time delta into dispatcher-friendly language."""
 
-    with st.container(border=True):
-        st.markdown("#### 1 · Choose the day's conditions")
-        left, right = st.columns([1.15, 1])
-        with left:
-            scenario = st.radio(
-                "Which situation are we planning for?",
-                options=["Unusual conditions", "Ordinary summer day"],
-                horizontal=True,
-                help=(
-                    "Unusual conditions simulate a day when the temperature "
-                    "forecast for one site becomes unreliable."
-                ),
-            )
-        with right:
-            uncertainty_penalty = st.slider(
-                "How cautious should we be when a forecast looks unreliable?",
-                min_value=0.0,
-                max_value=2.0,
-                value=1.0,
-                step=0.25,
-                help=(
-                    "0 ignores forecast reliability entirely. 2 plans as though an "
-                    "unreliable site could be far hotter than predicted. This is a "
-                    "planning preference, not a calibrated probability."
-                ),
-            )
-
-    unusual = scenario == "Unusual conditions"
-    certainty_overrides = {STRESS_TEST_JOB: STRESS_TEST_CERTAINTY} if unusual else None
-    if unusual:
-        st.caption(
-            f"⚠️ Simulated shift: the forecast for **{STRESS_TEST_JOB}** has dropped "
-            f"from 94% to {STRESS_TEST_CERTAINTY:.0%} confidence. Its predicted "
-            "temperature has not changed — only our trust in it."
-        )
-
-    domain_jobs, profiles = build_demo_inputs(
-        jobs, certainty_overrides=certainty_overrides
-    )
-    try:
-        plans = compare_schedules(
-            domain_jobs,
-            profiles,
-            depot=DEPOT,
-            uncertainty_penalty=uncertainty_penalty,
-        )
-    except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
-        st.error(f"A comparable four-plan result could not be produced: {exc}")
-        st.info(
-            "Check the original order and time windows. For larger job sets, "
-            "increasing the search width may also find a feasible branch."
-        )
-        return
-
-    baseline = plans[ScheduleStrategy.EFFICIENCY]
-    recommended = plans[ScheduleStrategy.CERTAINTY_AWARE]
-    reduction = relative_exposure_reduction(
-        baseline.total_adjusted_exposure_units,
-        recommended.total_adjusted_exposure_units,
-    )
-
-    st.markdown("#### 2 · What CertiRoute recommends")
-    render_headline(baseline, recommended, reduction)
-
-    first, second, third, fourth = st.columns(4)
-    first.metric(
-        "Heat exposure avoided",
-        "—" if reduction is None else f"{reduction:.0%}",
-        help=(
-            "Reduction in the crew's modelled heat load compared with the "
-            "shortest-driving route. Zero exposure on both plans shows as —."
-        ),
-    )
-    second.metric(
-        "Extra driving",
-        f"{recommended.total_travel_minutes - baseline.total_travel_minutes:+d} min",
-        help="The operational price of the safer ordering.",
-    )
-    threshold_delta = (
-        recommended.minutes_above_planning_threshold
-        - baseline.minutes_above_planning_threshold
-    )
-    third.metric(
-        "Work above 35 °C",
-        f"{recommended.minutes_above_planning_threshold:.0f} min",
-        delta=f"{threshold_delta:+.0f} min",
-        delta_color="inverse",
-        help=(
-            "Minutes the crew spends working at or above a configurable 35 °C "
-            "screening line. Not a regulatory limit."
-        ),
-    )
-    fourth.metric(
-        "Crew back at depot",
-        minute_label(recommended.route_finish_minute),
-        help="Every plan must finish inside the same shift.",
-    )
-
-    st.markdown("#### 3 · Why — the same jobs, moved through the day")
-    lane_order = [
-        PLAN_LABELS[ScheduleStrategy.EFFICIENCY],
-        PLAN_LABELS[ScheduleStrategy.CERTAINTY_AWARE],
-    ]
-    render_timeline(
-        timeline_frame(
-            plans, [ScheduleStrategy.EFFICIENCY, ScheduleStrategy.CERTAINTY_AWARE]
-        ),
-        lane_order,
-    )
-    st.caption(
-        "Each block is one job, positioned at the time it is scheduled and "
-        "coloured by the temperature the crew works in. **Red blocks moving left "
-        "into cooler blue is the entire product.** Hover any block for detail."
-    )
-
-    st.markdown("#### 4 · All four plans compared")
-    summary = pd.DataFrame(
-        [
-            {
-                "Plan": PLAN_LABELS[plan.strategy],
-                "What it optimises": PLAN_EXPLANATIONS[plan.strategy],
-                "Job order": " → ".join(stop.job_id for stop in plan.stops),
-                "Driving (min)": plan.total_travel_minutes,
-                "Heat load": plan.total_raw_exposure_units,
-                "Heat load, caution applied": plan.total_adjusted_exposure_units,
-                "Min ≥35 °C": plan.minutes_above_planning_threshold,
-                "Back at": minute_label(plan.route_finish_minute),
-            }
-            for plan in plans.values()
-        ]
-    )
-    st.dataframe(
-        summary,
-        hide_index=True,
-        width="stretch",
-        column_config={
-            "Heat load": st.column_config.NumberColumn(
-                help=(
-                    "Degree-hours above 27 °C accumulated across the shift. "
-                    "Lower is better; the unit is explained under 'How it works'."
-                ),
-                format="%.1f",
-            ),
-            "Heat load, caution applied": st.column_config.NumberColumn(
-                help=(
-                    "The same figure after inflating sites whose forecast is "
-                    "unreliable. This is what CertiRoute minimises."
-                ),
-                format="%.1f",
-            ),
-            "Min ≥35 °C": st.column_config.NumberColumn(format="%.0f"),
-        },
-    )
-
-    with st.expander("Inspect one plan in detail — map, timings and per-job figures"):
-        selected_label = st.selectbox(
-            "Plan to inspect",
-            options=[PLAN_LABELS[strategy] for strategy in ScheduleStrategy],
-            index=3,
-        )
-        selected_strategy = next(
-            strategy
-            for strategy in ScheduleStrategy
-            if PLAN_LABELS[strategy] == selected_label
-        )
-        selected_plan = plans[selected_strategy]
-        st.caption(PLAN_EXPLANATIONS[selected_strategy])
-        map_column, table_column = st.columns([1, 1.35])
-        with map_column:
-            render_route(selected_plan, DEPOT)
-        with table_column:
-            st.dataframe(schedule_rows(selected_plan), hide_index=True, width="stretch")
-
-    st.caption(
-        "Demonstration data: temperature profiles are synthetic and the certainty "
-        "figures are authored inputs, not yet measured. The scheduling, exposure "
-        "integration and comparison are real. See 'How it works & limits'."
-    )
+    difference = start_minute - baseline_start
+    if difference == 0:
+        return "No change"
+    hours, minutes = divmod(abs(difference), 60)
+    amount = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+    return f"{amount} {'later' if difference > 0 else 'earlier'}"
 
 
-def real_schedule_rows(plan: SchedulePlan) -> pd.DataFrame:
-    """Build a per-job table without displaying the neutral certainty sentinel."""
+def recommended_sequence_rows(
+    baseline: SchedulePlan, recommendation: SchedulePlan
+) -> pd.DataFrame:
+    """Build the primary dispatcher hand-off table."""
 
+    baseline_by_job = {stop.job_id: stop for stop in baseline.stops}
     return pd.DataFrame(
         [
             {
-                "Sequence": stop.sequence,
-                "Job": stop.job_id,
-                "Name": stop.job_name,
-                "Arrive": minute_label(stop.arrival_minute),
+                "Stop": stop.sequence,
+                "Work order": stop.job_id,
+                "Site and task": stop.job_name,
                 "Start": minute_label(stop.start_minute),
                 "Finish": minute_label(stop.finish_minute),
-                "Travel (min)": stop.inbound_travel_minutes,
-                "Average (°C)": stop.temperature_c,
-                "Peak (°C)": stop.peak_temperature_c,
-                "Reliability": "Not calibrated",
-                "Raw units": stop.raw_exposure_units,
-                "Minutes ≥35 °C": stop.minutes_above_planning_threshold,
-            }
-            for stop in plan.stops
-        ]
-    )
-
-
-def render_real_plan_tab(jobs: pd.DataFrame) -> None:
-    """Render a schedule whose temperatures come from FortyGuard tiles."""
-
-    domain_jobs = build_domain_jobs(jobs)
-    batch = render_real_temperature_controls(domain_jobs)
-    if batch is None:
-        return
-
-    st.info(
-        "Reliability is not calibrated yet. The optimizer applies no uncertainty "
-        "penalty in this mode, so Certainty-aware intentionally matches Heat-aware; "
-        "the neutral internal factor must not be read as 100% confidence."
-    )
-    try:
-        plans = compare_schedules(
-            domain_jobs,
-            batch.profiles,
-            depot=DEPOT,
-            uncertainty_penalty=0.0,
-        )
-    except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
-        st.error(f"A comparable four-plan result could not be produced: {exc}")
-        return
-
-    baseline = plans[ScheduleStrategy.EFFICIENCY]
-    recommended = plans[ScheduleStrategy.HEAT_AWARE]
-    reduction = relative_exposure_reduction(
-        baseline.total_raw_exposure_units,
-        recommended.total_raw_exposure_units,
-    )
-
-    st.markdown("#### 2 · What the real-temperature schedule recommends")
-    render_headline(baseline, recommended, reduction)
-    first, second, third, fourth = st.columns(4)
-    first.metric(
-        "Modeled heat exposure avoided",
-        "—" if reduction is None else f"{reduction:.0%}",
-        help="Compared with the shortest-driving route using FortyGuard temperatures.",
-    )
-    second.metric(
-        "Extra driving",
-        f"{recommended.total_travel_minutes - baseline.total_travel_minutes:+d} min",
-    )
-    threshold_delta = (
-        recommended.minutes_above_planning_threshold
-        - baseline.minutes_above_planning_threshold
-    )
-    third.metric(
-        "Work above 35 °C",
-        f"{recommended.minutes_above_planning_threshold:.0f} min",
-        delta=f"{threshold_delta:+.0f} min",
-        delta_color="inverse",
-        help="A configurable comparison line, not a regulatory safety limit.",
-    )
-    fourth.metric("Crew back at depot", minute_label(recommended.route_finish_minute))
-
-    st.markdown("#### 3 · The same real heat tiles, translated into a decision")
-    compared_strategies = [
-        ScheduleStrategy.EFFICIENCY,
-        ScheduleStrategy.HEAT_AWARE,
-    ]
-    render_timeline(
-        timeline_frame(plans, compared_strategies),
-        [PLAN_LABELS[strategy] for strategy in compared_strategies],
-        show_certainty=False,
-    )
-    st.caption(
-        "Each block uses the linearly interpolated FortyGuard tile temperatures "
-        "shown in the provenance panel above."
-    )
-
-    st.markdown("#### 4 · All four plans compared")
-    summary = pd.DataFrame(
-        [
-            {
-                "Plan": PLAN_LABELS[plan.strategy],
-                "What it optimises": (
-                    "Same as Heat-aware until reliability is calibrated."
-                    if plan.strategy is ScheduleStrategy.CERTAINTY_AWARE
-                    else PLAN_EXPLANATIONS[plan.strategy]
+                "Ambient temperature": f"{stop.temperature_c:.1f} °C",
+                "Change from baseline": timing_change(
+                    stop.start_minute,
+                    baseline_by_job[stop.job_id].start_minute,
                 ),
-                "Job order": " → ".join(stop.job_id for stop in plan.stops),
-                "Driving (min)": plan.total_travel_minutes,
-                "Heat load": plan.total_raw_exposure_units,
-                "Min ≥35 °C": plan.minutes_above_planning_threshold,
-                "Back at": minute_label(plan.route_finish_minute),
             }
-            for plan in plans.values()
+            for stop in recommendation.stops
         ]
     )
-    st.dataframe(summary, hide_index=True, width="stretch")
-
-    with st.expander("Inspect one real-data plan in detail"):
-        selected_label = st.selectbox(
-            "Plan to inspect",
-            options=[PLAN_LABELS[strategy] for strategy in ScheduleStrategy],
-            index=2,
-            key="real_plan_to_inspect",
-        )
-        selected_strategy = next(
-            strategy
-            for strategy in ScheduleStrategy
-            if PLAN_LABELS[strategy] == selected_label
-        )
-        selected_plan = plans[selected_strategy]
-        map_column, table_column = st.columns([1, 1.35])
-        with map_column:
-            render_route(selected_plan, DEPOT)
-        with table_column:
-            st.dataframe(
-                real_schedule_rows(selected_plan), hide_index=True, width="stretch"
-            )
-
-    st.caption(
-        f"REAL TEMPERATURE SOURCE · FortyGuard Temperature API · "
-        f"{batch.target_date.isoformat()} · {batch.granularity} m tiles. Job and "
-        "travel inputs remain the committed demonstration scenario."
-    )
 
 
-def render_plan_tab(jobs: pd.DataFrame) -> None:
-    """Choose between the real-data workflow and the offline fallback."""
-
-    with st.container(border=True):
-        st.markdown("#### 1 · Choose the temperature evidence")
-        source = st.radio(
-            "Temperature source",
-            options=[REAL_DATA_SOURCE, SYNTHETIC_DATA_SOURCE],
-            horizontal=True,
-            help=(
-                "Real mode maps each job to FortyGuard tiles. Synthetic fallback "
-                "keeps the optimizer demonstrable without network access."
-            ),
-        )
-    if source == REAL_DATA_SOURCE:
-        render_real_plan_tab(jobs)
-    else:
-        render_synthetic_plan_tab(jobs)
-
-
-def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
-    """Render the selected job order as a route-like planning schematic."""
+def render_route(plan: SchedulePlan) -> None:
+    """Render the visit sequence as a schematic rather than road navigation."""
 
     route = [
-        [depot.longitude, depot.latitude],
+        [DEPOT.longitude, DEPOT.latitude],
         *[[stop.longitude, stop.latitude] for stop in plan.stops],
-        [depot.longitude, depot.latitude],
+        [DEPOT.longitude, DEPOT.latitude],
     ]
     path_layer = pdk.Layer(
         "PathLayer",
         [{"path": route}],
         get_path="path",
-        get_color=[14, 116, 144],
+        get_color=[8, 127, 91],
         get_width=5,
         width_min_pixels=3,
     )
@@ -950,211 +419,544 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
         [
             {
                 "position": [stop.longitude, stop.latitude],
-                "sequence": stop.sequence,
                 "label": f"{stop.sequence}. {stop.job_id}",
             }
             for stop in plan.stops
         ],
         get_position="position",
-        get_radius=55,
+        get_radius=80,
         get_fill_color=[234, 88, 12],
         pickable=True,
-    )
-    view_state = pdk.ViewState(
-        latitude=sum(point[1] for point in route) / len(route),
-        longitude=sum(point[0] for point in route) / len(route),
-        zoom=13.5,
     )
     st.pydeck_chart(
         pdk.Deck(
             layers=[path_layer, stop_layer],
-            initial_view_state=view_state,
+            initial_view_state=pdk.ViewState(
+                latitude=33.444,
+                longitude=-112.015,
+                zoom=11.3,
+            ),
             tooltip={"text": "{label}"},
         ),
         width="stretch",
     )
-
-
-def live_api_available() -> bool:
-    """Check configuration without rendering or logging the secret."""
-
-    try:
-        settings = get_settings()
-    except ValidationError:
-        return False
-    return bool(settings.fortyguard_api_key.get_secret_value().strip())
-
-
-def render_jobs_tab(jobs: pd.DataFrame) -> None:
-    """Show the inputs, and the time-of-day spread that makes ordering matter."""
-
-    st.markdown("#### The five demonstration jobs being scheduled")
     st.caption(
-        "One crew, one shift, 08:00–17:00, starting and finishing at the depot. "
-        "Every plan must complete all five inside their time windows. The job "
-        "coordinates and constraints are demo inputs; use the plan tab for real "
-        "FortyGuard temperatures."
+        "Lines show visit order only. Travel minutes use straight-line distance "
+        "at an assumed average speed; this prototype is not turn-by-turn routing."
     )
 
-    display = jobs.rename(
-        columns={
-            "job_id": "Job",
-            "name": "Site",
-            "duration_minutes": "Minutes on site",
-            "priority": "Priority",
-            "earliest_start": "Not before",
-            "latest_finish": "Finish by",
-            "sample_temperature_c": "Peak-hour °C",
-            "sample_certainty": "Forecast certainty",
-        }
+
+def render_headline(
+    baseline: SchedulePlan,
+    recommendation: SchedulePlan,
+    profiles: dict[str, TemperatureProfile],
+    reduction: float | None,
+) -> None:
+    """State the operational decision before supporting charts or tables."""
+
+    order_changed = [stop.job_id for stop in baseline.stops] != [
+        stop.job_id for stop in recommendation.stops
+    ]
+    meaningful_reduction = reduction is not None and reduction >= 0.005
+    extra_travel = recommendation.total_travel_minutes - baseline.total_travel_minutes
+    if not order_changed or not meaningful_reduction:
+        spread, minute = maximum_site_spread(profiles)
+        st.info(
+            "### Keep the distance-efficient route for this replay\n\n"
+            "CertiRoute found no lower-heat ordering worth additional travel. "
+            f"Across the six sites, the largest same-hour temperature spread was "
+            f"**{spread:.2f} °C at {minute_label(minute)}**. This is a valid "
+            "planning result, not a data failure."
+        )
+        return
+
+    move = biggest_improvement(baseline, recommendation)
+    travel_phrase = (
+        "with no added estimated travel"
+        if extra_travel <= 0
+        else f"for **{extra_travel} added minutes** of estimated travel"
     )
+    if move is None:
+        st.success(
+            "### Use the heat-aware order\n\n"
+            f"It lowers modeled ambient-heat load by **{reduction:.1%}** "
+            f"{travel_phrase}, while completing every job inside its window."
+        )
+        return
+
+    st.success(
+        f"### Start {move['name']} at {move['to_time']}\n\n"
+        f"The largest improvement moves **{move['job_id']}** from "
+        f"{move['from_time']} to {move['to_time']}, when its modeled ambient "
+        f"temperature is **{float(move['cooler_by']):.1f} °C cooler**. The full "
+        f"order lowers modeled ambient-heat load by **{reduction:.1%}** "
+        f"{travel_phrase}."
+    )
+
+
+def render_metrics(
+    baseline: SchedulePlan,
+    recommendation: SchedulePlan,
+    reduction: float | None,
+) -> None:
+    """Show the benefit, operational cost, and completeness in four cards."""
+
+    exposure_value = (
+        "No change"
+        if reduction is None or abs(reduction) < 0.005
+        else f"{reduction:.1%} lower"
+    )
+    threshold_change = (
+        recommendation.minutes_above_planning_threshold
+        - baseline.minutes_above_planning_threshold
+    )
+    extra_travel = recommendation.total_travel_minutes - baseline.total_travel_minutes
+    columns = st.columns(4)
+    columns[0].metric(
+        "Modeled exposure",
+        exposure_value,
+        help=(
+            "Degree-hours above 27 °C integrated across exact work minutes. "
+            "This is a planning comparison, not a medical risk score."
+        ),
+    )
+    columns[1].metric(
+        "Hot-work time ≥35 °C",
+        f"{recommendation.minutes_above_planning_threshold:.0f} min",
+        delta=(
+            None
+            if abs(threshold_change) < 0.05
+            else f"{threshold_change:+.0f} min vs baseline"
+        ),
+        delta_color="inverse",
+        help="A configurable comparison line, not a regulatory limit.",
+    )
+    columns[2].metric(
+        "Added estimated travel",
+        f"{extra_travel:+d} min",
+        help="Estimated from straight-line distance at 25 km/h, not road navigation.",
+    )
+    columns[3].metric(
+        "Jobs completed on time",
+        f"{len(recommendation.stops)} / {len(baseline.stops)}",
+        help="Every job remains inside its configured time window.",
+    )
+
+
+def render_result(batch: RealTemperatureBatch, jobs_frame: pd.DataFrame) -> None:
+    """Turn a completed real-temperature batch into the one-page decision."""
+
+    jobs = build_domain_jobs(jobs_frame)
+    try:
+        plans = compare_schedules(
+            jobs,
+            batch.profiles,
+            depot=DEPOT,
+            uncertainty_penalty=0.0,
+            heat_weight=HEAT_WEIGHT,
+        )
+    except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
+        st.error(
+            "CertiRoute could not produce two comparable schedules while keeping "
+            f"every constraint: {exc}"
+        )
+        return
+
+    baseline = plans[ScheduleStrategy.EFFICIENCY]
+    recommendation = plans[ScheduleStrategy.HEAT_AWARE]
+    reduction = relative_exposure_reduction(
+        baseline.total_raw_exposure_units,
+        recommendation.total_raw_exposure_units,
+    )
+
+    st.markdown("## The recommendation")
+    render_headline(baseline, recommendation, batch.profiles, reduction)
+    render_metrics(baseline, recommendation, reduction)
+
+    schedules_match = [stop.job_id for stop in baseline.stops] == [
+        stop.job_id for stop in recommendation.stops
+    ]
+    st.markdown(
+        "### Why the schedule stays the same"
+        if schedules_match
+        else "### See what moved and why"
+    )
+    st.caption(
+        "Each block is one job. Position shows when the crew works; color shows "
+        "the FortyGuard ambient temperature at that site. Hover for exact values."
+    )
+    render_timeline(plans)
+
+    st.markdown("### Recommended job sequence")
     st.dataframe(
-        display[
-            [
-                "Job",
-                "Site",
-                "Minutes on site",
-                "Priority",
-                "Not before",
-                "Finish by",
-                "Peak-hour °C",
-                "Forecast certainty",
-            ]
-        ],
+        recommended_sequence_rows(baseline, recommendation),
         hide_index=True,
         width="stretch",
         column_config={
-            "Forecast certainty": st.column_config.ProgressColumn(
-                help="How much the temperature estimate for this site can be trusted.",
-                min_value=0.0,
-                max_value=1.0,
-                format="%.0f%%",
-            ),
-            "Priority": st.column_config.NumberColumn(
-                help="5 is most important. Higher priority work is pulled earlier."
-            ),
+            "Stop": st.column_config.NumberColumn(width="small"),
+            "Work order": st.column_config.TextColumn(width="small"),
+            "Site and task": st.column_config.TextColumn(width="large"),
         },
     )
 
-    st.markdown("#### Synthetic fallback profile shape")
-    _, profiles = build_demo_inputs(jobs)
-    render_temperature_curves(temperature_curve_frame(profiles, jobs))
-    st.caption(
-        "The sites do not heat up alike. Chase Field climbs roughly 12 °C across "
-        "the morning while City Hall barely moves, so the same 40 minutes of work "
-        "costs several times more heat depending only on when it is scheduled. "
-        "That gap is what the scheduler harvests."
-    )
-
-    st.markdown("#### Where they are")
-    st.map(jobs[["latitude", "longitude"]], zoom=13)
+    render_detail_sections(batch, jobs_frame, plans)
 
 
-def render_method_tab() -> None:
-    """Explain the mechanism and state the boundaries in plain language."""
+def render_detail_sections(
+    batch: RealTemperatureBatch,
+    jobs_frame: pd.DataFrame,
+    plans: dict[ScheduleStrategy, SchedulePlan],
+) -> None:
+    """Keep inputs, provenance, implementation detail, and caveats secondary."""
+
+    with st.expander("Review the six demonstration work orders"):
+        display = jobs_frame.rename(
+            columns={
+                "job_id": "Work order",
+                "name": "Site and fictional task",
+                "duration_minutes": "Minutes on site",
+                "priority": "Priority (5 highest)",
+                "earliest_start": "Not before",
+                "latest_finish": "Finish by",
+            }
+        )
+        st.dataframe(
+            display[
+                [
+                    "Work order",
+                    "Site and fictional task",
+                    "Minutes on site",
+                    "Priority (5 highest)",
+                    "Not before",
+                    "Finish by",
+                ]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Landmarks are real. Tasks, priorities, durations, windows, and "
+            "approximate service points are fictional demonstration inputs."
+        )
+        st.map(jobs_frame[["latitude", "longitude"]], zoom=11)
+
+    with st.expander("Verify the FortyGuard temperature evidence"):
+        st.markdown(
+            f"**Source:** FortyGuard Temperature API  ·  **Replay date:** "
+            f"{batch.target_date.isoformat()}  ·  **Samples:** "
+            f"{len(batch.samples)} hourly heatmaps  ·  **Tile setting:** "
+            f"{batch.granularity} m"
+        )
+        temperatures = pd.DataFrame(
+            [
+                {
+                    "Work order": job_id,
+                    **{
+                        minute_label(point.minute_of_day): point.temperature_c
+                        for point in profile.points
+                    },
+                }
+                for job_id, profile in batch.profiles.items()
+            ]
+        )
+        st.dataframe(temperatures, hide_index=True, width="stretch")
+        st.caption(
+            "Temperatures between hourly samples are linearly interpolated. "
+            "No synthetic or substitute temperature profile is generated."
+        )
+        st.markdown("**Source records**")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Requested hour": minute_label(sample.minute_of_day),
+                        "FortyGuard activity ID": sample.activity_id,
+                        "Collected (UTC)": sample.collected_at_utc,
+                        "Retrieved": (
+                            "Saved API response" if sample.cache_hit else "This run"
+                        ),
+                    }
+                    for sample in batch.samples
+                ]
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(batch.request_time_assumption)
+
+    with st.expander("Compare planning methods"):
+        recommendation = plans[ScheduleStrategy.HEAT_AWARE]
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Plan": PLAN_LABELS[strategy],
+                        "What it balances": (
+                            "Estimated travel and priority delay; heat ignored"
+                            if strategy is ScheduleStrategy.EFFICIENCY
+                            else (
+                                "Estimated travel, priority delay, and modeled exposure"
+                            )
+                        ),
+                        "Order": " → ".join(
+                            stop.job_id for stop in plans[strategy].stops
+                        ),
+                        "Estimated travel": (
+                            f"{plans[strategy].total_travel_minutes} min"
+                        ),
+                        "Modeled exposure": (
+                            f"{plans[strategy].total_raw_exposure_units:.2f} "
+                            "degree-hours"
+                        ),
+                        "Back at depot": minute_label(
+                            plans[strategy].route_finish_minute
+                        ),
+                    }
+                    for strategy in (
+                        ScheduleStrategy.EFFICIENCY,
+                        ScheduleStrategy.HEAT_AWARE,
+                    )
+                ]
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.markdown(
+            f"The heat-aware score values one degree-hour above "
+            f"{REFERENCE_TEMPERATURE_C:.0f} °C like {HEAT_WEIGHT:.0f} minutes of "
+            "estimated travel, while retaining the same priority-delay term. "
+            "That preference should become customer-configurable in production."
+        )
+        render_route(recommendation)
+
+    with st.expander("How the score works—and what comes next"):
+        st.markdown(
+            """
+            **Modeled ambient-heat load** is the exact time integral of degrees
+            above 27 °C while the crew is on site. For example, one hour at
+            37 °C contributes 10 degree-hours. Lower is better.
+
+            The scheduler evaluates feasible job orders, including travel,
+            waiting, job windows, priorities, and the temperature throughout
+            each work interval. The operations baseline ignores heat; the
+            recommendation adds modeled exposure to the same operational score.
+
+            **Research layer, not claimed in this result:** future work will
+            calibrate forecast reliability from historical forecast-versus-
+            realization error, then plan more conservatively under distribution
+            shift. Until that evidence exists, this real-data page does not show
+            or imply a certainty score.
+            """
+        )
+
+
+def render_empty_state(*, missing_count: int, key_available: bool) -> None:
+    """Explain exactly what the primary action will produce."""
 
     st.markdown(
         """
-        #### What the score means
-
-        Heat load is measured in **degree-hours above 27 °C**. A crew working
-        one hour at 37 °C accumulates 10; the same hour at 29 °C accumulates 2.
-        Lower is better. It is deliberately simple so you can check it by hand.
-
-        Where a site's forecast is unreliable, that figure is inflated before
-        the optimiser sees it, so an untrustworthy site is treated as though it
-        might be hotter than predicted. How much is the caution slider.
-
-        #### How a plan is chosen
-
-        Each candidate ordering is simulated minute by minute: driving between
-        sites, waiting for time windows to open, and the temperature curve
-        integrated across the exact minutes the crew is on site. The four plans
-        differ only in what they are told to minimise.
-
-        #### What is real today, and what is not
-
-        | Part | Status |
-        | --- | --- |
-        | Scheduling, exposure integration, plan comparison | Real and tested |
-        | FortyGuard API connection | Real, verified against the live service |
-        | Temperature curves in real mode | **Real per-job FortyGuard tiles** |
-        | Offline fallback curves | **Synthetic and explicitly labelled** |
-        | Forecast certainty figures | **Authored inputs, not yet measured** |
-
-        The remaining research work is a certainty score calibrated against
-        archived forecast/realization error. Until then, real mode does not show
-        or apply a confidence claim.
-
-        #### Limits — please read
-
-        CertiRoute is **decision support for planning, not a safety
-        determination**. Ambient temperature alone cannot establish Heat Index
-        or WBGT, and it knows nothing about humidity, radiant load, workload,
-        PPE burden, acclimatisation, or individual susceptibility.
-
-        It does not determine that work is safe, certify OSHA compliance, or
-        replace an on-site WBGT assessment, a heat illness prevention plan, or
-        qualified safety advice. The 35 °C line used above is a configurable
-        comparison threshold, not a regulatory limit. Symptoms always override
-        any score on this page.
-        """
+        <div class="empty-state">
+          <h3 style="margin-top:0">Your recommendation will appear here</h3>
+          <p>Select a replay date and build the plan. CertiRoute will load hourly
+          temperature at every work site, compare feasible job orders, and show
+          the heat benefit beside its travel cost.</p>
+          <p><strong>Operations baseline:</strong> heat ignored &nbsp;·&nbsp;
+          <strong>Heat-aware recommendation:</strong> ambient-temperature
+          exposure added</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+    if missing_count and not key_available:
+        st.error(
+            "FortyGuard connection required. Add `FORTYGUARD_API_KEY` to `.env` "
+            "and reload. No schedule is calculated without real temperature evidence."
+        )
+    elif missing_count:
+        st.info(
+            f"Ready to build. {10 - missing_count} of 10 hourly API responses "
+            f"are already saved; the remaining {missing_count} will be retrieved."
+        )
+
+
+def render_safety_boundary() -> None:
+    """Keep the responsible-use limit visible without hiding it in an expander."""
+
+    st.markdown(
+        """
+        <div class="safety-note">
+        <strong>Planning support, not safety clearance.</strong> This prototype
+        models ambient temperature only. It does not account for humidity,
+        radiant heat, workload, clothing or PPE, acclimatization, or worker
+        health. The 35 °C comparison line is configurable and is not a
+        regulatory limit. It does not determine that work is safe.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def collect_batch(
+    jobs: list[Job],
+    plan: HeatmapCollectionPlan,
+    store: HeatmapSnapshotStore,
+) -> RealTemperatureBatch:
+    """Collect the exact missing set, or rebuild profiles entirely from cache."""
+
+    if plan.new_task_count == 0:
+        return collect_real_temperature_batch_from_plan(
+            jobs,
+            plan,
+            store,
+            client=None,
+            max_new_tasks=0,
+            now_utc=datetime.now(UTC),
+        )
+
+    settings = get_settings()
+    with FortyGuardClient(
+        api_key=settings.fortyguard_api_key,
+        base_url=settings.fortyguard_api_base_url,
+        timeout_seconds=settings.fortyguard_timeout_seconds,
+    ) as client:
+        return collect_real_temperature_batch_from_plan(
+            jobs,
+            plan,
+            store,
+            client=client,
+            poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
+            max_attempts=settings.fortyguard_max_poll_attempts,
+            max_new_tasks=plan.new_task_count,
+            now_utc=datetime.now(UTC),
+        )
 
 
 st.set_page_config(page_title="CertiRoute", page_icon="🌡️", layout="wide")
+inject_styles()
+render_hero()
+render_three_steps()
 
-st.title("🌡️ CertiRoute")
-st.subheader("Schedule outdoor crews around the heat, not just the map")
+jobs_frame = load_sample_jobs()
+domain_jobs = build_domain_jobs(jobs_frame)
+key_available = api_key_available()
 
+st.markdown("## Plan this Phoenix shift")
 with st.container(border=True):
-    intro, steps = st.columns([1.4, 1])
-    with intro:
-        st.markdown(
-            """
-            **The problem.** A field crew's jobs can be done in any order that
-            respects their time windows. Ordinary routing tools pick the order
-            with the least driving — and unknowingly park workers at the hottest
-            site during the hottest hour. The same 40-minute job can cost
-            **six times more heat exposure** at 2pm than at 8am.
-
-            **What this does.** It reorders the day so the hot work happens in
-            the cool hours, tells you exactly what that costs in extra driving,
-            and hedges harder wherever the temperature forecast is unreliable.
-            """
+    summary_column, date_column, action_column = st.columns([1.55, 1, 1.05])
+    with summary_column:
+        st.markdown("**Phoenix field-service crew**")
+        st.write("6 work orders · 08:00–17:00 · one crew · depot return required")
+        st.caption(
+            "Real landmarks; fictional tasks and constraints. U.S. historical "
+            "temperature replay."
         )
-    with steps:
-        st.markdown(
-            """
-            **How to read this page**
-
-            1. Pick the day's conditions →
-            2. Read the one-line recommendation
-            3. Check the coloured timeline — red blocks moving into the cool
-               morning is the whole idea
-            4. Compare all four plans in the table
-            """
+    with date_column:
+        yesterday = date.today() - timedelta(days=1)
+        selected_date = st.date_input(
+            "Historical replay date",
+            value=min(DEFAULT_REPLAY_DATE, yesterday),
+            min_value=date(2021, 1, 1),
+            max_value=yesterday,
+            help="The current product slice replays a completed Phoenix workday.",
         )
 
-jobs_with_scores = add_exposure_scores(load_sample_jobs())
-plan_tab, jobs_tab, live_tab, method_tab = st.tabs(
-    [
-        "📋 The plan",
-        "🧰 Today's jobs",
-        "🛰️ Live temperature data",
-        "📖 How it works & limits",
-    ]
-)
-with plan_tab:
-    render_plan_tab(jobs_with_scores)
-with jobs_tab:
-    render_jobs_tab(jobs_with_scores)
-with live_tab:
-    st.markdown("#### Real temperature data now drives the schedule")
-    st.info(
-        "Open **The plan** and choose **FortyGuard API (real)**. That workflow "
-        "maps each job to returned temperature tiles, shows the exact task count "
-        "before submission, caches completed results, and displays provenance."
+    requests = build_profile_requests(
+        domain_jobs,
+        target_date=selected_date,
+        sample_times=HOURLY_SAMPLE_TIMES,
+        granularity=GRANULARITY_METRES,
     )
-with method_tab:
-    render_method_tab()
+    area = polygon_area_square_miles(next(iter(requests.values())).polygon_aoi)
+    oversized = area > DEFAULT_MAX_AOI_AREA_SQUARE_MILES
+    store = HeatmapSnapshotStore(cache_path())
+    with action_column:
+        try:
+            with st.spinner("Checking saved temperature evidence…"):
+                collection_plan = plan_profile_collection(
+                    requests,
+                    store,
+                    now_utc=datetime.now(UTC),
+                )
+        except CacheCorruptionError as exc:
+            st.error(f"Saved FortyGuard evidence failed its integrity check: {exc}")
+            st.stop()
+        build_clicked = st.button(
+            "Build heat-aware schedule",
+            type="primary",
+            width="stretch",
+            disabled=(
+                oversized or (collection_plan.new_task_count > 0 and not key_available)
+            ),
+        )
+        st.caption(
+            f"{collection_plan.cache_hit_count}/10 temperature hours ready · "
+            f"{area:.2f} mi² service area"
+        )
+
+if oversized:
+    st.error(
+        f"This {area:.2f} mi² scenario exceeds the "
+        f"{DEFAULT_MAX_AOI_AREA_SQUARE_MILES:.0f} mi² request limit."
+    )
+
+request_key = (
+    str(store.root),
+    *(heatmap_request_fingerprint(request) for request in requests.values()),
+)
+batch: RealTemperatureBatch | None = None
+if st.session_state.get("certiroute_request_key") == request_key:
+    saved_batch = st.session_state.get("certiroute_temperature_batch")
+    if isinstance(saved_batch, RealTemperatureBatch):
+        batch = saved_batch
+
+# A complete historical cache is safe to load without a network side effect.
+if batch is None and not oversized and collection_plan.new_task_count == 0:
+    try:
+        batch = collect_batch(
+            domain_jobs,
+            collection_plan,
+            store,
+        )
+    except (CacheCorruptionError, FortyGuardError, ValueError) as exc:
+        st.error(f"Saved FortyGuard evidence could not be loaded: {exc}")
+
+if build_clicked and not oversized:
+    try:
+        with st.status("Building a heat-aware workday…", expanded=True) as status:
+            st.write("✓ Checked six jobs, deadlines, and the depot return")
+            progress = st.progress(
+                collection_plan.cache_hit_count / collection_plan.request_count,
+                text=(
+                    "Loading hourly FortyGuard temperatures · "
+                    f"{collection_plan.cache_hit_count} of 10 already saved"
+                ),
+            )
+            batch = collect_batch(
+                domain_jobs,
+                collection_plan,
+                store,
+            )
+            progress.progress(1.0, text="Loaded 10 of 10 temperature hours")
+            st.write("✓ Matched every work site to its returned temperature tile")
+            st.write("✓ Compared feasible job orders and preserved every window")
+            status.update(label="Heat-aware workday ready", state="complete")
+    except (CacheCorruptionError, FortyGuardError, ValidationError, ValueError) as exc:
+        batch = None
+        st.error(f"The temperature lookup could not be completed: {exc}")
+        st.info(
+            "Any completed API responses were saved. Retry to continue from the "
+            "remaining hours; no substitute data will be used."
+        )
+
+if batch is not None:
+    st.session_state["certiroute_request_key"] = request_key
+    st.session_state["certiroute_temperature_batch"] = batch
+    render_result(batch, jobs_frame)
+else:
+    render_empty_state(
+        missing_count=collection_plan.new_task_count,
+        key_available=key_available,
+    )
+
+st.markdown("---")
+render_safety_boundary()

@@ -1,10 +1,14 @@
-# Sample data
+# Demonstration work orders
 
-The committed Phoenix job coordinates, durations, priorities, and time windows
-are demonstration inputs. The temperature and certainty columns are used only
-by the explicitly labelled synthetic fallback.
+The six work orders form a fictional Phoenix field-service shift. The landmarks
+are real, but the tasks, priorities, durations, time windows, and approximate
+service points are demonstration inputs—not claims about actual assets or work
+at those locations.
 
-Real FortyGuard heatmap responses are collected locally under Git-ignored
-`data/raw/fortyguard_heatmap_snapshots/`; they are not committed here. Do not
-place credentials, private customer data, or unlicensed datasets in this
+Temperatures are not stored in this sample file and are never substituted with
+generated profiles in the product interface. CertiRoute retrieves temperature
+evidence from the FortyGuard API and stores completed responses locally under
+Git-ignored `data/raw/fortyguard_heatmap_snapshots/`.
+
+Do not place credentials, private customer data, or unlicensed datasets in this
 directory.

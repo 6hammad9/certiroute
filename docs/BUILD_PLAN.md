@@ -1,9 +1,10 @@
 # Build Plan
 
-Status as of 2026-08-21: the scheduler now consumes per-job FortyGuard heatmap
-tiles in a credit-gated historical replay, while retaining an explicitly
-labelled offline fallback. The current research focus is collecting the evidence
-needed to replace synthetic certainty inputs with calibrated forecast intervals.
+Status as of 2026-08-21: the product now presents one guided, real-data-only
+historical replay. It consumes ten hourly per-job FortyGuard heatmap tiles,
+compares a distance-efficient operations baseline with a heat-aware schedule,
+and keeps provenance and limitations below the decision. The current research
+focus is collecting the evidence needed for calibrated forecast intervals.
 
 ## Phase 1 — Data contract and vertical slice
 
@@ -12,9 +13,10 @@ needed to replace synthetic certainty inputs with calibrated forecast intervals.
 - [x] Define the job, temperature observation, risk estimate, and schedule models.
 - [x] Build one API request through to one visible dashboard result.
 - [x] Map returned temperature tiles to each job and feed them into scheduling.
-- [x] Gate multi-hour collection behind an exact request count and local cache.
-- [x] Add a deterministic sample-data mode so the demo never depends entirely on a
-  live external call.
+- [x] Gate network collection behind one explicit build action and an append-only
+  local API-response cache.
+- [x] Add deterministic, API-shaped cached fixtures so automated UI tests never
+  use the network or substitute product data.
 
 ## Phase 2 — Baseline scheduling
 
@@ -37,16 +39,22 @@ needed to replace synthetic certainty inputs with calibrated forecast intervals.
 
 ## Phase 4 — Product demo
 
-- [x] Build the first map, timeline, schedule table, comparison cards, and method
-  panel.
-- [x] Create one realistic customer scenario and one synthetic shifted scenario.
+- [x] Rebuild the dashboard as one newcomer-friendly page with a three-step
+  tutorial, one action, one recommendation, four business metrics, two-plan
+  timeline, dispatcher sequence, and secondary evidence expanders.
+- [x] Remove the synthetic fallback, certainty controls, duplicate four-plan
+  comparison, and API jargon from the customer path.
+- [x] Create one realistic demonstration scenario spanning six Phoenix land-cover
+  contexts while keeping fictional work orders explicitly labelled.
 - [ ] Add a timeline, Pareto trade-off control, and downloadable results.
 - [x] Add bounded polling, retry handling, caching primitives, and AOI guards.
-- [ ] Replace the compact API-plumbing portfolio with a full-shift Phoenix
-  scenario spanning meaningfully different microclimates, while keeping every
-  requested AOI and task count explicit. The verified downtown sample has only
-  about 0.01–0.04 °C tile standard deviation, so it proves integration but is
-  not yet the strongest optimization story.
+- [x] Replace the compact 0.78 mi², 230-work-minute API-plumbing portfolio with a
+  9.48 mi², 410-work-minute Phoenix corridor. The real 2026-07-15 replay is a
+  scientifically honest no-change result: the same route minimizes both the
+  operational score and modeled heat load, with a maximum same-hour site spread
+  of roughly 0.6 °C.
+- [ ] Evaluate additional dates and customer portfolios; select a submission
+  replay only from measured API outcomes, never by inventing temperature data.
 
 ## Phase 5 — Submission
 

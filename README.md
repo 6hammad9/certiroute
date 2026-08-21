@@ -1,8 +1,9 @@
 # CertiRoute
 
-CertiRoute is a certainty-aware heat-risk scheduler for mobile outdoor crews.
-It converts FortyGuard's hyperlocal temperature intelligence into job sequences
-with lower modeled exposure instead of stopping at maps or threshold alerts.
+CertiRoute is a heat-aware scheduler for mobile outdoor crews. It converts
+FortyGuard's hyperlocal temperature intelligence into an operational decision:
+keep the distance-efficient work order, or change it when the modeled exposure
+benefit justifies the travel trade-off.
 
 The working product and research brief is in
 [`docs/PROJECT_IDEA.md`](docs/PROJECT_IDEA.md).
@@ -45,18 +46,24 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m streamlit run app\main.py
 ```
 
-The plan defaults to **FortyGuard API (real)**. A historical replay samples
-three single-hour heatmaps by default, maps every job coordinate to its returned
-temperature tile, and uses those values in the schedule. Before any missing
-sample is submitted, the UI shows the exact task count and requires explicit
-authorization. Completed responses are cached under Git-ignored `data/raw/` and
-shown with activity IDs and collection timestamps.
+The interface is one guided, real-data-only page:
 
-An explicitly labelled synthetic fallback remains available for offline demos
-and for exercising the future certainty-aware method. Real mode does not invent
-a confidence score: until forecast/realization calibration is complete, its
-certainty-aware plan intentionally coincides with the point-temperature
-heat-aware plan.
+1. Review six fictional work orders at real Phoenix landmarks.
+2. Build a historical replay from ten hourly, per-site FortyGuard heatmaps.
+3. Compare the distance-efficient operations baseline with the heat-aware order.
+4. Read the modeled-exposure benefit beside hot-work time, estimated travel,
+   completion, and auditable API provenance.
+
+The default replay covers one 9.48 mi² Phoenix service area at 60 m tile
+granularity. Missing hours are retrieved only after **Build heat-aware schedule**
+is clicked. Completed responses are cached under Git-ignored `data/raw/`, so an
+interrupted collection resumes and a prepared demonstration reloads from real
+API evidence. The product interface never generates substitute temperature
+profiles.
+
+Forecast reliability remains a research layer rather than a current UI claim.
+Until forecast-versus-realization calibration is complete, CertiRoute does not
+display or optimize a certainty score in its real-data result.
 
 Never commit `.env` or an API key.
 

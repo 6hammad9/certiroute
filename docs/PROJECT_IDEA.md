@@ -2,10 +2,24 @@
 
 ## One-sentence pitch
 
-CertiRoute uses FortyGuard's street-level temperature intelligence to build
-certainty-aware daily schedules for mobile outdoor crews, minimizing cumulative
-heat exposure while respecting travel time, job duration, priority, and
-deadlines.
+CertiRoute uses FortyGuard's street-level temperature intelligence to decide
+whether a mobile crew's work order should change, reducing modeled cumulative
+heat exposure when the benefit justifies the travel cost while preserving job
+duration, priority, deadlines, and depot return.
+
+## Current product slice
+
+The working interface is deliberately narrower than the full research vision:
+
+- six fictional work orders at real Phoenix landmarks;
+- ten hourly FortyGuard heatmaps with no substitute temperature data;
+- one distance-efficient operations baseline and one heat-aware recommendation;
+- an explicit recommendation to reorder **or keep the baseline**;
+- exposure, hot-work time, estimated travel, completion, and source provenance;
+- no certainty score until forecast reliability is empirically calibrated.
+
+This keeps the professor-inspired reliability work as a defensible next layer
+without presenting an authored confidence value as measured evidence.
 
 ## Hackathon positioning
 

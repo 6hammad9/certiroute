@@ -9,7 +9,7 @@ snapshot and every job must be covered by a returned temperature tile.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Protocol
 
@@ -17,6 +17,7 @@ from certiroute.collection import (
     HeatmapSnapshot,
     HeatmapSnapshotStore,
     SnapshotTemporalScope,
+    heatmap_request_fingerprint,
 )
 from certiroute.domain import Job
 from certiroute.fortyguard.geometry import bounding_polygon
@@ -52,6 +53,7 @@ class HeatmapCollectionPlan:
     requests_by_minute: dict[int, HeatmapRequest]
     snapshots_by_minute: dict[int, HeatmapSnapshot]
     missing_minutes: tuple[int, ...]
+    store_validation_token: object = field(repr=False, compare=False)
 
     @property
     def request_count(self) -> int:
@@ -142,10 +144,20 @@ def plan_profile_collection(
 
     now = _utc_now(now_utc)
     requests = dict(sorted(requests_by_minute.items()))
+    fingerprints_by_minute = {
+        minute: heatmap_request_fingerprint(request)
+        for minute, request in requests.items()
+    }
+    candidates_by_fingerprint = store.list_for_requests(requests.values())
     snapshots: dict[int, HeatmapSnapshot] = {}
     missing: list[int] = []
     for minute, request in requests.items():
-        snapshot = _lookup_snapshot(request, store, now_utc=now, live_ttl=live_ttl)
+        snapshot = _select_reusable_snapshot(
+            request,
+            candidates_by_fingerprint[fingerprints_by_minute[minute]],
+            now_utc=now,
+            live_ttl=live_ttl,
+        )
         if snapshot is None:
             missing.append(minute)
         else:
@@ -154,6 +166,7 @@ def plan_profile_collection(
         requests_by_minute=requests,
         snapshots_by_minute=snapshots,
         missing_minutes=tuple(missing),
+        store_validation_token=store.validation_token,
     )
 
 
@@ -189,6 +202,77 @@ def collect_real_temperature_batch(
         now_utc=now,
         live_ttl=live_ttl,
     )
+    return _collect_from_plan(
+        jobs,
+        plan,
+        store,
+        client=client,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        max_new_tasks=max_new_tasks,
+        clock=clock,
+    )
+
+
+def collect_real_temperature_batch_from_plan(
+    jobs: Sequence[Job],
+    plan: HeatmapCollectionPlan,
+    store: HeatmapSnapshotStore,
+    *,
+    client: HeatmapCreator | None,
+    poll_interval_seconds: float = 5.0,
+    max_attempts: int = 60,
+    max_new_tasks: int,
+    now_utc: datetime | None = None,
+    clock: Callable[[], datetime] | None = None,
+    live_ttl: timedelta = DEFAULT_LIVE_CACHE_TTL,
+) -> RealTemperatureBatch:
+    """Execute a previously displayed plan without redundantly rescanning it.
+
+    Fully cached plans validated by the same in-process store reuse those
+    immutable snapshot objects instead of parsing large heatmaps twice. Plans
+    with misses or a different store instance are refreshed through the
+    persistent request index. A current/forecast hit that expired meanwhile
+    becomes a miss and is checked against ``max_new_tasks`` before any API call.
+    """
+
+    if max_new_tasks < 0:
+        raise ValueError("max_new_tasks cannot be negative")
+    now = _utc_now(now_utc)
+    _validate_collection_plan(plan)
+    refreshed_plan = _refresh_collection_plan(
+        plan,
+        store,
+        now_utc=now,
+        live_ttl=live_ttl,
+    )
+    return _collect_from_plan(
+        jobs,
+        refreshed_plan,
+        store,
+        client=client,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        max_new_tasks=max_new_tasks,
+        clock=clock,
+    )
+
+
+def _collect_from_plan(
+    jobs: Sequence[Job],
+    plan: HeatmapCollectionPlan,
+    store: HeatmapSnapshotStore,
+    *,
+    client: HeatmapCreator | None,
+    poll_interval_seconds: float,
+    max_attempts: int,
+    max_new_tasks: int,
+    clock: Callable[[], datetime] | None,
+) -> RealTemperatureBatch:
+    if max_new_tasks < 0:
+        raise ValueError("max_new_tasks cannot be negative")
+    if not plan.requests_by_minute:
+        raise ValueError("requests_by_minute must contain at least one request")
     if plan.new_task_count > max_new_tasks:
         raise ValueError(
             "collection requires more new API tasks than the operator confirmed"
@@ -239,17 +323,90 @@ def collect_real_temperature_batch(
     )
 
 
-def _lookup_snapshot(
+def _select_reusable_snapshot(
     request: HeatmapRequest,
-    store: HeatmapSnapshotStore,
+    candidates: Sequence[HeatmapSnapshot],
     *,
     now_utc: datetime,
     live_ttl: timedelta,
 ) -> HeatmapSnapshot | None:
     scope = _temporal_scope(request, now_utc=now_utc)
     if scope is SnapshotTemporalScope.HISTORICAL:
-        return store.lookup_historical(request)
-    return store.lookup_current_or_forecast(request, ttl=live_ttl, now_utc=now_utc)
+        historical = [
+            snapshot
+            for snapshot in candidates
+            if snapshot.temporal_scope is SnapshotTemporalScope.HISTORICAL
+        ]
+        return historical[-1] if historical else None
+    if not isinstance(live_ttl, timedelta) or live_ttl <= timedelta(0):
+        raise ValueError("ttl must be an explicit positive timedelta")
+    for snapshot in reversed(candidates):
+        if snapshot.temporal_scope is not SnapshotTemporalScope.CURRENT_OR_FORECAST:
+            continue
+        age = now_utc - snapshot.collected_at_utc
+        if timedelta(0) <= age <= live_ttl:
+            return snapshot
+    return None
+
+
+def _validate_collection_plan(plan: HeatmapCollectionPlan) -> None:
+    request_minutes = set(plan.requests_by_minute)
+    snapshot_minutes = set(plan.snapshots_by_minute)
+    missing_minutes = tuple(plan.missing_minutes)
+    if not request_minutes:
+        raise ValueError("collection plan must contain at least one request")
+    if missing_minutes != tuple(sorted(set(missing_minutes))):
+        raise ValueError("collection plan missing minutes must be unique and sorted")
+    if snapshot_minutes & set(missing_minutes):
+        raise ValueError("collection plan cannot mark a minute both cached and missing")
+    if snapshot_minutes | set(missing_minutes) != request_minutes:
+        raise ValueError("collection plan must account for every requested minute")
+    for minute, snapshot in plan.snapshots_by_minute.items():
+        expected = heatmap_request_fingerprint(plan.requests_by_minute[minute])
+        if snapshot.request_fingerprint != expected:
+            raise ValueError("collection plan snapshot does not match its request")
+
+
+def _refresh_collection_plan(
+    plan: HeatmapCollectionPlan,
+    store: HeatmapSnapshotStore,
+    *,
+    now_utc: datetime,
+    live_ttl: timedelta,
+) -> HeatmapCollectionPlan:
+    # A plan with misses needs a fresh indexed lookup to pick up snapshots
+    # another process may have published before execution starts. A plan from a
+    # different store instance is also revalidated rather than trusted.
+    if (
+        plan.missing_minutes
+        or plan.store_validation_token is not store.validation_token
+    ):
+        return plan_profile_collection(
+            plan.requests_by_minute,
+            store,
+            now_utc=now_utc,
+            live_ttl=live_ttl,
+        )
+
+    # The snapshots were checksum-validated by this exact store instance during
+    # planning. Reusing those frozen model objects avoids parsing multi-megabyte
+    # heatmaps twice in one UI run. Current/forecast TTL is still checked at the
+    # execution clock before they are accepted.
+    for minute, planned_snapshot in plan.snapshots_by_minute.items():
+        reusable = _select_reusable_snapshot(
+            plan.requests_by_minute[minute],
+            (planned_snapshot,),
+            now_utc=now_utc,
+            live_ttl=live_ttl,
+        )
+        if reusable is None:
+            return plan_profile_collection(
+                plan.requests_by_minute,
+                store,
+                now_utc=now_utc,
+                live_ttl=live_ttl,
+            )
+    return plan
 
 
 def _temporal_scope(
@@ -279,5 +436,6 @@ __all__ = [
     "RealTemperatureBatch",
     "build_profile_requests",
     "collect_real_temperature_batch",
+    "collect_real_temperature_batch_from_plan",
     "plan_profile_collection",
 ]

@@ -1,4 +1,4 @@
-"""Integrity tests for the committed demo dataset the whole demo depends on."""
+"""Integrity tests for the operational demonstration work orders."""
 
 from datetime import time
 from pathlib import Path
@@ -12,11 +12,16 @@ from certiroute.fortyguard import (
     bounding_polygon,
     polygon_area_square_miles,
 )
-from certiroute.optimization import ScheduleStrategy, compare_schedules
-from certiroute.sample_conditions import build_demo_profile
+from certiroute.optimization import (
+    ConditionPoint,
+    ScheduleStrategy,
+    TemperatureProfile,
+    compare_schedules,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
+DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
 
 REQUIRED_COLUMNS = {
     "job_id",
@@ -27,9 +32,6 @@ REQUIRED_COLUMNS = {
     "priority",
     "earliest_start",
     "latest_finish",
-    "sample_temperature_c",
-    "sample_certainty",
-    "diurnal_amplitude",
 }
 
 
@@ -38,18 +40,9 @@ def sample_jobs() -> pd.DataFrame:
     return pd.read_csv(SAMPLE_PATH)
 
 
-def test_sample_file_has_every_required_column(sample_jobs: pd.DataFrame) -> None:
-    assert REQUIRED_COLUMNS <= set(sample_jobs.columns)
-    assert not sample_jobs.isnull().to_numpy().any()
-
-
-def test_job_ids_are_unique(sample_jobs: pd.DataFrame) -> None:
-    assert sample_jobs["job_id"].is_unique
-
-
-def test_every_row_builds_a_valid_domain_job(sample_jobs: pd.DataFrame) -> None:
-    for row in sample_jobs.itertuples(index=False):
-        job = Job(
+def _domain_jobs(frame: pd.DataFrame) -> list[Job]:
+    return [
+        Job(
             job_id=row.job_id,
             name=row.name,
             location=GeoPoint(latitude=row.latitude, longitude=row.longitude),
@@ -58,15 +51,39 @@ def test_every_row_builds_a_valid_domain_job(sample_jobs: pd.DataFrame) -> None:
             earliest_start=time.fromisoformat(row.earliest_start),
             latest_finish=time.fromisoformat(row.latest_finish),
         )
+        for row in frame.itertuples(index=False)
+    ]
+
+
+def test_sample_file_contains_only_the_operational_contract(
+    sample_jobs: pd.DataFrame,
+) -> None:
+    assert set(sample_jobs.columns) == REQUIRED_COLUMNS
+    assert len(sample_jobs) == 6
+    assert not sample_jobs.isnull().to_numpy().any()
+
+
+def test_job_ids_are_unique(sample_jobs: pd.DataFrame) -> None:
+    assert sample_jobs["job_id"].is_unique
+    assert set(sample_jobs["job_id"]) == {
+        "PHX-201",
+        "PHX-202",
+        "PHX-203",
+        "PHX-204",
+        "PHX-205",
+        "PHX-206",
+    }
+
+
+def test_every_row_builds_a_valid_domain_job(sample_jobs: pd.DataFrame) -> None:
+    for job in _domain_jobs(sample_jobs):
         assert job.duration_minutes > 0
         assert 1 <= job.priority <= 5
 
 
-def test_certainty_values_are_probabilities(sample_jobs: pd.DataFrame) -> None:
-    assert sample_jobs["sample_certainty"].between(0, 1).all()
-
-
-def test_each_job_fits_inside_its_own_time_window(sample_jobs: pd.DataFrame) -> None:
+def test_each_job_fits_inside_its_own_time_window(
+    sample_jobs: pd.DataFrame,
+) -> None:
     for row in sample_jobs.itertuples(index=False):
         earliest = time.fromisoformat(row.earliest_start)
         latest = time.fromisoformat(row.latest_finish)
@@ -76,93 +93,53 @@ def test_each_job_fits_inside_its_own_time_window(sample_jobs: pd.DataFrame) -> 
         assert window >= row.duration_minutes, f"{row.job_id} cannot fit its window"
 
 
-def test_sample_locations_stay_inside_the_demo_metro(sample_jobs: pd.DataFrame) -> None:
+def test_sample_locations_stay_inside_phoenix(sample_jobs: pd.DataFrame) -> None:
     assert sample_jobs["latitude"].between(33.0, 34.0).all()
     assert sample_jobs["longitude"].between(-113.0, -111.0).all()
 
 
-def test_sample_aoi_fits_the_smallest_documented_plan_limit(
+def test_sample_aoi_stays_within_ten_square_miles(
     sample_jobs: pd.DataFrame,
 ) -> None:
-    points = [
-        GeoPoint(latitude=row.latitude, longitude=row.longitude)
-        for row in sample_jobs.itertuples(index=False)
-    ]
-
+    points = [job.location for job in _domain_jobs(sample_jobs)]
     area = polygon_area_square_miles(bounding_polygon(points))
 
+    assert area <= 10.0
     assert area <= DEFAULT_MAX_AOI_AREA_SQUARE_MILES
 
 
-def test_the_committed_demo_day_is_feasible_for_every_strategy(
+def test_committed_workday_is_feasible_without_synthetic_data(
     sample_jobs: pd.DataFrame,
 ) -> None:
-    jobs = []
-    profiles = {}
-    for row in sample_jobs.itertuples(index=False):
-        jobs.append(
-            Job(
-                job_id=row.job_id,
-                name=row.name,
-                location=GeoPoint(latitude=row.latitude, longitude=row.longitude),
-                duration_minutes=row.duration_minutes,
-                priority=row.priority,
-                earliest_start=time.fromisoformat(row.earliest_start),
-                latest_finish=time.fromisoformat(row.latest_finish),
-            )
+    jobs = _domain_jobs(sample_jobs)
+    neutral_profiles = {
+        job.job_id: TemperatureProfile(
+            job_id=job.job_id,
+            points=(
+                ConditionPoint(
+                    minute_of_day=8 * 60,
+                    temperature_c=30.0,
+                    certainty=1.0,
+                ),
+                ConditionPoint(
+                    minute_of_day=17 * 60,
+                    temperature_c=30.0,
+                    certainty=1.0,
+                ),
+            ),
         )
-        profiles[row.job_id] = build_demo_profile(
-            job_id=row.job_id,
-            anchor_temperature_c=row.sample_temperature_c,
-            certainty=row.sample_certainty,
-            diurnal_amplitude=row.diurnal_amplitude,
-        )
+        for job in jobs
+    }
 
-    depot = GeoPoint(latitude=33.44855, longitude=-112.07391)
-    plans = compare_schedules(jobs, profiles, depot=depot)
+    plans = compare_schedules(
+        jobs,
+        neutral_profiles,
+        depot=DEPOT,
+        uncertainty_penalty=0.0,
+    )
 
     assert set(plans) == set(ScheduleStrategy)
     for plan in plans.values():
-        assert len(plan.stops) == len(jobs)
+        assert len(plan.stops) == 6
+        assert {stop.job_id for stop in plan.stops} == {job.job_id for job in jobs}
         assert plan.route_finish_minute <= 17 * 60
-
-
-def test_the_demo_scenario_still_shows_a_certainty_driven_difference(
-    sample_jobs: pd.DataFrame,
-) -> None:
-    """The stress test is the demo's core claim, so guard it against drift."""
-
-    jobs = []
-    profiles = {}
-    for row in sample_jobs.itertuples(index=False):
-        jobs.append(
-            Job(
-                job_id=row.job_id,
-                name=row.name,
-                location=GeoPoint(latitude=row.latitude, longitude=row.longitude),
-                duration_minutes=row.duration_minutes,
-                priority=row.priority,
-                earliest_start=time.fromisoformat(row.earliest_start),
-                latest_finish=time.fromisoformat(row.latest_finish),
-            )
-        )
-        certainty = 0.15 if row.job_id == "PHX-101" else row.sample_certainty
-        profiles[row.job_id] = build_demo_profile(
-            job_id=row.job_id,
-            anchor_temperature_c=row.sample_temperature_c,
-            certainty=certainty,
-            diurnal_amplitude=row.diurnal_amplitude,
-        )
-
-    depot = GeoPoint(latitude=33.44855, longitude=-112.07391)
-    plans = compare_schedules(jobs, profiles, depot=depot, uncertainty_penalty=1.0)
-
-    heat_aware = plans[ScheduleStrategy.HEAT_AWARE]
-    certainty_aware = plans[ScheduleStrategy.CERTAINTY_AWARE]
-
-    # The certainty-aware plan must not be worse on the uncertainty-adjusted
-    # measure it optimizes; that is the entire product claim.
-    assert (
-        certainty_aware.total_adjusted_exposure_units
-        <= heat_aware.total_adjusted_exposure_units
-    )
