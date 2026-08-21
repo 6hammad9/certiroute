@@ -1,8 +1,12 @@
 from datetime import time
 
+import pytest
+
 from certiroute.domain import GeoPoint, Job
 from certiroute.optimization import (
     ConditionPoint,
+    InfeasibleScheduleError,
+    ScheduleSearchLimitError,
     ScheduleStrategy,
     TemperatureProfile,
     compare_schedules,
@@ -164,7 +168,7 @@ def test_priority_weighted_delay_schedules_important_jobs_earlier() -> None:
     assert plans[strategy].priority_weighted_delay_minutes > 0
 
 
-def test_infeasible_day_uses_one_priority_preserving_job_set() -> None:
+def test_infeasible_day_is_surfaced_instead_of_dropping_work() -> None:
     depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
     jobs = [
         Job(
@@ -186,8 +190,125 @@ def test_infeasible_day_uses_one_priority_preserving_job_set() -> None:
         job.job_id: make_profile(job.job_id, morning=30, noon=36) for job in jobs
     }
 
-    plans = compare_schedules(jobs, profiles, depot=depot, beam_width=10)
+    with pytest.raises(InfeasibleScheduleError):
+        compare_schedules(jobs, profiles, depot=depot, beam_width=10)
+
+
+def test_time_window_is_respected_by_every_strategy() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    job = Job(
+        job_id="WINDOWED",
+        name="Windowed work",
+        location=depot,
+        duration_minutes=60,
+        earliest_start=time(10, 0),
+        latest_finish=time(12, 0),
+    )
+
+    plans = compare_schedules(
+        [job],
+        {"WINDOWED": make_profile("WINDOWED", morning=30, noon=36)},
+        depot=depot,
+    )
 
     for plan in plans.values():
-        assert [stop.job_id for stop in plan.stops] == ["KEEP"]
-        assert plan.dropped_job_ids == ("DROP",)
+        assert plan.stops[0].start_minute == 10 * 60
+        assert plan.stops[0].finish_minute == 11 * 60
+
+
+def test_single_job_that_cannot_fit_the_shift_is_infeasible() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    job = Job(
+        job_id="TOO-LONG",
+        name="Too long",
+        location=depot,
+        duration_minutes=10 * 60,
+    )
+
+    with pytest.raises(InfeasibleScheduleError):
+        compare_schedules(
+            [job],
+            {"TOO-LONG": make_profile("TOO-LONG", morning=30, noon=36)},
+            depot=depot,
+        )
+
+
+def test_impossible_high_priority_job_is_not_silently_removed() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    impossible = Job(
+        job_id="IMPOSSIBLE",
+        name="Impossible window",
+        location=depot,
+        duration_minutes=60,
+        priority=5,
+        earliest_start=time(8, 0),
+        latest_finish=time(8, 30),
+    )
+    feasible = Job(
+        job_id="FEASIBLE",
+        name="Feasible work",
+        location=depot,
+        duration_minutes=60,
+        priority=1,
+    )
+    jobs = [impossible, feasible]
+    profiles = {
+        job.job_id: make_profile(job.job_id, morning=30, noon=36) for job in jobs
+    }
+
+    with pytest.raises(InfeasibleScheduleError):
+        compare_schedules(jobs, profiles, depot=depot)
+
+
+def test_infeasible_original_order_is_not_mislabeled_as_collective_overload() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    jobs = [
+        Job(
+            job_id="LATE",
+            name="Available later",
+            location=depot,
+            duration_minutes=60,
+            earliest_start=time(12, 0),
+        ),
+        Job(
+            job_id="EARLY",
+            name="Must finish early",
+            location=depot,
+            duration_minutes=60,
+            latest_finish=time(11, 0),
+        ),
+    ]
+    profiles = {
+        job.job_id: make_profile(job.job_id, morning=30, noon=36) for job in jobs
+    }
+
+    with pytest.raises(InfeasibleScheduleError, match="Fixed order"):
+        compare_schedules(jobs, profiles, depot=depot)
+
+
+def test_pruned_feasible_branch_is_reported_as_a_search_limit() -> None:
+    depot = GeoPoint(latitude=33.4485, longitude=-112.0740)
+    jobs = [
+        Job(
+            job_id="DEADLINE",
+            name="Travel first",
+            location=GeoPoint(latitude=33.5485, longitude=-112.0740),
+            duration_minutes=60,
+            latest_finish=time(10, 0),
+        ),
+        Job(
+            job_id="NEAR",
+            name="Near depot",
+            location=depot,
+            duration_minutes=60,
+        ),
+    ]
+    profiles = {
+        job.job_id: make_profile(job.job_id, morning=30, noon=36) for job in jobs
+    }
+
+    with pytest.raises(ScheduleSearchLimitError, match="beam width of 1"):
+        compare_schedules(jobs, profiles, depot=depot, beam_width=1)
+
+    plans = compare_schedules(jobs, profiles, depot=depot, beam_width=2)
+    assert len(plans[ScheduleStrategy.EFFICIENCY].stops) == 2

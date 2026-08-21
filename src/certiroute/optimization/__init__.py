@@ -9,6 +9,7 @@ from certiroute.optimization.models import (
 )
 from certiroute.optimization.scheduler import (
     InfeasibleScheduleError,
+    ScheduleSearchLimitError,
     compare_schedules,
     evaluate_job_order,
     optimize_job_order,
@@ -18,6 +19,7 @@ __all__ = [
     "ConditionPoint",
     "InfeasibleScheduleError",
     "SchedulePlan",
+    "ScheduleSearchLimitError",
     "ScheduleStrategy",
     "ScheduledStop",
     "TemperatureProfile",

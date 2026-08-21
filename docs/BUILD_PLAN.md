@@ -19,8 +19,9 @@ replace synthetic certainty inputs with calibrated forecast intervals.
 - [x] Define and document the first heat-exposure score.
 - [x] Integrate exposure and threshold duration over full job intervals.
 - [x] Implement heat-aware and certainty-adjusted scheduling objectives.
-- [x] Make priority operational through delay cost and infeasible-day triage.
-- [ ] Add explicit time-window and infeasible-single-job tests.
+- [x] Make priority operational through avoidable-delay cost.
+- [x] Surface infeasibility without silently removing work from comparisons.
+- [x] Add explicit time-window and infeasible-single-job tests.
 
 ## Phase 3 — Certainty-aware model
 

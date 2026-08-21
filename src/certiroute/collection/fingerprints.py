@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from certiroute.collection._json import normalize_json_object
@@ -50,6 +51,38 @@ def heatmap_request_fingerprint(
     return hashlib.sha256(canonical).hexdigest()
 
 
+def forecast_record_id(
+    request_fingerprint: str,
+    requested_at_utc: datetime,
+    activity_id: str,
+) -> str:
+    """Identify one immutable issuance vintage of a normalized request."""
+
+    identity = {
+        "activity_id": _normalized_activity_id(activity_id),
+        "record_kind": "forecast_vintage_v1",
+        "request_fingerprint": _validated_identifier(request_fingerprint),
+        "requested_at_utc": _format_utc(requested_at_utc),
+    }
+    return _identity_hash(identity)
+
+
+def realization_record_id(
+    forecast_id: str,
+    recorded_at_utc: datetime,
+    activity_id: str,
+) -> str:
+    """Identify one immutable later-vendor realization vintage."""
+
+    identity = {
+        "activity_id": _normalized_activity_id(activity_id),
+        "forecast_record_id": _validated_identifier(forecast_id),
+        "record_kind": "vendor_relative_realization_v1",
+        "recorded_at_utc": _format_utc(recorded_at_utc),
+    }
+    return _identity_hash(identity)
+
+
 def coerce_heatmap_request(
     request: HeatmapRequest | Mapping[str, Any],
 ) -> HeatmapRequest:
@@ -58,3 +91,35 @@ def coerce_heatmap_request(
     if isinstance(request, HeatmapRequest):
         return request
     return HeatmapRequest.model_validate(request)
+
+
+def _identity_hash(identity: Mapping[str, Any]) -> str:
+    canonical = json.dumps(
+        identity,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _format_utc(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("record identity timestamps must be timezone-aware")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _normalized_activity_id(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("activity_id cannot be blank")
+    return normalized
+
+
+def _validated_identifier(value: str) -> str:
+    if len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise ValueError("record identifiers must be 64 lowercase hex characters")
+    return value

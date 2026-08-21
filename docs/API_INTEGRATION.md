@@ -57,8 +57,10 @@ hard-coded product data or a model evaluation.
 - Basic/Startup heatmap AOIs are limited to 10 mi²; Premium is limited to
   50 mi².
 - The client preflights polygon area against a configurable limit (10 mi² by
-  default) before any POST. Widely separated job points can be split into
-  deterministic compact AOI clusters.
+  default) before any POST. A deterministic compact-clustering primitive is
+  available for portfolios that need multiple AOIs. The live UI does not batch
+  those requests automatically because every cluster is a separate credit-
+  consuming task; explicit multi-request confirmation is planned.
 - Credits are deducted after successful task completion. Exact per-task credit
   calculation is not publicly specified, so requests should be spatially
   batched, cached, and kept no larger than necessary.
@@ -66,8 +68,12 @@ hard-coded product data or a model evaluation.
   series. CertiRoute will use single-hour requests until live evidence proves a
   stronger temporal contract.
 - Normalized requests can be fingerprinted and archived locally without API
-  credentials. Forecasts and later same-vendor realizations are stored with
-  explicit UTC valid times for future residual calibration.
+  credentials. Each forecast issuance and same-vendor realization is an
+  immutable vintage. Since request timezone semantics remain undocumented,
+  records preserve the request wall clock plus an explicit caller-supplied
+  offset and label the derived UTC target/lead as assumptions. A realization
+  request must match the selected forecast's hour, AOI, granularity, analytic
+  type, and time assumption before residuals are calculated.
 
 ## Known documentation ambiguities
 

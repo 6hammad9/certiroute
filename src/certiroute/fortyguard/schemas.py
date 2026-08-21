@@ -1,9 +1,97 @@
 """Validated request schemas for the FortyGuard Temperature API."""
 
 from datetime import date, time
+from math import isfinite
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+
+def _cross_product(
+    first: tuple[float, float],
+    second: tuple[float, float],
+    third: tuple[float, float],
+) -> float:
+    return (second[0] - first[0]) * (third[1] - first[1]) - (second[1] - first[1]) * (
+        third[0] - first[0]
+    )
+
+
+def _point_on_segment(
+    point: tuple[float, float],
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> bool:
+    tolerance = 1e-12
+    return (
+        abs(_cross_product(start, end, point)) <= tolerance
+        and min(start[0], end[0]) - tolerance
+        <= point[0]
+        <= max(start[0], end[0]) + tolerance
+        and min(start[1], end[1]) - tolerance
+        <= point[1]
+        <= max(start[1], end[1]) + tolerance
+    )
+
+
+def _segments_intersect(
+    first_start: tuple[float, float],
+    first_end: tuple[float, float],
+    second_start: tuple[float, float],
+    second_end: tuple[float, float],
+) -> bool:
+    tolerance = 1e-12
+    products = (
+        _cross_product(first_start, first_end, second_start),
+        _cross_product(first_start, first_end, second_end),
+        _cross_product(second_start, second_end, first_start),
+        _cross_product(second_start, second_end, first_end),
+    )
+    if products[0] * products[1] < 0 and products[2] * products[3] < 0:
+        return True
+    return (
+        (
+            abs(products[0]) <= tolerance
+            and _point_on_segment(second_start, first_start, first_end)
+        )
+        or (
+            abs(products[1]) <= tolerance
+            and _point_on_segment(second_end, first_start, first_end)
+        )
+        or (
+            abs(products[2]) <= tolerance
+            and _point_on_segment(first_start, second_start, second_end)
+        )
+        or (
+            abs(products[3]) <= tolerance
+            and _point_on_segment(first_end, second_start, second_end)
+        )
+    )
+
+
+def _validate_simple_ring(ring: list[tuple[float, float]]) -> None:
+    for longitude, latitude in ring:
+        if (
+            not isfinite(longitude)
+            or not isfinite(latitude)
+            or not -180 <= longitude <= 180
+            or not -90 <= latitude <= 90
+        ):
+            raise ValueError("polygon positions must be finite WGS84 coordinates")
+    if len(set(ring[:-1])) < 3:
+        raise ValueError("a polygon ring needs at least three distinct positions")
+    if any(start == end for start, end in zip(ring, ring[1:], strict=False)):
+        raise ValueError("a polygon ring cannot contain zero-length segments")
+
+    segments = list(zip(ring, ring[1:], strict=False))
+    for first_index, first in enumerate(segments):
+        for second_index in range(first_index + 1, len(segments)):
+            if second_index == first_index + 1:
+                continue
+            if first_index == 0 and second_index == len(segments) - 1:
+                continue
+            if _segments_intersect(*first, *segments[second_index]):
+                raise ValueError("a polygon ring cannot self-intersect")
 
 
 class PolygonGeometry(BaseModel):
@@ -26,6 +114,7 @@ class PolygonGeometry(BaseModel):
                 raise ValueError("a polygon ring needs at least four positions")
             if ring[0] != ring[-1]:
                 raise ValueError("a polygon ring must be closed")
+            _validate_simple_ring(ring)
         return coordinates
 
 

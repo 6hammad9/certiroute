@@ -23,12 +23,17 @@ Research lineage:
 - Exact fractional time above the configurable planning threshold.
 - A pointwise certainty penalty integrated with exposure rather than applied
   only at a job midpoint.
-- A secret-aware disk archive keyed by a canonical request fingerprint.
-- Forecast records that can later be joined to FortyGuard's value for the same
-  valid time.
+- A secret-aware, append-only disk archive. A canonical request fingerprint
+  groups related calls, while issuance time and activity ID preserve every
+  distinct forecast vintage.
+- Separate immutable realization records that can be joined to one explicitly
+  selected forecast vintage without rewriting forecast history. The later API
+  request and its time-basis assumption must match before residuals are formed.
 - Explicit `realization - forecast` vendor-relative residuals.
-- Deterministic AOI clustering and a preflight area guard to prevent invalid or
-  unexpectedly large API submissions.
+- A deterministic AOI-clustering library primitive and a preflight area guard
+  to prevent invalid or unexpectedly large API submissions. Automatic
+  multi-request submission remains disabled until the UI can show the exact
+  credit-consuming request count for explicit confirmation.
 
 The residual is deliberately named **vendor-relative**. A later FortyGuard
 result is useful for measuring forecast consistency, but it is not independent
@@ -36,11 +41,25 @@ ground truth. Cross-source observations may be added later as disagreement
 features and must not be mislabeled as error without a validated observation
 contract.
 
+Tile joins use hashes of canonical Polygon/MultiPolygon geometry rather than
+undocumented vendor tile IDs, and v1 residual records require exact spatial
+coverage. Because the API's request-time timezone is undocumented, each
+forecast record also stores the original wall clock and a required
+caller-supplied fixed-offset assumption. Derived target and lead fields are
+explicitly labeled `assumed_*`.
+
+Cache envelopes include a canonical-payload SHA-256 checksum to detect
+accidental on-disk corruption. This is an integrity check, not authentication;
+a hostile writer with filesystem access could recompute it, so a MAC or digital
+signature would be needed for tamper resistance.
+
 ## Calibration protocol
 
 1. Archive forecasts as early as possible because residual data has a calendar
    dependency: the valid time must pass before a realization can be attached.
-2. Cache every normalized request before adding any perturbation ensemble.
+2. Archive every completed normalized request before adding any perturbation
+   ensemble. If request memoization is added, keep it separate and require an
+   explicit freshness window so an old forecast is never reused indefinitely.
 3. Compare values at fixed job coordinates or stable tile identifiers. Do not
    treat a shifted AOI, changed granularity, or adjacent target hour as repeated
    measurements of the same quantity; those changes introduce real spatial,

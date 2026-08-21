@@ -8,6 +8,7 @@ from certiroute.fortyguard.geometry import (
     polygon_area_square_miles,
     validate_aoi_area,
 )
+from certiroute.fortyguard.schemas import PolygonGeometry
 
 
 def test_bounding_polygon_is_closed_and_uses_geojson_order() -> None:
@@ -85,3 +86,16 @@ def test_cluster_points_rejects_limit_too_small_for_one_point() -> None:
 
     with pytest.raises(FortyGuardAOITooLarge):
         cluster_points_into_aois([point], max_area_square_miles=0.01)
+
+
+def test_self_intersecting_polygon_cannot_bypass_area_preflight() -> None:
+    bow_tie = [
+        (-112.5, 33.0),
+        (-111.5, 34.0),
+        (-112.5, 34.0),
+        (-111.5, 33.0),
+        (-112.5, 33.0),
+    ]
+
+    with pytest.raises(ValueError, match="self-intersect"):
+        PolygonGeometry(coordinates=[bow_tie])

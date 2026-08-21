@@ -277,4 +277,3 @@ class SchedulePlan(BaseModel):
     priority_weighted_delay_minutes: float = Field(ge=0)
     route_finish_minute: int
     objective_value: float = Field(ge=0)
-    dropped_job_ids: tuple[str, ...] = ()

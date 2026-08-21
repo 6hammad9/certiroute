@@ -19,6 +19,10 @@ class InfeasibleScheduleError(RuntimeError):
     """No schedule satisfied every configured time constraint."""
 
 
+class ScheduleSearchLimitError(RuntimeError):
+    """A bounded search found no plan after pruning candidate branches."""
+
+
 @dataclass(frozen=True)
 class _Candidate:
     order: tuple[str, ...]
@@ -47,7 +51,20 @@ def compare_schedules(
     priority_weight: float = 0.2,
     beam_width: int = 5000,
 ) -> dict[ScheduleStrategy, SchedulePlan]:
-    """Build four plans over one shared, priority-preserving feasible job set."""
+    """Build four directly comparable plans containing the same jobs.
+
+    Infeasibility is surfaced to the caller instead of silently deleting work;
+    an operator-facing triage decision needs an explicit policy and approval.
+    """
+
+    _validate_inputs(
+        jobs,
+        profiles,
+        average_travel_speed_kph=average_travel_speed_kph,
+        heat_weight=heat_weight,
+        priority_weight=priority_weight,
+        uncertainty_penalty=uncertainty_penalty,
+    )
 
     common = {
         "profiles": profiles,
@@ -61,43 +78,25 @@ def compare_schedules(
         "heat_weight": heat_weight,
         "priority_weight": priority_weight,
     }
-    active_jobs = list(jobs)
-    dropped_job_ids: list[str] = []
-    while True:
-        try:
-            plans = {
-                ScheduleStrategy.ORIGINAL: evaluate_job_order(
-                    active_jobs,
-                    strategy=ScheduleStrategy.ORIGINAL,
-                    **common,
-                )
-            }
-            for strategy in (
-                ScheduleStrategy.EFFICIENCY,
-                ScheduleStrategy.HEAT_AWARE,
-                ScheduleStrategy.CERTAINTY_AWARE,
-            ):
-                plans[strategy] = optimize_job_order(
-                    active_jobs,
-                    strategy=strategy,
-                    beam_width=beam_width,
-                    **common,
-                )
-        except InfeasibleScheduleError:
-            if len(active_jobs) <= 1:
-                raise
-            dropped = min(
-                active_jobs,
-                key=lambda job: (job.priority, -job.duration_minutes, job.job_id),
-            )
-            active_jobs = [job for job in active_jobs if job.job_id != dropped.job_id]
-            dropped_job_ids.append(dropped.job_id)
-        else:
-            dropped = tuple(dropped_job_ids)
-            return {
-                strategy: plan.model_copy(update={"dropped_job_ids": dropped})
-                for strategy, plan in plans.items()
-            }
+    plans = {
+        ScheduleStrategy.ORIGINAL: evaluate_job_order(
+            jobs,
+            strategy=ScheduleStrategy.ORIGINAL,
+            **common,
+        )
+    }
+    for strategy in (
+        ScheduleStrategy.EFFICIENCY,
+        ScheduleStrategy.HEAT_AWARE,
+        ScheduleStrategy.CERTAINTY_AWARE,
+    ):
+        plans[strategy] = optimize_job_order(
+            jobs,
+            strategy=strategy,
+            beam_width=beam_width,
+            **common,
+        )
+    return plans
 
 
 def evaluate_job_order(
@@ -113,7 +112,7 @@ def evaluate_job_order(
     planning_threshold_c: float,
     uncertainty_penalty: float,
     heat_weight: float,
-    priority_weight: float,
+    priority_weight: float = 0.2,
 ) -> SchedulePlan:
     """Evaluate one fixed order using the same constraints as optimization."""
 
@@ -166,7 +165,7 @@ def optimize_job_order(
     planning_threshold_c: float,
     uncertainty_penalty: float,
     heat_weight: float,
-    priority_weight: float,
+    priority_weight: float = 0.2,
     beam_width: int = 5000,
 ) -> SchedulePlan:
     """Find a strong feasible order while bounding combinatorial growth."""
@@ -186,6 +185,7 @@ def optimize_job_order(
 
     jobs_by_id = {job.job_id: job for job in jobs}
     candidates = [_initial_candidate(depot, shift_start)]
+    search_was_truncated = False
     for _ in jobs:
         expanded: list[_Candidate] = []
         for candidate in candidates:
@@ -206,6 +206,11 @@ def optimize_job_order(
                 if next_candidate is not None:
                     expanded.append(next_candidate)
         if not expanded:
+            if search_was_truncated:
+                raise ScheduleSearchLimitError(
+                    "No feasible schedule was found within the configured beam "
+                    f"width of {beam_width}"
+                )
             raise InfeasibleScheduleError(
                 "No job ordering satisfies all job and shift time windows"
             )
@@ -221,6 +226,7 @@ def optimize_job_order(
                 candidate.order,
             )
         )
+        search_was_truncated = search_was_truncated or len(expanded) > beam_width
         candidates = expanded[:beam_width]
 
     finalized: list[SchedulePlan] = []
@@ -240,6 +246,11 @@ def optimize_job_order(
         except InfeasibleScheduleError:
             continue
     if not finalized:
+        if search_was_truncated:
+            raise ScheduleSearchLimitError(
+                "No depot-returning schedule was found within the configured "
+                f"beam width of {beam_width}"
+            )
         raise InfeasibleScheduleError(
             "No route can return to the depot within the shift"
         )

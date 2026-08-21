@@ -11,15 +11,20 @@ from pydantic import ValidationError
 from certiroute.config import get_settings
 from certiroute.domain import GeoPoint, Job
 from certiroute.fortyguard import (
+    DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
     FortyGuardClient,
     HeatmapRequest,
     SingleHourDateTime,
     bounding_polygon,
+    cluster_points_into_aois,
     extract_temperature_stats,
+    polygon_area_square_miles,
 )
 from certiroute.fortyguard.errors import FortyGuardError
 from certiroute.optimization import (
+    InfeasibleScheduleError,
     SchedulePlan,
+    ScheduleSearchLimitError,
     ScheduleStrategy,
     TemperatureProfile,
     compare_schedules,
@@ -111,7 +116,7 @@ def schedule_rows(plan: SchedulePlan) -> pd.DataFrame:
                 "Start": minute_label(stop.start_minute),
                 "Finish": minute_label(stop.finish_minute),
                 "Travel (min)": stop.inbound_travel_minutes,
-                "Temperature (°C)": stop.temperature_c,
+                "Average (°C)": stop.temperature_c,
                 "Peak (°C)": stop.peak_temperature_c,
                 "Certainty": stop.certainty,
                 "Raw units": stop.raw_exposure_units,
@@ -164,7 +169,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             initial_view_state=view_state,
             tooltip={"text": "Stop {sequence}"},
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -201,12 +206,20 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
         jobs, certainty_overrides=certainty_overrides
     )
     depot = GeoPoint(latitude=33.44855, longitude=-112.07391)
-    plans = compare_schedules(
-        domain_jobs,
-        profiles,
-        depot=depot,
-        uncertainty_penalty=uncertainty_penalty,
-    )
+    try:
+        plans = compare_schedules(
+            domain_jobs,
+            profiles,
+            depot=depot,
+            uncertainty_penalty=uncertainty_penalty,
+        )
+    except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
+        st.error(f"A comparable four-plan result could not be produced: {exc}")
+        st.info(
+            "Check the original order and time windows. For larger job sets, "
+            "increasing the search width may also find a feasible branch."
+        )
+        return
     original = plans[ScheduleStrategy.ORIGINAL]
     recommended = plans[ScheduleStrategy.CERTAINTY_AWARE]
     reduction = relative_exposure_reduction(
@@ -254,13 +267,12 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
                 "Adjusted exposure": plan.total_adjusted_exposure_units,
                 "Minutes ≥35 °C": plan.minutes_above_planning_threshold,
                 "Priority-weighted delay": plan.priority_weighted_delay_minutes,
-                "Dropped": ", ".join(plan.dropped_job_ids) or "—",
                 "Depot return": minute_label(plan.route_finish_minute),
             }
             for plan in plans.values()
         ]
     )
-    st.dataframe(summary, hide_index=True, use_container_width=True)
+    st.dataframe(summary, hide_index=True, width="stretch")
 
     selected_name = st.selectbox(
         "Inspect a schedule",
@@ -276,15 +288,15 @@ def render_schedule_comparison(jobs: pd.DataFrame) -> None:
         st.dataframe(
             schedule_rows(selected_plan),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.caption(
         "Sample mode uses a synthetic diurnal profile anchored to committed demo "
         "values. ‘35 °C’ is a configurable comparison threshold, not a universal "
         "occupational safety limit. Exposure integrates the interpolated profile "
-        "across each job interval. Every strategy uses the same feasible job set; "
-        "if the full day is infeasible, lowest-priority work is listed as dropped."
+        "across each job interval. Every strategy must retain the same jobs; an "
+        "infeasible full set is surfaced for explicit operator triage."
     )
 
 
@@ -324,7 +336,7 @@ def render_sample_overview(jobs: pd.DataFrame) -> None:
             ]
         ],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
     st.info(
         f"{least_certain['job_id']} has the lowest sample certainty "
@@ -360,13 +372,26 @@ def render_live_heatmap(jobs: pd.DataFrame) -> None:
         "Granularity (metres)", options=[100, 80, 60], index=0
     )
 
-    if st.button("Create one bounded heatmap", type="primary"):
-        points = [
-            GeoPoint(latitude=row.latitude, longitude=row.longitude)
-            for row in jobs.itertuples(index=False)
-        ]
+    points = [
+        GeoPoint(latitude=row.latitude, longitude=row.longitude)
+        for row in jobs.itertuples(index=False)
+    ]
+    planned_polygon = bounding_polygon(points)
+    planned_area = polygon_area_square_miles(planned_polygon)
+    oversized = planned_area > DEFAULT_MAX_AOI_AREA_SQUARE_MILES
+    st.caption(f"Planned request: 1 AOI covering approximately {planned_area:.2f} mi².")
+    if oversized:
+        clusters = cluster_points_into_aois(points)
+        st.warning(
+            f"This portfolio needs {len(clusters)} bounded AOI requests under the "
+            f"{DEFAULT_MAX_AOI_AREA_SQUARE_MILES:g} mi² default limit. Automatic "
+            "multi-request submission is disabled until the exact credit count "
+            "can be confirmed explicitly."
+        )
+
+    if st.button("Create one bounded heatmap", type="primary", disabled=oversized):
         request = HeatmapRequest(
-            polygon_aoi=bounding_polygon(points),
+            polygon_aoi=planned_polygon,
             date_time=SingleHourDateTime(
                 start_date=selected_date,
                 start_time=selected_time,
@@ -428,8 +453,8 @@ with method_tab:
     st.markdown(
         """
         CertiRoute is a **forecast-based heat-risk planning and screening tool**.
-        It compares the original order, an efficiency-only route, a point
-        temperature heat-aware route, and a certainty-adjusted route.
+        It compares the original order, an efficiency-only route, an
+        interval-integrated heat-aware route, and a certainty-adjusted route.
 
         The prototype score is intentionally explainable. A sourced occupational
         heat-risk model and calibrated certainty method will replace it as richer
