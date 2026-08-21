@@ -1,0 +1,6 @@
+job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish,sample_temperature_c,sample_certainty,diurnal_amplitude
+PHX-101,City Hall electrical inspection,33.44855,-112.07391,45,5,08:00,16:00,39.2,0.94,0.65
+PHX-102,Heritage Square telecom repair,33.44920,-112.06680,60,4,08:00,15:00,40.1,0.91,0.90
+PHX-103,Roosevelt Row meter service,33.45880,-112.07090,35,3,09:00,17:00,38.6,0.76,1.45
+PHX-104,Central Avenue signal cabinet,33.45465,-112.07387,50,5,08:30,14:30,39.7,0.87,0.80
+PHX-105,Chase Field utility inspection,33.44530,-112.06670,40,2,10:00,17:00,41.0,0.82,1.70
