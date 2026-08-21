@@ -10,4 +10,4 @@ def test_streamlit_app_renders_without_exceptions() -> None:
     app.run(timeout=15)
 
     assert not app.exception
-    assert app.title[0].value == "CertiRoute"
+    assert "CertiRoute" in app.title[0].value

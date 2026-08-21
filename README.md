@@ -45,10 +45,31 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m streamlit run app\main.py
 ```
 
-The live tab never submits automatically. Its button explicitly warns that a
-successfully completed API task can consume credits.
+The plan defaults to **FortyGuard API (real)**. A historical replay samples
+three single-hour heatmaps by default, maps every job coordinate to its returned
+temperature tile, and uses those values in the schedule. Before any missing
+sample is submitted, the UI shows the exact task count and requires explicit
+authorization. Completed responses are cached under Git-ignored `data/raw/` and
+shown with activity IDs and collection timestamps.
+
+An explicitly labelled synthetic fallback remains available for offline demos
+and for exercising the future certainty-aware method. Real mode does not invent
+a confidence score: until forecast/realization calibration is complete, its
+certainty-aware plan intentionally coincides with the point-temperature
+heat-aware plan.
 
 Never commit `.env` or an API key.
+
+To inspect the exact real-data plan without submitting anything:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\collect_real_demo.py
+```
+
+The script prints cache hits and the missing task count. A live collection also
+requires `--live` and an explicit `--max-new-tasks N` hard cap. Add
+`--verify-status` to compare cached payloads with read-only activity-status GETs;
+it does not submit a new heatmap.
 
 ## Verification
 

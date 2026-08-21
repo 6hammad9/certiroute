@@ -18,14 +18,25 @@ from certiroute.collection.models import (
     VendorRelativeTileResidual,
     VendorRelativeTileValue,
 )
+from certiroute.collection.snapshot_cache import (
+    DEFAULT_SNAPSHOT_CACHE_ROOT,
+    HeatmapSnapshot,
+    HeatmapSnapshotStore,
+    SnapshotTemporalScope,
+    heatmap_snapshot_id,
+)
 from certiroute.collection.spatial import canonical_tile_geometry, tile_spatial_key
 
 __all__ = [
     "CacheCorruptionError",
+    "DEFAULT_SNAPSHOT_CACHE_ROOT",
     "ForecastArchive",
     "ForecastRecord",
+    "HeatmapSnapshot",
+    "HeatmapSnapshotStore",
     "JsonDiskCache",
     "RequestTimeBasis",
+    "SnapshotTemporalScope",
     "TileForecast",
     "UnsafeCachePayloadError",
     "VendorRelativeRealizationRecord",
@@ -35,6 +46,7 @@ __all__ = [
     "canonical_tile_geometry",
     "forecast_record_id",
     "heatmap_request_fingerprint",
+    "heatmap_snapshot_id",
     "normalize_heatmap_request",
     "realization_record_id",
     "tile_spatial_key",

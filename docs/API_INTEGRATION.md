@@ -50,6 +50,45 @@ The returned aggregate for this request was 39.76 °C minimum, mean, and maximum
 with 0.0 °C standard deviation. These values verify plumbing only; they are not
 hard-coded product data or a model evaluation.
 
+The integrated scheduler path was subsequently verified with three completed
+heatmaps for all five Phoenix demo jobs on 2026-07-15 at request wall-clock
+08:00, 12:00, and 17:00. Per-job tile values ranged from 37.59–37.69 °C,
+40.37–40.40 °C, and 40.19–40.23 °C respectively. Read-only status calls on
+2026-08-21 confirmed that all three activities were still `Completed` and that
+the live result payloads matched the integrity-checked local snapshots. No new
+heatmap task was submitted during that verification.
+
+## Scheduler data path
+
+The schedule no longer uses the AOI aggregate as though every job had the same
+temperature. Its real-data workflow now:
+
+1. Builds one shared, bounded AOI around the job coordinates.
+2. Shows the exact number of single-hour heatmap tasks and requires explicit
+   authorization for every cache miss.
+3. Stores completed, secret-free raw results in an append-only local cache with
+   request fingerprints and two independent SHA-256 integrity checks.
+4. Parses every `map_data.features` Polygon/MultiPolygon and maps each job to the
+   tile that geometrically covers its coordinate.
+5. Rejects missing, malformed, uncovered, or conflicting tile data rather than
+   substituting an AOI average or synthetic value.
+6. Builds per-job profiles from the requested hours and linearly interpolates
+   between those real API samples during interval-exact schedule scoring.
+7. Displays the request hours, activity IDs, collection timestamps, tile values,
+   granularity, and cache/live provenance in the UI.
+
+The default historical replay uses 08:00, 12:00, and 17:00. Users may select five
+or ten samples, with the corresponding task count shown before authorization.
+Historical exact requests can be reused indefinitely; current/forecast cache
+support exists behind an explicit freshness TTL but is not exposed in the first
+UI workflow yet.
+
+The API does not return a calibrated forecast-confidence probability. Real mode
+therefore uses an internal neutral no-penalty sentinel required by the current
+optimizer, hides it from operator-facing tables, and states that the
+certainty-aware plan intentionally equals the heat-aware plan until calibration
+evidence exists.
+
 ## Important constraints
 
 - Coverage is currently U.S.-only.

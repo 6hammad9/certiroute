@@ -1,8 +1,9 @@
 # Build Plan
 
-Status as of 2026-08-21: the vertical slice and deterministic four-strategy
-comparison are working. The current focus is collecting the evidence needed to
-replace synthetic certainty inputs with calibrated forecast intervals.
+Status as of 2026-08-21: the scheduler now consumes per-job FortyGuard heatmap
+tiles in a credit-gated historical replay, while retaining an explicitly
+labelled offline fallback. The current research focus is collecting the evidence
+needed to replace synthetic certainty inputs with calibrated forecast intervals.
 
 ## Phase 1 — Data contract and vertical slice
 
@@ -10,6 +11,8 @@ replace synthetic certainty inputs with calibrated forecast intervals.
   forecast behavior.
 - [x] Define the job, temperature observation, risk estimate, and schedule models.
 - [x] Build one API request through to one visible dashboard result.
+- [x] Map returned temperature tiles to each job and feed them into scheduling.
+- [x] Gate multi-hour collection behind an exact request count and local cache.
 - [x] Add a deterministic sample-data mode so the demo never depends entirely on a
   live external call.
 
@@ -34,10 +37,16 @@ replace synthetic certainty inputs with calibrated forecast intervals.
 
 ## Phase 4 — Product demo
 
-- [x] Build the first map, schedule table, comparison cards, and method panel.
+- [x] Build the first map, timeline, schedule table, comparison cards, and method
+  panel.
 - [x] Create one realistic customer scenario and one synthetic shifted scenario.
 - [ ] Add a timeline, Pareto trade-off control, and downloadable results.
 - [x] Add bounded polling, retry handling, caching primitives, and AOI guards.
+- [ ] Replace the compact API-plumbing portfolio with a full-shift Phoenix
+  scenario spanning meaningfully different microclimates, while keeping every
+  requested AOI and task count explicit. The verified downtown sample has only
+  about 0.01–0.04 °C tile standard deviation, so it proves integration but is
+  not yet the strongest optimization story.
 
 ## Phase 5 — Submission
 

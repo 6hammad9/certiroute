@@ -466,9 +466,7 @@ def _build_plan(
             temperature_c=round(draft.conditions.mean_temperature_c, 2),
             peak_temperature_c=round(draft.conditions.peak_temperature_c, 2),
             certainty=round(draft.conditions.mean_certainty, 4),
-            raw_exposure_units=round(
-                draft.conditions.degree_hours_above_reference, 3
-            ),
+            raw_exposure_units=round(draft.conditions.degree_hours_above_reference, 3),
             certainty_adjusted_units=round(
                 draft.conditions.certainty_adjusted_degree_hours, 3
             ),

@@ -39,7 +39,9 @@ that hides this uncertainty can give an operator false confidence.
 Given a list of jobs, CertiRoute will:
 
 1. Retrieve historical, current-day, and available forecast temperature data
-   from FortyGuard for each job location and time window.
+   from FortyGuard for each job location and time window. The implemented first
+   step is a historical replay that maps each coordinate to its returned tile at
+   three or more sampled hours.
 2. Estimate heat exposure over each job and over the worker's full shift.
 3. estimate how trustworthy each risk prediction is under the current input
    conditions.
@@ -124,6 +126,11 @@ The first complete demo should support:
   completed, and exposure reduction
 - A deliberately shifted or uncertain demo scenario that shows conservative
   replanning
+
+The scheduler's real-data mode is now implemented for historical replay. It
+uses real FortyGuard API output but does not call that output sensor ground
+truth. Current-day/forecast collection and calibrated reliability remain the
+next milestones.
 
 ## Non-goals for the MVP
 
