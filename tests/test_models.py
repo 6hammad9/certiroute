@@ -1,6 +1,7 @@
 import pytest
 
 from certiroute.optimization import ConditionPoint, TemperatureProfile
+from certiroute.optimization.models import interval_risk_summary
 
 
 def make_ramp_profile() -> TemperatureProfile:
@@ -75,3 +76,38 @@ def test_peak_temperature_over_intervals() -> None:
 
     assert profile.peak_temperature(480, 600) == pytest.approx(34.0)
     assert profile.peak_temperature(500, 560) == pytest.approx(26 + 8 * 80 / 120)
+
+
+def test_interval_risk_summary_matches_the_individual_methods() -> None:
+    profile = TemperatureProfile(
+        job_id="A",
+        points=(
+            ConditionPoint(minute_of_day=480, temperature_c=26, certainty=0.9),
+            ConditionPoint(minute_of_day=600, temperature_c=34, certainty=0.5),
+            ConditionPoint(minute_of_day=720, temperature_c=31, certainty=0.7),
+            ConditionPoint(minute_of_day=900, temperature_c=38, certainty=0.4),
+        ),
+    )
+
+    intervals = [(480, 600), (500, 700), (480, 900), (850, 1000), (400, 500)]
+    parameter_sets = [(30, 35, 1.0), (27, 32, 0.5), (40, 27, 0.0)]
+    for start, finish in intervals:
+        for reference, threshold, penalty in parameter_sets:
+            summary = interval_risk_summary(
+                profile, start, finish, reference, threshold, penalty
+            )
+            assert summary.mean_temperature_c == profile.mean_temperature(start, finish)
+            assert summary.peak_temperature_c == profile.peak_temperature(start, finish)
+            assert summary.mean_certainty == profile.mean_certainty(start, finish)
+            assert summary.degree_hours_above_reference == profile.degree_hours_above(
+                reference, start, finish
+            )
+            assert summary.minutes_at_or_above_threshold == profile.minutes_at_or_above(
+                threshold, start, finish
+            )
+            assert (
+                summary.certainty_adjusted_degree_hours
+                == profile.certainty_adjusted_degree_hours_above(
+                    reference, start, finish, uncertainty_penalty=penalty
+                )
+            )

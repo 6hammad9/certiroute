@@ -1,8 +1,9 @@
 """Data models used by CertiRoute's scheduling strategies."""
 
 from enum import StrEnum
+from typing import NamedTuple
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 
 def _adjusted_excess_at(
@@ -52,6 +53,11 @@ class TemperatureProfile(BaseModel):
 
     job_id: str = Field(min_length=1)
     points: tuple[ConditionPoint, ...] = Field(min_length=1)
+
+    # Interval summaries are memoized per profile instance because hashing the
+    # whole frozen model on every lookup dominated scheduler runtime. Private
+    # attributes remain writable on frozen pydantic models.
+    _interval_cache: dict = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_order(self) -> "TemperatureProfile":
@@ -234,6 +240,117 @@ class TemperatureProfile(BaseModel):
             crossing = t0 + width * (threshold_c - temp0) / (temp1 - temp0)
             minutes += (crossing - t0) if above0 else (t1 - crossing)
         return minutes
+
+
+class IntervalRiskSummary(NamedTuple):
+    """Every interval statistic the scheduler needs, computed in one pass."""
+
+    mean_temperature_c: float
+    peak_temperature_c: float
+    mean_certainty: float
+    degree_hours_above_reference: float
+    minutes_at_or_above_threshold: float
+    certainty_adjusted_degree_hours: float
+
+
+def interval_risk_summary(
+    profile: TemperatureProfile,
+    start_minute: float,
+    end_minute: float,
+    reference_c: float,
+    threshold_c: float,
+    uncertainty_penalty: float,
+) -> IntervalRiskSummary:
+    """Memoized single-pass equivalent of the six interval methods above.
+
+    Candidate extension asks the same (profile, interval, parameters) question
+    many times across beam candidates and strategies, so results are cached on
+    the profile instance itself, keyed only by the scalar arguments. The
+    arithmetic mirrors each individual method exactly; tests assert the
+    equivalence.
+    """
+
+    if uncertainty_penalty < 0:
+        raise ValueError("uncertainty_penalty cannot be negative")
+
+    key = (start_minute, end_minute, reference_c, threshold_c, uncertainty_penalty)
+    cached = profile._interval_cache.get(key)
+    if cached is not None:
+        return cached
+
+    temperature_integral = 0.0
+    certainty_integral = 0.0
+    peak = float("-inf")
+    degree_minutes = 0.0
+    threshold_minutes = 0.0
+    adjusted_degree_minutes = 0.0
+    for t0, t1, temp0, temp1, cert0, cert1 in profile._linear_pieces(
+        start_minute, end_minute
+    ):
+        width = t1 - t0
+        temperature_integral += width * (temp0 + temp1) / 2
+        certainty_integral += width * (cert0 + cert1) / 2
+        peak = max(peak, temp0, temp1)
+
+        above0 = temp0 >= threshold_c
+        above1 = temp1 >= threshold_c
+        if above0 and above1:
+            threshold_minutes += width
+        elif above0 or above1:
+            crossing = t0 + width * (threshold_c - temp0) / (temp1 - temp0)
+            threshold_minutes += (crossing - t0) if above0 else (t1 - crossing)
+
+        excess0 = temp0 - reference_c
+        excess1 = temp1 - reference_c
+        if excess0 <= 0 and excess1 <= 0:
+            continue
+        if excess0 >= 0 and excess1 >= 0:
+            degree_minutes += (excess0 + excess1) / 2 * width
+        else:
+            crossing = t0 + width * excess0 / (excess0 - excess1)
+            if excess0 > 0:
+                degree_minutes += excess0 * (crossing - t0) / 2
+            else:
+                degree_minutes += excess1 * (t1 - crossing) / 2
+
+        left = t0
+        right = t1
+        if temp0 <= reference_c < temp1:
+            left = t0 + (t1 - t0) * (reference_c - temp0) / (temp1 - temp0)
+        elif temp0 > reference_c >= temp1:
+            right = t0 + (t1 - t0) * (reference_c - temp0) / (temp1 - temp0)
+        midpoint = (left + right) / 2
+        common = {
+            "t0": t0,
+            "t1": t1,
+            "temp0": temp0,
+            "temp1": temp1,
+            "cert0": cert0,
+            "cert1": cert1,
+            "reference_c": reference_c,
+            "uncertainty_penalty": uncertainty_penalty,
+        }
+        adjusted_degree_minutes += (
+            (right - left)
+            / 6
+            * (
+                _adjusted_excess_at(left, **common)
+                + 4 * _adjusted_excess_at(midpoint, **common)
+                + _adjusted_excess_at(right, **common)
+            )
+        )
+
+    duration = end_minute - start_minute
+    summary = IntervalRiskSummary(
+        mean_temperature_c=temperature_integral / duration,
+        peak_temperature_c=peak,
+        mean_certainty=certainty_integral / duration,
+        degree_hours_above_reference=degree_minutes / 60,
+        minutes_at_or_above_threshold=threshold_minutes,
+        certainty_adjusted_degree_hours=adjusted_degree_minutes / 60,
+    )
+    profile._interval_cache[key] = summary
+    return summary
 
 
 class ScheduledStop(BaseModel):

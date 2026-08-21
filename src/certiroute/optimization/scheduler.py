@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import time
+from functools import lru_cache
 from math import asin, ceil, cos, radians, sin, sqrt
+from typing import NamedTuple
 
 from certiroute.domain import GeoPoint, Job
 from certiroute.optimization.models import (
+    IntervalRiskSummary,
     ScheduledStop,
     SchedulePlan,
     ScheduleStrategy,
     TemperatureProfile,
+    interval_risk_summary,
 )
 
 
@@ -23,10 +27,25 @@ class ScheduleSearchLimitError(RuntimeError):
     """A bounded search found no plan after pruning candidate branches."""
 
 
+class _StopDraft(NamedTuple):
+    """Unrounded per-stop data; ScheduledStop models are built only for the
+    winning candidate because beam search discards almost every candidate."""
+
+    job_id: str
+    job_name: str
+    latitude: float
+    longitude: float
+    arrival_minute: int
+    start_minute: int
+    finish_minute: int
+    inbound_travel_minutes: int
+    conditions: IntervalRiskSummary
+
+
 @dataclass(frozen=True)
 class _Candidate:
     order: tuple[str, ...]
-    stops: tuple[ScheduledStop, ...]
+    stops: tuple[_StopDraft, ...]
     last_location: GeoPoint
     current_minute: int
     travel_minutes: int
@@ -229,23 +248,37 @@ def optimize_job_order(
         search_was_truncated = search_was_truncated or len(expanded) > beam_width
         candidates = expanded[:beam_width]
 
-    finalized: list[SchedulePlan] = []
+    best_key: tuple[float, int] | None = None
+    best: tuple[_Candidate, int, int] | None = None
     for candidate in candidates:
-        try:
-            finalized.append(
-                _finalize_candidate(
-                    candidate,
-                    strategy=strategy,
-                    depot=depot,
-                    shift_end=shift_end,
-                    average_travel_speed_kph=average_travel_speed_kph,
-                    heat_weight=heat_weight,
-                    priority_weight=priority_weight,
-                )
-            )
-        except InfeasibleScheduleError:
+        completion = _route_completion(
+            candidate,
+            depot=depot,
+            shift_end=shift_end,
+            average_travel_speed_kph=average_travel_speed_kph,
+        )
+        if completion is None:
             continue
-    if not finalized:
+        travel, finish = completion
+        objective = round(
+            _score_values(
+                travel_minutes=travel,
+                raw_exposure_units=candidate.raw_exposure_units,
+                adjusted_exposure_units=candidate.adjusted_exposure_units,
+                strategy=strategy,
+                heat_weight=heat_weight,
+                priority_weight=priority_weight,
+                priority_weighted_delay_minutes=(
+                    candidate.priority_weighted_delay_minutes
+                ),
+            ),
+            3,
+        )
+        key = (objective, finish)
+        if best_key is None or key < best_key:
+            best_key = key
+            best = (candidate, travel, finish)
+    if best is None:
         if search_was_truncated:
             raise ScheduleSearchLimitError(
                 "No depot-returning schedule was found within the configured "
@@ -254,9 +287,13 @@ def optimize_job_order(
         raise InfeasibleScheduleError(
             "No route can return to the depot within the shift"
         )
-    return min(
-        finalized,
-        key=lambda plan: (plan.objective_value, plan.route_finish_minute),
+    return _build_plan(
+        best[0],
+        strategy=strategy,
+        total_travel_minutes=best[1],
+        route_finish_minute=best[2],
+        heat_weight=heat_weight,
+        priority_weight=priority_weight,
     )
 
 
@@ -306,22 +343,16 @@ def _extend_candidate(
         return None
 
     start_f, finish_f = float(start), float(finish)
-    mean_temperature = profile.mean_temperature(start_f, finish_f)
-    peak_temperature = profile.peak_temperature(start_f, finish_f)
-    mean_certainty = profile.mean_certainty(start_f, finish_f)
-    raw_units = profile.degree_hours_above(reference_temperature_c, start_f, finish_f)
-    threshold_minutes = profile.minutes_at_or_above(
-        planning_threshold_c, start_f, finish_f
-    )
-    adjusted_units = profile.certainty_adjusted_degree_hours_above(
-        reference_temperature_c,
+    conditions = interval_risk_summary(
+        profile,
         start_f,
         finish_f,
-        uncertainty_penalty=uncertainty_penalty,
+        reference_temperature_c,
+        planning_threshold_c,
+        uncertainty_penalty,
     )
     priority_delay = (job.priority / 5) * (start - earliest)
-    stop = ScheduledStop(
-        sequence=len(candidate.stops) + 1,
+    draft = _StopDraft(
         job_id=job.job_id,
         job_name=job.name,
         latitude=job.location.latitude,
@@ -330,22 +361,24 @@ def _extend_candidate(
         start_minute=start,
         finish_minute=finish,
         inbound_travel_minutes=travel,
-        temperature_c=round(mean_temperature, 2),
-        peak_temperature_c=round(peak_temperature, 2),
-        certainty=round(mean_certainty, 4),
-        raw_exposure_units=round(raw_units, 3),
-        certainty_adjusted_units=round(adjusted_units, 3),
-        minutes_above_planning_threshold=round(threshold_minutes, 1),
+        conditions=conditions,
     )
     return _Candidate(
         order=(*candidate.order, job.job_id),
-        stops=(*candidate.stops, stop),
+        stops=(*candidate.stops, draft),
         last_location=job.location,
         current_minute=finish,
         travel_minutes=candidate.travel_minutes + travel,
-        raw_exposure_units=candidate.raw_exposure_units + raw_units,
-        adjusted_exposure_units=candidate.adjusted_exposure_units + adjusted_units,
-        threshold_minutes=candidate.threshold_minutes + threshold_minutes,
+        raw_exposure_units=(
+            candidate.raw_exposure_units + conditions.degree_hours_above_reference
+        ),
+        adjusted_exposure_units=(
+            candidate.adjusted_exposure_units
+            + conditions.certainty_adjusted_degree_hours
+        ),
+        threshold_minutes=(
+            candidate.threshold_minutes + conditions.minutes_at_or_above_threshold
+        ),
         priority_weighted_delay_minutes=(
             candidate.priority_weighted_delay_minutes + priority_delay
         ),
@@ -362,6 +395,34 @@ def _finalize_candidate(
     heat_weight: float,
     priority_weight: float,
 ) -> SchedulePlan:
+    completion = _route_completion(
+        candidate,
+        depot=depot,
+        shift_end=shift_end,
+        average_travel_speed_kph=average_travel_speed_kph,
+    )
+    if completion is None:
+        raise InfeasibleScheduleError("route cannot return to depot within the shift")
+    travel, finish = completion
+    return _build_plan(
+        candidate,
+        strategy=strategy,
+        total_travel_minutes=travel,
+        route_finish_minute=finish,
+        heat_weight=heat_weight,
+        priority_weight=priority_weight,
+    )
+
+
+def _route_completion(
+    candidate: _Candidate,
+    *,
+    depot: GeoPoint,
+    shift_end: time,
+    average_travel_speed_kph: float,
+) -> tuple[int, int] | None:
+    """Return (total travel, depot-return minute), or None when out of shift."""
+
     return_travel = _travel_minutes(
         candidate.last_location,
         depot,
@@ -369,10 +430,21 @@ def _finalize_candidate(
     )
     finish = candidate.current_minute + return_travel
     if finish > _time_to_minute(shift_end):
-        raise InfeasibleScheduleError("route cannot return to depot within the shift")
-    travel = candidate.travel_minutes + return_travel
+        return None
+    return candidate.travel_minutes + return_travel, finish
+
+
+def _build_plan(
+    candidate: _Candidate,
+    *,
+    strategy: ScheduleStrategy,
+    total_travel_minutes: int,
+    route_finish_minute: int,
+    heat_weight: float,
+    priority_weight: float,
+) -> SchedulePlan:
     objective = _score_values(
-        travel_minutes=travel,
+        travel_minutes=total_travel_minutes,
         raw_exposure_units=candidate.raw_exposure_units,
         adjusted_exposure_units=candidate.adjusted_exposure_units,
         strategy=strategy,
@@ -380,17 +452,43 @@ def _finalize_candidate(
         priority_weight=priority_weight,
         priority_weighted_delay_minutes=(candidate.priority_weighted_delay_minutes),
     )
+    stops = tuple(
+        ScheduledStop(
+            sequence=index + 1,
+            job_id=draft.job_id,
+            job_name=draft.job_name,
+            latitude=draft.latitude,
+            longitude=draft.longitude,
+            arrival_minute=draft.arrival_minute,
+            start_minute=draft.start_minute,
+            finish_minute=draft.finish_minute,
+            inbound_travel_minutes=draft.inbound_travel_minutes,
+            temperature_c=round(draft.conditions.mean_temperature_c, 2),
+            peak_temperature_c=round(draft.conditions.peak_temperature_c, 2),
+            certainty=round(draft.conditions.mean_certainty, 4),
+            raw_exposure_units=round(
+                draft.conditions.degree_hours_above_reference, 3
+            ),
+            certainty_adjusted_units=round(
+                draft.conditions.certainty_adjusted_degree_hours, 3
+            ),
+            minutes_above_planning_threshold=round(
+                draft.conditions.minutes_at_or_above_threshold, 1
+            ),
+        )
+        for index, draft in enumerate(candidate.stops)
+    )
     return SchedulePlan(
         strategy=strategy,
-        stops=candidate.stops,
-        total_travel_minutes=travel,
+        stops=stops,
+        total_travel_minutes=total_travel_minutes,
         total_raw_exposure_units=round(candidate.raw_exposure_units, 3),
         total_adjusted_exposure_units=round(candidate.adjusted_exposure_units, 3),
         minutes_above_planning_threshold=round(candidate.threshold_minutes, 1),
         priority_weighted_delay_minutes=round(
             candidate.priority_weighted_delay_minutes, 1
         ),
-        route_finish_minute=finish,
+        route_finish_minute=route_finish_minute,
         objective_value=round(objective, 3),
     )
 
@@ -465,18 +563,44 @@ def _travel_minutes(
     *,
     average_travel_speed_kph: float,
 ) -> int:
-    if start == end:
+    return _cached_travel_minutes(
+        start.latitude,
+        start.longitude,
+        end.latitude,
+        end.longitude,
+        average_travel_speed_kph,
+    )
+
+
+@lru_cache(maxsize=16384)
+def _cached_travel_minutes(
+    start_latitude: float,
+    start_longitude: float,
+    end_latitude: float,
+    end_longitude: float,
+    average_travel_speed_kph: float,
+) -> int:
+    """Cache by plain coordinates: beam search revisits few distinct pairs."""
+
+    if (start_latitude, start_longitude) == (end_latitude, end_longitude):
         return 0
-    distance_km = _haversine_km(start, end)
+    distance_km = _haversine_km(
+        start_latitude, start_longitude, end_latitude, end_longitude
+    )
     return max(1, ceil(distance_km / average_travel_speed_kph * 60))
 
 
-def _haversine_km(start: GeoPoint, end: GeoPoint) -> float:
+def _haversine_km(
+    start_latitude: float,
+    start_longitude: float,
+    end_latitude: float,
+    end_longitude: float,
+) -> float:
     earth_radius_km = 6371.0088
-    lat1 = radians(start.latitude)
-    lat2 = radians(end.latitude)
+    lat1 = radians(start_latitude)
+    lat2 = radians(end_latitude)
     delta_lat = lat2 - lat1
-    delta_lon = radians(end.longitude - start.longitude)
+    delta_lon = radians(end_longitude - start_longitude)
     value = sin(delta_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
     return 2 * earth_radius_km * asin(sqrt(value))
 
