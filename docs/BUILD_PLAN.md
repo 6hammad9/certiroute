@@ -65,8 +65,8 @@ is the evidence needed for calibrated forecast intervals.
   durations in the simple path.
 - [x] Default to yesterday and an 08:00–17:00 workday while keeping a completed
   replay date and same-day shift of at most 12 hours available under an optional
-  control; reject service zones above 10 mi² and state FortyGuard's U.S.-only
-  coverage boundary.
+  control; batch distributed jobs into independently validated AOIs of at most
+  10 mi² and state FortyGuard's U.S.-only coverage boundary.
 - [x] Keep CSV import as an advanced path for existing work-order exports, with
   a downloadable template, clear validation errors, and preview before placing
   the crew base.
@@ -83,6 +83,8 @@ is the evidence needed for calibrated forecast intervals.
   contexts, with fictional work orders explicitly labelled and real FortyGuard
   temperatures preserved.
 - [x] Add bounded polling, retry handling, caching primitives, and AOI guards.
+- [x] Remove the misleading map-radius guide and transparently collect multiple
+  bounded AOIs when selected jobs do not fit in one FortyGuard request.
 - [x] Replace the compact 0.78 mi², 230-work-minute API-plumbing portfolio with a
   9.48 mi², 410-work-minute Phoenix corridor. The real 2026-07-15 replay is a
   scientifically honest no-change result: the same route minimizes both the

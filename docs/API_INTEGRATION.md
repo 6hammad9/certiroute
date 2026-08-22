@@ -64,16 +64,16 @@ The schedule no longer uses the AOI aggregate as though every job had the same
 temperature. Its real-data workflow now:
 
 1. Validates 2–9 uploaded work orders and fingerprints the normalized manifest.
-2. Builds one shared, bounded AOI around the job coordinates and rejects it if
-   it exceeds the configured 10 mi² product boundary.
+2. Deterministically partitions the job coordinates into one or more bounded
+   AOIs, each no larger than the configured 10 mi² per-request boundary.
 3. Proves that a complete depot-to-depot route can fit the entered shift and job
    windows before any network submission.
-4. Retrieves the exact missing single-hour heatmaps only after the operator
-   clicks **Build heat-aware route**.
+4. Retrieves the exact missing single-hour heatmaps for every AOI only after the
+   operator clicks **Create my heat-aware route**.
 5. Stores completed, secret-free raw results in an append-only local cache with
    request fingerprints and two independent SHA-256 integrity checks.
-6. Parses every `map_data.features` Polygon/MultiPolygon and maps each job to the
-   tile that geometrically covers its coordinate.
+6. Parses every `map_data.features` Polygon/MultiPolygon, maps each job only to
+   tiles from its assigned AOI, and merges the resulting per-job profiles.
 7. Rejects missing, malformed, uncovered, or conflicting tile data rather than
    substituting an AOI average or synthetic value.
 8. Builds per-job profiles from the requested hours and linearly interpolates
@@ -101,11 +101,10 @@ score; calibration remains future research.
 - Forecast heatmaps extend only through current time plus 12 hours.
 - Basic/Startup heatmap AOIs are limited to 10 mi²; Premium is limited to
   50 mi².
-- The client preflights polygon area against a configurable limit (10 mi² by
-  default) before any POST. A deterministic compact-clustering primitive is
-  available for portfolios that need multiple AOIs. The live UI does not batch
-  those requests automatically because every cluster is a separate credit-
-  consuming task; explicit multi-request confirmation is planned.
+- The client preflights every polygon against a configurable limit (10 mi² by
+  default) before any POST. The live UI treats that limit as a per-request
+  batching constraint, not as a selection radius: distributed portfolios are
+  deterministically clustered, collected, cached, and merged across AOIs.
 - Credits are deducted after successful task completion. Exact per-task credit
   calculation is not publicly specified, so requests should be spatially
   batched, cached, and kept no larger than necessary.

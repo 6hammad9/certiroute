@@ -30,13 +30,10 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
     markers = [
         child for child in selections._children.values() if type(child) is folium.Marker
     ]
-    circles = [
-        child
-        for child in selections._children.values()
-        if isinstance(child, folium.Circle)
-    ]
     assert len(markers) == 3  # depot plus two work locations
-    assert len(circles) == 1
+    assert not any(
+        isinstance(child, folium.Circle) for child in selections._children.values()
+    )
 
     marker_html = " ".join(marker.icon.options["html"] for marker in markers)
     assert map_picker.DEPOT_COLOR in marker_html
@@ -44,25 +41,6 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
     assert "START" in marker_html
     assert "Work location 1" in marker_html
     assert "Work location 2" in marker_html
-
-
-def test_ten_square_mile_guide_is_approximate_and_optional() -> None:
-    depot = MapPoint(33.44855, -112.07391)
-
-    _, guided = map_picker.build_map_picker(
-        phoenix_area(), depot=depot, job_sites=(), show_service_area_guide=True
-    )
-    _, plain = map_picker.build_map_picker(
-        phoenix_area(), depot=depot, job_sites=(), show_service_area_guide=False
-    )
-
-    guide = next(
-        child for child in guided._children.values() if isinstance(child, folium.Circle)
-    )
-    assert guide.options["radius"] == pytest.approx(2871.4, rel=0.001)
-    assert not any(
-        isinstance(child, folium.Circle) for child in plain._children.values()
-    )
 
 
 def test_render_uses_one_stable_click_only_component_boundary(monkeypatch) -> None:

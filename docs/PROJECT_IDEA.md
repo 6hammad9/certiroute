@@ -11,13 +11,13 @@ duration, priority, deadlines, and depot return.
 
 The working interface is deliberately narrower than the full research vision:
 
-- a primary map-first flow: choose a U.S. work area, click the crew base, then
-  click 2–9 work sites without entering coordinates;
+- a primary map-first flow: position the map near a U.S. city, pan wherever the
+  crew works, click the crew base, then click 2–9 work sites without coordinates;
 - automatic 45-minute, priority-3 jobs available for the full selected shift,
   with names, durations, completed replay day, and shift exposed only as
   optional changes;
-- selection, work-order, shift, depot, feasibility, and 10 mi² service-area
-  validation before any API submission;
+- selection, work-order, shift, depot, and feasibility validation before any API
+  submission, with automatic clustering into 10 mi²-or-smaller heat-data AOIs;
 - hourly FortyGuard snapshots for a completed historical replay, with no
   substitute temperature data;
 - one distance-efficient operations baseline and one heat-aware recommendation;
@@ -77,8 +77,8 @@ Given a dispatcher and a map, the implemented product:
 2. Supplies usable job and workday defaults, while allowing optional names,
    durations, completed replay date, and same-day shift changes. Advanced users
    can instead import a validated CSV and then click the actual crew base.
-3. Validates the selection and compact service area, then waits for the explicit
-   **Create my heat-aware route** action.
+3. Validates the selection, partitions spread-out jobs into valid heat-data
+   areas, then waits for the explicit **Create my heat-aware route** action.
 4. Proves that at least one depot-to-depot order satisfies the job windows
    before it can submit a FortyGuard request.
 5. Loads saved evidence and collects only missing real FortyGuard snapshots,
@@ -169,7 +169,8 @@ The implemented real-data product supports:
   backed by a downloadable template with these required columns (unrelated
   export columns are ignored):
   `job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish`
-- A compact service area of at most 10 mi²
+- Automatic partitioning into independently validated heat-data AOIs of at most
+  10 mi² per FortyGuard request; this is not presented as a user selection radius
 - WGS84 coordinate validation plus a clear U.S.-only coverage requirement;
   FortyGuard remains the authority that enforces its coverage boundary
 - Preflight route-feasibility validation before any API submission
@@ -239,14 +240,15 @@ Measure:
 
 ## Three-minute demo story
 
-1. A dispatcher chooses a U.S. work area, clicks once for the blue crew base,
-   and clicks 2–9 orange work sites; no coordinates or CSV are required.
+1. A dispatcher positions the map near a U.S. city, pans wherever needed,
+   clicks once for the blue crew base, and clicks 2–9 orange work sites; no
+   coordinates or CSV are required.
 2. The app shows ready defaults and a selected-work summary. Optional controls
    can name jobs, change visit duration, or change the completed replay day and
    shift; advanced CSV import and the Phoenix walkthrough stay collapsed.
 3. The dispatcher presses **Create my heat-aware route**. CertiRoute validates
-   the jobs, depot, shift, service area, and route feasibility before any API
-   submission.
+   the jobs, depot, shift, per-request heat-data areas, and route feasibility
+   before any API submission.
 4. The app reuses saved evidence, collects only missing real FortyGuard
    snapshots, and never substitutes temperatures.
 5. The default crew view gives one plain-language keep/change decision. The crew

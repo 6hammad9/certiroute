@@ -325,11 +325,13 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert app.title[0].value == "CertiRoute"
     assert "Plan a cooler workday in three simple steps" in text
     assert "No coordinates or spreadsheet setup required" in text
-    assert "Choose an area" in text
-    assert "Tap work sites" in text
+    assert "Position the map" in text
+    assert "Tap base + sites" in text
     assert "Get the route" in text
     assert "First, click where the crew starts and returns" in text
-    assert app.selectbox[0].label == "Choose a U.S. work area"
+    assert app.selectbox[0].label == (
+        "Start near a U.S. city — pan anywhere in the U.S."
+    )
     assert app.selectbox[0].value == "Phoenix, Arizona"
 
     assert not app.date_input
@@ -377,8 +379,9 @@ def test_map_clicks_create_a_ready_route_setup_with_plain_defaults(
     assert state.job_count == 2
     assert "Ready — 2 work sites selected" in text
     assert "Crew start &amp; return" in text
-    assert "Work site 1 · 45 min" in text
-    assert "Work site 2 · 45 min" in text
+    assert "Work site 1" in text
+    assert "Work site 2" in text
+    assert text.count("45 min on site") >= 2
     assert "Workday" in text
     assert "Past-day replay" in text
     assert _button(app, "Create my heat-aware route").disabled is False
@@ -450,7 +453,7 @@ def test_crew_route_leads_with_one_plain_language_decision(
     assert "Jobs on time" in text
     assert "Follow this route" in text
     assert "Stop 1 is where the shift begins" in text
-    assert "Return to depot" in text
+    assert "Return to crew base" in text
     assert rendered_states.network_calls == []
 
 
@@ -471,7 +474,7 @@ def test_crew_route_has_six_ordered_instruction_cards(
     assert route_markup.count('class="route-stop-number"') == 6
     assert route_markup.count("Start here") == 1
     assert route_markup.count("Next stop") == 5
-    assert "Return to depot" in route_markup
+    assert "Return to crew base" in route_markup
 
 
 def test_crew_route_map_makes_the_visit_order_visible(
@@ -605,12 +608,13 @@ def test_planner_view_exposes_auditable_api_evidence(
     source_records = _dataframe_with_column(app, "FortyGuard activity ID")
 
     assert "FortyGuard Temperature API" in text
-    assert "10 hourly heatmaps" in text
+    assert "10 heatmaps across 1 area" in text
     assert "60 m" in text
     assert "No synthetic or substitute temperature profile" in text
     assert len(temperatures) == 6
     assert list(temperatures.columns[1:]) == [f"{hour:02d}:00" for hour in range(8, 18)]
     assert len(source_records) == 10
+    assert (source_records["Heat-data area"] == 1).all()
     assert (source_records["Retrieved"] == "Saved API response").all()
     assert (
         source_records["FortyGuard activity ID"]

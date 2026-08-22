@@ -29,11 +29,7 @@ from certiroute.collection import (
 )
 from certiroute.config import get_settings
 from certiroute.domain import GeoPoint, Job
-from certiroute.fortyguard import (
-    DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
-    FortyGuardClient,
-    polygon_area_square_miles,
-)
+from certiroute.fortyguard import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardError
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
@@ -67,11 +63,11 @@ from certiroute.optimization import (
     optimize_job_order,
 )
 from certiroute.real_conditions import (
-    HeatmapCollectionPlan,
+    ClusteredHeatmapCollectionPlan,
     RealTemperatureBatch,
-    build_profile_requests,
-    collect_real_temperature_batch_from_plan,
-    plan_profile_collection,
+    build_clustered_profile_requests,
+    collect_clustered_real_temperature_batch_from_plan,
+    plan_clustered_profile_collection,
 )
 from certiroute.risk import relative_exposure_reduction
 
@@ -251,179 +247,293 @@ def api_key_available() -> bool:
 
 
 def inject_styles() -> None:
-    """Add a small product layer without hiding native Streamlit behavior."""
+    """Apply a restrained dispatch-product visual system."""
 
     st.markdown(
         """
         <style>
-        .stApp { background: #F1F5F9; }
-        .block-container { max-width: 1180px; padding-top: 1.6rem; }
-        h1 { letter-spacing: -0.045em; }
-        h2, h3 { letter-spacing: -0.025em; }
+        :root {
+            --ink: #111827;
+            --muted: #5B6472;
+            --rule: #D9DEE7;
+            --canvas: #F7F5F1;
+            --surface: #FFFFFF;
+            --route: #082F49;
+            --route-soft: #EAF4FB;
+            --route-ink: #FFFFFF;
+            --heat: #FF6A00;
+            --heat-ink: #B83B00;
+            --heat-soft: #FFF0E5;
+            --caution: #B83B00;
+        }
+        html { color-scheme: light; }
+        .stApp, [data-testid="stAppViewContainer"], .main {
+            background: var(--canvas) !important; color: var(--ink);
+        }
+        [data-testid="stHeader"] { background: var(--canvas); }
+        .block-container { max-width: 1220px; padding-top: 1.35rem; }
+        h1 { color: var(--ink); letter-spacing: -0.055em; }
+        h2, h3 { color: var(--ink); letter-spacing: -0.035em; }
         .hero-copy {
-            color: #475569; font-size: 1.08rem; line-height: 1.55;
-            max-width: 780px; margin-top: -0.45rem;
+            color: var(--muted); font-size: 1.05rem; line-height: 1.55;
+            max-width: 760px; margin-top: -.45rem;
         }
         .hero-heading {
-            color: #0F172A; font-size: 1.55rem; font-weight: 750;
-            letter-spacing: -0.025em; line-height: 1.3; margin: .8rem 0 1rem;
+            color: var(--ink); font-size: 1.65rem; font-weight: 760;
+            letter-spacing: -.04em; line-height: 1.2; margin: .55rem 0 .8rem;
         }
+        .hero-proof {
+            color: var(--muted); font-size: .72rem; font-weight: 800;
+            letter-spacing: .08em; text-transform: uppercase; margin-top: .8rem;
+        }
+        .hero-proof .heat { color: var(--heat-ink); }
         .eyebrow {
-            color: #C2410C; font-size: .77rem; font-weight: 800;
-            letter-spacing: .12em; text-transform: uppercase;
-        }
-        .badge {
-            display: inline-block; border: 1px solid #BAE6FD;
-            background: #E0F2FE; color: #075985; border-radius: 999px;
-            padding: .28rem .62rem; margin: .15rem .3rem .15rem 0;
-            font-size: .72rem; font-weight: 750; letter-spacing: .035em;
-        }
-        .badge.heat-badge {
-            border-color: #FDBA74; background: #FFEDD5; color: #C2410C;
+            color: var(--heat-ink); font-size: .72rem; font-weight: 850;
+            letter-spacing: .14em; text-transform: uppercase;
         }
         .process-strip {
-            display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
-            color: #475569; margin: 1rem 0 1.25rem;
+            display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+            color: var(--muted); margin: 1rem 0 1.45rem;
+            border-top: 1px solid var(--ink); padding-top: .7rem;
+            max-width: 760px;
         }
         .process-step {
-            display: inline-flex; align-items: center; gap: .45rem;
-            border: 1px solid #CBD5E1; background: white;
-            border-radius: 999px; padding: .42rem .72rem; font-weight: 700;
+            display: inline-flex; align-items: center; gap: .35rem;
+            font-size: .72rem; font-weight: 800; letter-spacing: .075em;
+            text-transform: uppercase;
         }
         .process-number {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 1.45rem; height: 1.45rem; border-radius: 50%;
-            color: white; background: #0369A1; font-size: .78rem;
+            color: var(--route); font-size: .72rem; font-weight: 900;
         }
-        .process-arrow { color: #64748B; font-weight: 800; }
+        .process-arrow { color: var(--heat); font-weight: 900; }
         .picker-instruction {
-            border: 1px solid #BAE6FD; border-left: 5px solid #0369A1;
-            background: #FFFFFF; border-radius: .72rem; padding: .82rem 1rem;
-            margin: .45rem 0 .75rem; color: #0F172A;
-            box-shadow: 0 1px 2px rgba(10, 37, 64, .06);
+            display: flex; justify-content: space-between; gap: 1rem;
+            align-items: baseline; border-top: 2px solid var(--route);
+            border-bottom: 1px solid var(--rule); padding: .7rem 0;
+            margin: .4rem 0 .8rem; color: var(--muted);
         }
-        .picker-instruction strong { display: block; margin-bottom: .14rem; }
-        .picker-instruction.ready {
-            border-left-color: #F97316; background: #FFEDD5;
+        .picker-instruction strong {
+            color: var(--ink); font-size: 1.02rem; white-space: nowrap;
         }
-        .selection-summary {
-            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: .55rem; margin: .75rem 0;
+        .picker-instruction.ready { border-top-color: var(--heat); }
+        .journey-panel {
+            background: var(--surface); border-top: 4px solid var(--ink);
+            padding: 1rem 1.05rem; min-height: 430px;
         }
-        .selection-item {
-            display: flex; align-items: center; gap: .65rem; min-width: 0;
-            background: white; border: 1px solid #CBD5E1; border-radius: .65rem;
-            padding: .62rem .75rem; color: #0F172A; font-weight: 720;
+        .journey-eyebrow {
+            color: var(--muted); font-size: .68rem; font-weight: 850;
+            letter-spacing: .14em; text-transform: uppercase; margin-bottom: .8rem;
         }
-        .selection-marker {
-            display: inline-flex; flex: 0 0 auto; align-items: center;
-            justify-content: center; width: 1.8rem; height: 1.8rem;
-            border-radius: 50%; background: #C2410C; color: white;
-            font-size: .78rem; font-weight: 850;
+        .journey-list { position: relative; }
+        .journey-list::before {
+            content: ""; position: absolute; left: 15px; top: 18px; bottom: 18px;
+            width: 2px; background: var(--route); opacity: .9;
         }
-        .selection-marker.depot { background: #0369A1; font-size: .66rem; }
+        .journey-row {
+            position: relative; z-index: 1; display: grid;
+            grid-template-columns: 32px minmax(0, 1fr); gap: .7rem;
+            align-items: center; min-height: 58px; padding: .25rem 0;
+        }
+        .journey-copy {
+            min-width: 0; border-bottom: 1px solid var(--rule); padding: .4rem 0 .6rem;
+        }
+        .journey-row:last-child .journey-copy { border-bottom: 0; }
+        .journey-node {
+            display: flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: var(--heat); color: var(--route); font-size: .78rem;
+            font-weight: 900; border: 2px solid var(--surface); box-sizing: border-box;
+        }
+        .journey-node.depot {
+            width: 18px; height: 18px; margin-left: 6px;
+            background: var(--route); color: var(--route-ink);
+        }
+        .journey-node.depot.pending {
+            background: var(--surface); border: 2px solid var(--route);
+        }
+        .journey-node.return {
+            width: 18px; height: 18px; margin-left: 6px;
+            background: var(--surface); border: 3px solid var(--route);
+        }
+        .journey-node.pending {
+            background: var(--surface); border: 2px solid var(--heat);
+            color: var(--heat-ink);
+        }
+        .journey-kicker {
+            color: var(--muted); font-size: .63rem; font-weight: 850;
+            letter-spacing: .1em; text-transform: uppercase;
+        }
+        .journey-title {
+            color: var(--ink); font-size: .92rem; font-weight: 800;
+            line-height: 1.25; overflow-wrap: anywhere;
+        }
+        .journey-meta { color: var(--muted); font-size: .76rem; margin-top: .1rem; }
         .workday-chip {
             display: flex; align-items: center; justify-content: space-between;
-            gap: .65rem; flex-wrap: wrap; border: 1px solid #BAE6FD;
-            background: #E0F2FE; color: #0F172A; border-radius: .7rem;
-            padding: .7rem .85rem; margin: .65rem 0;
+            gap: .65rem; flex-wrap: wrap; border-top: 1px solid var(--ink);
+            border-bottom: 1px solid var(--rule); color: var(--muted);
+            padding: .7rem 0; margin: .7rem 0;
         }
-        .workday-chip strong { color: #0369A1; }
+        .workday-chip strong { color: var(--route); }
         .empty-state {
-            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #94A3B8;
-            border-radius: .75rem; background: white;
+            padding: 1.25rem 0; border-top: 1px solid var(--ink);
+            border-bottom: 1px solid var(--rule); color: var(--muted);
         }
+        .empty-state h3 { text-align: left; color: var(--ink); }
+        .empty-state p { text-align: left; }
         .safety-note {
-            border-left: 4px solid #F97316; background: #FFEDD5;
-            padding: .85rem 1rem; border-radius: .35rem; color: #C2410C;
+            border-left: 4px solid var(--heat); background: var(--heat-soft);
+            padding: .8rem 1rem; color: var(--heat-ink);
         }
-        .decision-card {
-            border: 1px solid #BAE6FD; border-left: 6px solid #0369A1;
-            background: #E0F2FE; border-radius: .8rem; padding: 1.15rem 1.25rem;
-            margin: .65rem 0 1rem;
-        }
-        .decision-card h2 { margin: .15rem 0 .35rem; color: #0F172A; }
-        .decision-card p { margin: 0; color: #475569; line-height: 1.5; }
+        .decision-card { background: var(--route); }
+        .decision-card h2 { margin: .15rem 0 .35rem; color: var(--route-ink); }
+        .decision-card p { margin: 0; color: #E6EEF3; line-height: 1.5; }
         .decision-label {
-            color: #0369A1; font-size: .72rem; font-weight: 850;
+            color: var(--heat); font-size: .7rem; font-weight: 900;
             letter-spacing: .11em; text-transform: uppercase;
         }
+        /* Bento: one hero decision tile with satellite fact tiles.
+           Minimal by construction - no borders, separation comes from the
+           surface lift against the dark canvas. */
+        .bento {
+            display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 14px; margin: .6rem 0 1.5rem;
+        }
+        .bento > * {
+            border-radius: 18px; padding: 1.2rem 1.35rem; min-width: 0;
+        }
+        .bento-hero {
+            grid-column: span 4; grid-row: span 3;
+            background: var(--route); display: flex; flex-direction: column;
+            justify-content: center;
+        }
+        .bento-tile {
+            grid-column: span 2; background: var(--surface);
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .bento-tile.accent { background: var(--heat-soft); }
+        .bento-tile .route-fact-label { margin-bottom: .3rem; }
         .route-summary {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: .65rem; margin: .8rem 0 1.2rem;
+            gap: 14px; margin: 0 0 1.35rem;
         }
         .route-fact {
-            background: white; border: 1px solid #CBD5E1; border-radius: .7rem;
-            box-shadow: 0 1px 2px rgba(10, 37, 64, .07);
-            padding: .78rem .9rem; min-width: 0;
+            background: var(--surface); border-radius: 18px;
+            padding: 1.05rem 1.2rem; min-width: 0;
         }
+        .route-fact:last-child { border-right: 0; }
         .route-fact-label {
-            color: #475569; font-size: .7rem; font-weight: 800;
+            color: var(--muted); font-size: .66rem; font-weight: 850;
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-fact-value {
-            color: #0F172A; font-size: 1.08rem; font-weight: 800;
+            color: var(--ink); font-size: 1.05rem; font-weight: 800;
             margin-top: .12rem; overflow-wrap: anywhere;
         }
+        .route-rail {
+            position: relative; background: var(--surface);
+            border-top: 4px solid var(--ink);
+            padding: .7rem 1rem .85rem;
+        }
+        .route-rail::before {
+            content: ""; position: absolute; left: 2.42rem; top: 2.2rem;
+            bottom: 2.2rem; width: 2px; background: var(--route);
+        }
+        .route-endpoint {
+            position: relative; z-index: 1; display: grid;
+            grid-template-columns: 2.65rem minmax(0, 1fr); gap: .72rem;
+            align-items: center; padding: .55rem 0;
+        }
+        .route-endpoint-node {
+            width: 18px; height: 18px; margin-left: .5rem; border-radius: 50%;
+            background: var(--route); border: 2px solid white;
+        }
         .route-stop {
+            position: relative; z-index: 1;
             display: grid; grid-template-columns: 2.65rem minmax(0, 1fr) auto;
-            gap: .72rem; align-items: center; background: white;
-            border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
-            box-shadow: 0 1px 2px rgba(10, 37, 64, .07); border-radius: .72rem;
-            padding: .7rem .78rem; margin-bottom: .5rem; min-width: 0;
+            gap: .82rem; align-items: center; background: var(--surface);
+            border-radius: 16px; padding: .85rem 1rem; margin-bottom: 10px;
+            min-width: 0;
         }
         .route-stop-number {
             display: flex; align-items: center; justify-content: center;
             width: 2.35rem; height: 2.35rem; border-radius: 50%;
-            color: white; background: #EA580C; font-weight: 850; font-size: 1rem;
+            color: var(--route); background: var(--heat); border: 3px solid white;
+            font-weight: 900; font-size: 1rem;
         }
         .route-stop-copy { min-width: 0; }
         .route-stop-kicker {
-            color: #C2410C; font-size: .66rem; font-weight: 850;
+            color: var(--heat-ink); font-size: .63rem; font-weight: 900;
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-stop-name {
-            color: #0F172A; font-weight: 800; line-height: 1.25;
+            color: var(--ink); font-weight: 800; line-height: 1.25;
             overflow-wrap: anywhere;
         }
         .route-stop-task {
-            color: #475569; font-size: .78rem; line-height: 1.25;
+            color: var(--muted); font-size: .78rem; line-height: 1.25;
             overflow-wrap: anywhere; margin-top: .12rem;
         }
         .route-stop-time {
-            color: #1E293B; font-weight: 800; white-space: nowrap;
+            color: var(--ink); font-weight: 800; white-space: nowrap;
             text-align: right;
         }
         .route-stop-travel {
-            color: #475569; font-size: .72rem; margin-top: .12rem;
+            color: var(--muted); font-size: .72rem; margin-top: .12rem;
         }
         .route-return {
-            border: 1px dashed #94A3B8; border-radius: .65rem;
-            color: #475569; padding: .62rem .78rem; margin-top: .2rem;
-            background: white; overflow-wrap: anywhere;
+            position: relative; z-index: 1; display: grid;
+            grid-template-columns: 2.65rem minmax(0, 1fr); gap: .72rem;
+            align-items: center; color: var(--muted); padding: .7rem 0;
+            background: var(--surface); overflow-wrap: anywhere;
+        }
+        .route-return-node {
+            width: 18px; height: 18px; margin-left: .5rem; border-radius: 2px;
+            background: var(--surface); border: 3px solid var(--route);
+            box-sizing: border-box;
         }
         .map-note {
-            color: #475569; font-size: .78rem; line-height: 1.4;
+            color: var(--muted); font-size: .76rem; line-height: 1.4;
             margin: .15rem 0 .55rem;
         }
         div[data-testid="stMetric"] {
-            background: white; border: 1px solid #CBD5E1;
-            padding: .85rem 1rem; border-radius: .7rem;
+            background: var(--surface); border-radius: 18px;
+            padding: 1.05rem 1.2rem;
+        }
+        div[data-testid="stExpander"] {
+            border: 0; border-radius: 18px; background: var(--surface);
+            overflow: hidden;
         }
         button[kind="primary"] {
-            background: #0369A1; border-color: #0369A1;
+            background: var(--route); border-color: var(--route);
+            border-radius: 2px; min-height: 3rem; font-weight: 800;
         }
         button[kind="primary"]:hover {
-            background: #0369A1; border-color: #0369A1;
+            background: #0C4A6E; border-color: #0C4A6E;
+        }
+        div[data-testid="stExpander"] details,
+        div[data-testid="stFileUploaderDropzone"] { border-radius: 2px; }
+        div[data-testid="stButton"] button { border-radius: 2px; }
+        div[data-testid="stLinkButton"] a { border-radius: 2px; }
+        div[data-testid="stSelectbox"] > div > div { border-radius: 2px; }
+        .build-summary {
+            border-top: 4px solid var(--heat); padding: .85rem 0 .65rem;
+            color: var(--muted);
+        }
+        .build-summary strong {
+            display: block; color: var(--ink); font-size: 1rem; margin-bottom: .15rem;
         }
         @media (max-width: 700px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
             .process-arrow { display: none; }
-            .process-strip { align-items: stretch; }
-            .process-step { flex: 1 1 100%; }
-            .selection-summary { grid-template-columns: 1fr; }
-            .route-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .route-fact:first-child { grid-column: 1 / -1; }
+            .process-strip { gap: .55rem 1rem; }
+            .picker-instruction { display: block; }
+            .picker-instruction strong { display: block; white-space: normal; }
+            .journey-panel { min-height: 0; }
+            .bento { grid-template-columns: 1fr; }
+            .bento-hero, .bento-tile { grid-column: span 1; grid-row: auto; }
+            .route-summary { grid-template-columns: 1fr; }
+
             .route-stop { grid-template-columns: 2.65rem minmax(0, 1fr); }
             .route-stop-time {
                 grid-column: 2; text-align: left; white-space: normal;
@@ -449,14 +559,13 @@ def render_hero() -> None:
           Plan a cooler workday in three simple steps.
         </div>
         <div class="hero-copy">
-        Pick a U.S. area, tap the crew base and work sites, then let CertiRoute
-        turn real FortyGuard temperature intelligence into one crew-ready order.
-        No coordinates or spreadsheet setup required.
+        Start near a U.S. city, pan wherever the crew works, and tap the base and
+        work sites. CertiRoute turns real FortyGuard temperature intelligence
+        into one crew-ready order. No coordinates or spreadsheet setup required.
         </div>
-        <div class="hero-badges" style="margin-top:.7rem">
-          <span class="badge heat-badge">REAL FORTYGUARD DATA</span>
-          <span class="badge">MAP-FIRST SETUP</span>
-          <span class="badge">PAST-DAY REPLAY</span>
+        <div class="hero-proof">
+          <span class="heat">Real FortyGuard data</span>
+          &nbsp;·&nbsp; Map-first setup &nbsp;·&nbsp; No synthetic fallback
         </div>
         """,
         unsafe_allow_html=True,
@@ -469,7 +578,7 @@ def render_result_mode_styles() -> None:
     st.markdown(
         """
         <style>
-        .hero-heading, .hero-copy, .hero-badges, .process-strip { display: none; }
+        .hero-heading, .hero-copy, .hero-proof, .process-strip { display: none; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -483,11 +592,11 @@ def render_three_steps() -> None:
         """
         <div class="process-strip" aria-label="How CertiRoute works">
           <span class="process-step">
-            <span class="process-number">1</span>Choose an area
+            <span class="process-number">1</span>Position the map
           </span>
           <span class="process-arrow">→</span>
           <span class="process-step">
-            <span class="process-number">2</span>Tap work sites
+            <span class="process-number">2</span>Tap base + sites
           </span>
           <span class="process-arrow">→</span>
           <span class="process-step">
@@ -620,7 +729,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[255, 255, 255, 235],
+            get_color=[11, 21, 36, 235],
             get_width=10,
             width_units="'pixels'",
         ),
@@ -628,7 +737,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[2, 132, 199, 255],
+            get_color=[112, 255, 210, 255],
             get_width=5,
             width_units="'pixels'",
         ),
@@ -638,7 +747,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=24,
             radius_units="'pixels'",
-            get_fill_color=[15, 23, 42, 255],
+            get_fill_color=[112, 255, 210, 255],
             pickable=True,
         ),
         pdk.Layer(
@@ -647,7 +756,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=17,
             radius_units="'pixels'",
-            get_fill_color=[234, 88, 12, 255],
+            get_fill_color=[255, 145, 55, 255],
             stroked=True,
             get_line_color=[255, 255, 255, 255],
             get_line_width=2,
@@ -661,7 +770,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="marker",
             get_size=15,
             size_units="'pixels'",
-            get_color=[255, 255, 255, 255],
+            get_color=[112, 255, 210, 255],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
             billboard=True,
@@ -678,7 +787,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[15, 23, 42, 255],
+            get_color=[112, 255, 210, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
@@ -692,10 +801,10 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
         pdk.Deck(
             layers=layers,
             initial_view_state=view,
-            map_style=pdk.map_styles.CARTO_LIGHT,
+            map_style=pdk.map_styles.CARTO_DARK,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
-                "style": {"backgroundColor": "#0F172A", "color": "white"},
+                "style": {"backgroundColor": "#082F49", "color": "white"},
             },
         ),
         width="stretch",
@@ -708,7 +817,17 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
 def render_crew_itinerary(plan: SchedulePlan) -> None:
     """List only the instructions a crew needs to follow the sequence."""
 
-    cards: list[str] = []
+    cards: list[str] = [
+        """
+        <div class="route-endpoint">
+          <div class="route-endpoint-node"></div>
+          <div>
+            <div class="route-stop-kicker">Start</div>
+            <div class="route-stop-name">Crew base</div>
+          </div>
+        </div>
+        """
+    ]
     for stop in plan.stops:
         site, task = site_and_task(stop.job_name)
         instruction = "Start here" if stop.sequence == 1 else "Next stop"
@@ -736,11 +855,17 @@ def render_crew_itinerary(plan: SchedulePlan) -> None:
     inbound = sum(stop.inbound_travel_minutes for stop in plan.stops)
     return_minutes = max(0, plan.total_travel_minutes - inbound)
     cards.append(
-        '<div class="route-return"><strong>Return to depot</strong><br>'
-        f"{return_minutes} min estimated travel · back by "
-        f"<strong>{minute_label(plan.route_finish_minute)}</strong></div>"
+        '<div class="route-return"><div class="route-return-node"></div><div>'
+        '<div class="route-stop-kicker">Finish</div>'
+        '<div class="route-stop-name">Return to crew base</div>'
+        f'<div class="route-stop-travel">{return_minutes} min estimated travel · '
+        f"back by <strong>{minute_label(plan.route_finish_minute)}</strong>"
+        "</div></div></div>"
     )
-    st.markdown("".join(cards), unsafe_allow_html=True)
+    st.markdown(
+        '<div class="route-rail">' + "".join(cards) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_run_sheet(plan: SchedulePlan, depot: GeoPoint) -> None:
@@ -874,24 +999,24 @@ def render_crew_decision(
 
     st.markdown(
         f"""
-        <div class="decision-card">
-          <div class="decision-label">{decision_label}</div>
-          <h2>{title}</h2>
-          <p>{explanation}</p>
-        </div>
-        <div class="route-summary">
-          <div class="route-fact">
+        <div class="bento">
+          <div class="bento-hero decision-card">
+            <div class="decision-label">{decision_label}</div>
+            <h2>{title}</h2>
+            <p>{explanation}</p>
+          </div>
+          <div class="bento-tile route-fact">
             <div class="route-fact-label">First stop</div>
             <div class="route-fact-value">1 · {first_site}</div>
           </div>
-          <div class="route-fact">
+          <div class="bento-tile route-fact">
             <div class="route-fact-label">Shift route</div>
             <div class="route-fact-value">
               {minute_label(crew_plan.stops[0].start_minute)} →
               {minute_label(crew_plan.route_finish_minute)}
             </div>
           </div>
-          <div class="route-fact">
+          <div class="bento-tile route-fact">
             <div class="route-fact-label">Jobs on time</div>
             <div class="route-fact-value">
               {len(crew_plan.stops)} of {len(baseline.stops)}
@@ -1056,7 +1181,8 @@ def render_detail_sections(
         st.markdown(
             f"**Source:** FortyGuard Temperature API  ·  **Replay date:** "
             f"{batch.target_date.isoformat()}  ·  **Samples:** "
-            f"{len(batch.samples)} hourly heatmaps  ·  **Tile setting:** "
+            f"{len(batch.samples)} heatmaps across {batch.aoi_count} "
+            f"{'area' if batch.aoi_count == 1 else 'areas'}  ·  **Tile setting:** "
             f"{batch.granularity} m"
         )
         temperatures = pd.DataFrame(
@@ -1081,7 +1207,9 @@ def render_detail_sections(
             pd.DataFrame(
                 [
                     {
+                        "Heat-data area": sample.aoi_index + 1,
                         "Requested hour": minute_label(sample.minute_of_day),
+                        "Work orders covered": ", ".join(sample.job_ids),
                         "FortyGuard activity ID": sample.activity_id,
                         "Collected (UTC)": sample.collected_at_utc,
                         "Retrieved": (
@@ -1292,7 +1420,7 @@ def render_picker_instruction(state: MapScenarioState) -> None:
         title = "Now click each place the crew needs to visit"
         detail = (
             f"Add {remaining} more orange work "
-            f"{'site' if remaining == 1 else 'sites'} inside the dashed work area."
+            f"{'site' if remaining == 1 else 'sites'}. Pan the map whenever you need."
         )
         style = ""
     else:
@@ -1301,7 +1429,7 @@ def render_picker_instruction(state: MapScenarioState) -> None:
         style = " ready"
     st.markdown(
         f'<div class="picker-instruction{style}"><strong>{title}</strong>'
-        f"{detail}</div>",
+        f"<span>{detail}</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -1309,15 +1437,29 @@ def render_picker_instruction(state: MapScenarioState) -> None:
 def render_selection_summary(
     state: MapScenarioState, manifest_hint: JobManifest | None
 ) -> None:
-    """Show selected places without exposing latitude or longitude."""
+    """Render one continuous start-to-stops-to-return journey."""
 
-    cards: list[str] = []
-    if state.depot is not None:
-        cards.append(
-            '<div class="selection-item">'
-            '<span class="selection-marker depot">BASE</span>'
-            "<span>Crew start &amp; return</span></div>"
-        )
+    rows: list[str] = []
+    depot_class = (
+        "journey-node depot"
+        if state.depot is not None
+        else ("journey-node depot pending")
+    )
+    depot_title = (
+        "Crew start &amp; return" if state.depot is not None else "Place the crew base"
+    )
+    depot_meta = (
+        "Blue marker selected"
+        if state.depot is not None
+        else "Your first map click starts the route"
+    )
+    rows.append(
+        '<div class="journey-row">'
+        f'<div class="{depot_class}"></div>'
+        '<div class="journey-copy"><div class="journey-kicker">Start</div>'
+        f'<div class="journey-title">{depot_title}</div>'
+        f'<div class="journey-meta">{depot_meta}</div></div></div>'
+    )
     for index, _site in enumerate(state.job_sites, 1):
         if manifest_hint is not None and index <= len(manifest_hint.jobs):
             job = manifest_hint.jobs[index - 1]
@@ -1326,16 +1468,35 @@ def render_selection_summary(
         else:
             label = f"Work site {index}"
             duration = DEFAULT_JOB_DURATION_MINUTES
-        cards.append(
-            '<div class="selection-item">'
-            f'<span class="selection-marker">{index}</span>'
-            f"<span>{label} · {duration} min</span></div>"
+        rows.append(
+            '<div class="journey-row">'
+            f'<div class="journey-node">{index}</div>'
+            '<div class="journey-copy">'
+            f'<div class="journey-kicker">Stop {index}</div>'
+            f'<div class="journey-title">{label}</div>'
+            f'<div class="journey-meta">{duration} min on site</div></div></div>'
         )
-    if cards:
-        st.markdown(
-            '<div class="selection-summary">' + "".join(cards) + "</div>",
-            unsafe_allow_html=True,
+    if not state.job_sites:
+        rows.append(
+            '<div class="journey-row">'
+            '<div class="journey-node pending">+</div>'
+            '<div class="journey-copy"><div class="journey-kicker">Work stops</div>'
+            '<div class="journey-title">Tap the map to add jobs</div>'
+            '<div class="journey-meta">Add 2–9 places; pan as far as needed</div>'
+            "</div></div>"
         )
+    rows.append(
+        '<div class="journey-row">'
+        '<div class="journey-node return"></div>'
+        '<div class="journey-copy"><div class="journey-kicker">Finish</div>'
+        '<div class="journey-title">Return to crew base</div>'
+        '<div class="journey-meta">The route ends where it started</div></div></div>'
+    )
+    st.markdown(
+        '<div class="journey-panel"><div class="journey-eyebrow">Your workday</div>'
+        '<div class="journey-list">' + "".join(rows) + "</div></div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _load_example_scenario(state: MapScenarioState) -> None:
@@ -1445,11 +1606,14 @@ def render_map_setup() -> MapScenarioState:
     labels = [area.label for area in OPERATING_AREA_PRESETS]
     ids_by_label = {area.label: area.area_id for area in OPERATING_AREA_PRESETS}
     selected_label = st.selectbox(
-        "Choose a U.S. work area",
+        "Start near a U.S. city — pan anywhere in the U.S.",
         options=labels,
         index=labels.index(state.operating_area.label),
         key=f"operating_area_{generation}",
-        help="This only positions the map. You choose the exact places by clicking.",
+        help=(
+            "This is only a shortcut for positioning the map. It does not set a "
+            "route boundary."
+        ),
     )
     selected_area_id = ids_by_label[selected_label]
     if selected_area_id != state.operating_area_id:
@@ -1460,13 +1624,35 @@ def render_map_setup() -> MapScenarioState:
 
     manifest_hint = source_manifest()
     render_picker_instruction(state)
-    returned = map_picker.render_map_picker(
-        state.operating_area,
-        depot=state.depot,
-        job_sites=state.job_sites,
-        generation=generation,
-        height=430,
-    )
+    map_column, journey_column = st.columns([1.6, 1], gap="large")
+    with map_column:
+        returned = map_picker.render_map_picker(
+            state.operating_area,
+            depot=state.depot,
+            job_sites=state.job_sites,
+            generation=generation,
+            height=470,
+        )
+    with journey_column:
+        render_selection_summary(state, manifest_hint)
+        undo_column, reset_column = st.columns(2)
+        with undo_column:
+            if st.button(
+                "Undo last point",
+                width="stretch",
+                disabled=state.depot is None and not state.job_sites,
+            ):
+                save_map_scenario(undo_last_point(state), source="map")
+                st.rerun()
+        with reset_column:
+            if st.button(
+                "Start over",
+                width="stretch",
+                disabled=state.depot is None and not state.job_sites,
+            ):
+                start_fresh_map(state)
+                st.rerun()
+
     last_clicked = (
         returned.get("last_clicked") if isinstance(returned, Mapping) else None
     )
@@ -1502,25 +1688,6 @@ def render_map_setup() -> MapScenarioState:
                     source_manifest=keep_manifest,
                 )
                 st.rerun()
-
-    render_selection_summary(state, manifest_hint)
-    undo_column, reset_column = st.columns(2)
-    with undo_column:
-        if st.button(
-            "Undo last point",
-            width="stretch",
-            disabled=state.depot is None and not state.job_sites,
-        ):
-            save_map_scenario(undo_last_point(state), source="map")
-            st.rerun()
-    with reset_column:
-        if st.button(
-            "Start over",
-            width="stretch",
-            disabled=state.depot is None and not state.job_sites,
-        ):
-            start_fresh_map(state)
-            st.rerun()
 
     render_advanced_sources(state)
     return state
@@ -1654,13 +1821,13 @@ def preflight_route(
 
 def collect_batch(
     jobs: list[Job],
-    plan: HeatmapCollectionPlan,
+    plan: ClusteredHeatmapCollectionPlan,
     store: HeatmapSnapshotStore,
 ) -> RealTemperatureBatch:
     """Collect the exact missing set, or rebuild profiles entirely from cache."""
 
     if plan.new_task_count == 0:
-        return collect_real_temperature_batch_from_plan(
+        return collect_clustered_real_temperature_batch_from_plan(
             jobs,
             plan,
             store,
@@ -1675,7 +1842,7 @@ def collect_batch(
         base_url=settings.fortyguard_api_base_url,
         timeout_seconds=settings.fortyguard_timeout_seconds,
     ) as client:
-        return collect_real_temperature_batch_from_plan(
+        return collect_clustered_real_temperature_batch_from_plan(
             jobs,
             plan,
             store,
@@ -1747,58 +1914,59 @@ depot = GeoPoint(
     longitude=map_state.depot.longitude,
 )
 sample_times = hourly_sample_times(shift_start, shift_end)
-requests = build_profile_requests(
-    domain_jobs,
-    target_date=selected_date,
-    sample_times=sample_times,
-    granularity=GRANULARITY_METRES,
-)
-area = polygon_area_square_miles(next(iter(requests.values())).polygon_aoi)
-oversized = area > DEFAULT_MAX_AOI_AREA_SQUARE_MILES
-store = HeatmapSnapshotStore(cache_path())
 try:
+    profile_requests = build_clustered_profile_requests(
+        domain_jobs,
+        target_date=selected_date,
+        sample_times=sample_times,
+        granularity=GRANULARITY_METRES,
+    )
+    store = HeatmapSnapshotStore(cache_path())
     with st.spinner("Checking saved FortyGuard evidence…"):
-        collection_plan = plan_profile_collection(
-            requests,
+        collection_plan = plan_clustered_profile_collection(
+            profile_requests,
             store,
             now_utc=datetime.now(UTC),
         )
 except CacheCorruptionError as exc:
     st.error(f"Saved FortyGuard evidence failed its integrity check: {exc}")
     st.stop()
+except (ValidationError, ValueError) as exc:
+    st.error(
+        "These map points cannot be prepared for FortyGuard. Keep the crew's "
+        f"locations within U.S. coverage and try again. Details: {exc}"
+    )
+    st.stop()
 
 key_available = api_key_available()
 st.markdown("## Create the crew route")
-with st.container(border=True):
-    st.markdown(
-        f"""
-        <div class="picker-instruction ready">
-          <strong>{len(domain_jobs)} work sites · crew returns to the blue base</strong>
-          CertiRoute will use real FortyGuard temperatures for
-          {selected_date.strftime("%d %b %Y")} and return one numbered visit order.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    build_clicked = st.button(
-        "Create my heat-aware route",
-        type="primary",
-        width="stretch",
-        disabled=(
-            oversized or (collection_plan.new_task_count > 0 and not key_available)
-        ),
-    )
+st.markdown(
+    f"""
+    <div class="build-summary">
+      <strong>{len(domain_jobs)} work sites · start and finish at the blue base</strong>
+      Real FortyGuard temperature intelligence for
+      {selected_date.strftime("%d %b %Y")}, turned into one numbered visit order.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+build_clicked = st.button(
+    "Create my heat-aware route",
+    type="primary",
+    width="stretch",
+    disabled=(collection_plan.new_task_count > 0 and not key_available),
+)
+st.caption(
+    "Nothing is sent until you press this button. Missing temperature evidence "
+    "is never replaced with invented data."
+)
+if collection_plan.aoi_count > 1:
     st.caption(
-        "Nothing is sent until you press this button. CertiRoute never replaces "
-        "missing temperature evidence with invented data."
+        f"Your stops span {collection_plan.aoi_count} heat-data areas. "
+        "CertiRoute will collect and combine them automatically."
     )
 
-if oversized:
-    st.error(
-        "One or more work sites are too far apart for a single temperature "
-        "request. Undo the distant point or start a separate nearby route."
-    )
-elif collection_plan.new_task_count > 0 and not key_available:
+if collection_plan.new_task_count > 0 and not key_available:
     st.error(
         "FortyGuard connection required. Add `FORTYGUARD_API_KEY` to `.env` "
         "and reload. No substitute temperature data will be generated."
@@ -1814,7 +1982,10 @@ scenario_key = (
     shift_end.isoformat(),
     selected_date.isoformat(),
     GRANULARITY_METRES,
-    *(heatmap_request_fingerprint(request) for request in requests.values()),
+    *(
+        heatmap_request_fingerprint(request)
+        for request in profile_requests.requests_by_key.values()
+    ),
 )
 if st.session_state.get("certiroute_active_scenario") != scenario_key:
     st.session_state["certiroute_active_scenario"] = scenario_key
@@ -1826,7 +1997,7 @@ if st.session_state.get("certiroute_result_scenario") == scenario_key:
     if isinstance(saved_batch, RealTemperatureBatch):
         batch = saved_batch
 
-if build_clicked and not oversized:
+if build_clicked:
     try:
         with st.status(
             "Checking heat and building the route…", expanded=True

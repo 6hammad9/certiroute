@@ -53,8 +53,8 @@ Copy-Item .env.example .env
 
 The interface is one guided, real-data-only workflow:
 
-1. Choose a U.S. work area to position the map. Pan or zoom to the actual
-   neighborhood if needed.
+1. Choose a nearby U.S. city to position the map, then pan or zoom wherever the
+   crew actually works. The city is a starting view, not a boundary.
 2. Click once for the blue crew start/return base, then click 2–9 orange work
    sites. Coordinates stay behind the interface.
 3. Keep the ready-to-use defaults—45 minutes per site, priority 3, and each job
@@ -70,10 +70,11 @@ The interface is one guided, real-data-only workflow:
    needed.
 
 The map workflow creates ordinary work orders automatically, so a first-time
-user does not need coordinates or a spreadsheet schema. All points must be in a
-compact U.S. service area of at most 10 mi²; the dashed circle around the base
-is an approximate guide, and the application validates the actual request area
-before building.
+user does not need coordinates or a spreadsheet schema. The city selector only
+positions the map: users can pan and choose any covered U.S. locations. When
+stops do not fit within FortyGuard's 10 mi² per-request AOI limit, CertiRoute
+partitions them into valid heat-data areas and combines the results
+automatically.
 
 CSV import is optional and lives under **Advanced: import work orders or load
 the walkthrough**. It is intended for dispatchers who already export jobs from
