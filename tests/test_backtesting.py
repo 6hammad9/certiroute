@@ -14,7 +14,6 @@ from certiroute.evaluation import (
 )
 from certiroute.optimization import ConditionPoint, TemperatureProfile
 
-
 DEPOT = GeoPoint(latitude=33.45, longitude=-112.07)
 
 
