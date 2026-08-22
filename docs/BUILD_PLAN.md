@@ -1,13 +1,15 @@
 # Build Plan
 
-Status as of 2026-08-22: the product now presents one guided, real-data-only
-historical-replay workflow for customer-supplied work orders. The primary path
-is upload, validate, confirm the depot/date/shift, prove route feasibility, and
-then collect only missing FortyGuard evidence. Its default **Crew route** stays
-focused on one decision, one numbered map, an ordered stop list, and hand-off
-controls. Comparison, exact temperatures, scoring, provenance, and detailed
-safety limits remain in **Planner details**. The current research focus is the
-evidence needed for calibrated forecast intervals.
+Status as of 2026-08-22: the product now presents one guided, map-first,
+real-data-only historical-replay workflow. The primary path is choose a U.S.
+work area, click the crew base, click 2–9 work sites, and explicitly create the
+route. Useful work-order and workday defaults keep coordinates, spreadsheets,
+and advanced constraints out of first-time onboarding. CSV import and the
+Phoenix walkthrough remain optional advanced paths. The default **Crew route**
+stays focused on one decision, one numbered order preview, an ordered stop list,
+and hand-off controls. Comparison, exact temperatures, scoring, provenance, and
+detailed safety limits remain in **Planner details**. The current research focus
+is the evidence needed for calibrated forecast intervals.
 
 ## Phase 1 — Data contract and vertical slice
 
@@ -23,6 +25,9 @@ evidence needed for calibrated forecast intervals.
 - [x] Accept and normalize a UTF-8 customer manifest with eight required
   work-order columns, a 1 MB limit, and a 2–9-job product boundary; ignore
   unrelated export columns.
+- [x] Model guided map state independently of Streamlit: city preset, first-click
+  depot, 2–9 subsequent job sites, duplicate-event protection, undo/reset, and
+  deterministic work-order creation.
 - [x] Fingerprint the normalized manifest and all route settings so input changes
   cannot reuse a stale in-memory result.
 
@@ -50,17 +55,28 @@ evidence needed for calibrated forecast intervals.
 ## Phase 4 — Product demo
 
 - [x] Rebuild the dashboard as one newcomer-friendly page with a compact
-  three-step guide, one **Build heat-aware route** action, and separate
+  three-step guide, one **Create my heat-aware route** action, and separate
   crew/planner views.
-- [x] Make a real customer CSV the primary input, with a downloadable template,
-  clear validation errors, and job preview before planning.
-- [x] Let the user confirm a depot, completed replay date, and same-day shift of
-  at most 12 hours; reject service zones above 10 mi² and state FortyGuard's
-  U.S.-only coverage boundary.
+- [x] Make direct map selection the primary input: choose a U.S. city preset,
+  click once for the blue crew base, and click 2–9 orange work sites without
+  entering latitude or longitude.
+- [x] Create valid work orders from those clicks using a 45-minute duration,
+  priority 3, and full-shift availability; expose only optional names and
+  durations in the simple path.
+- [x] Default to yesterday and an 08:00–17:00 workday while keeping a completed
+  replay date and same-day shift of at most 12 hours available under an optional
+  control; reject service zones above 10 mi² and state FortyGuard's U.S.-only
+  coverage boundary.
+- [x] Keep CSV import as an advanced path for existing work-order exports, with
+  a downloadable template, clear validation errors, and preview before placing
+  the crew base.
 - [x] Remove the synthetic fallback, certainty controls, duplicate four-plan
   comparison, and API jargon from the customer path.
 - [x] Make the default crew result a single numbered map with ordered stop cards,
   a clear first stop and depot return, plus Google Maps and CSV hand-off.
+- [x] Label the in-app connecting lines and travel times as straight-line
+  estimates at 25 km/h; preserve the chosen order when handing stops to Google
+  Maps for actual road directions instead of claiming road-route optimization.
 - [x] Move method comparison, exact modeled temperatures, source records,
   scoring assumptions, and detailed safety boundaries into **Planner details**.
 - [x] Keep one optional judge-ready scenario spanning six Phoenix land-cover
@@ -81,6 +97,7 @@ evidence needed for calibrated forecast intervals.
 
 - Deploy the application.
 - Finalize methodology, limitations, and reproducibility instructions.
-- Record the three-minute upload-to-crew-route demo, including validation,
-  source evidence, and the optional Phoenix walkthrough.
+- Record the three-minute map-click-to-crew-route demo, including validation,
+  source evidence, road-navigation hand-off, and the optional advanced import
+  and Phoenix walkthrough.
 - Publish/review the repository and submit before the deadline buffer.

@@ -38,7 +38,6 @@ from certiroute.fortyguard.errors import FortyGuardError
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
     MIN_MANIFEST_JOBS,
-    REQUIRED_JOB_COLUMNS,
     JobManifest,
     JobManifestIssue,
     JobManifestValidation,
@@ -49,14 +48,12 @@ from certiroute.map_scenario import (
     DEFAULT_OPERATING_AREA_ID,
     DEFAULT_SHIFT_END,
     DEFAULT_SHIFT_START,
-    OPERATING_AREA_BY_ID,
     OPERATING_AREA_PRESETS,
     MapClickAction,
     MapPoint,
     MapScenarioState,
     apply_map_click,
     build_default_job_manifest,
-    reset_points,
     select_operating_area,
     undo_last_point,
 )
@@ -259,16 +256,16 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        .stApp { background: #EEF2F7; }
+        .stApp { background: #F1F5F9; }
         .block-container { max-width: 1180px; padding-top: 1.6rem; }
         h1 { letter-spacing: -0.045em; }
         h2, h3 { letter-spacing: -0.025em; }
         .hero-copy {
-            color: #3D5670; font-size: 1.08rem; line-height: 1.55;
+            color: #475569; font-size: 1.08rem; line-height: 1.55;
             max-width: 780px; margin-top: -0.45rem;
         }
         .hero-heading {
-            color: #0A2540; font-size: 1.55rem; font-weight: 750;
+            color: #0F172A; font-size: 1.55rem; font-weight: 750;
             letter-spacing: -0.025em; line-height: 1.3; margin: .8rem 0 1rem;
         }
         .eyebrow {
@@ -276,38 +273,38 @@ def inject_styles() -> None:
             letter-spacing: .12em; text-transform: uppercase;
         }
         .badge {
-            display: inline-block; border: 1px solid #A9BFD6;
-            background: #E1EBF6; color: #0D3F6B; border-radius: 999px;
+            display: inline-block; border: 1px solid #BAE6FD;
+            background: #E0F2FE; color: #075985; border-radius: 999px;
             padding: .28rem .62rem; margin: .15rem .3rem .15rem 0;
             font-size: .72rem; font-weight: 750; letter-spacing: .035em;
         }
         .badge.heat-badge {
-            border-color: #F2B38B; background: #FFF4EA; color: #B9380A;
+            border-color: #FDBA74; background: #FFEDD5; color: #C2410C;
         }
         .process-strip {
             display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
-            color: #3D5670; margin: 1rem 0 1.25rem;
+            color: #475569; margin: 1rem 0 1.25rem;
         }
         .process-step {
             display: inline-flex; align-items: center; gap: .45rem;
-            border: 1px solid #A9BCD1; background: white;
+            border: 1px solid #CBD5E1; background: white;
             border-radius: 999px; padding: .42rem .72rem; font-weight: 700;
         }
         .process-number {
             display: inline-flex; align-items: center; justify-content: center;
             width: 1.45rem; height: 1.45rem; border-radius: 50%;
-            color: white; background: #0F4C81; font-size: .78rem;
+            color: white; background: #0369A1; font-size: .78rem;
         }
-        .process-arrow { color: #6B84A0; font-weight: 800; }
+        .process-arrow { color: #64748B; font-weight: 800; }
         .picker-instruction {
-            border: 1px solid #A9BFD6; border-left: 5px solid #0F4C81;
+            border: 1px solid #BAE6FD; border-left: 5px solid #0369A1;
             background: #FFFFFF; border-radius: .72rem; padding: .82rem 1rem;
-            margin: .45rem 0 .75rem; color: #0A2540;
+            margin: .45rem 0 .75rem; color: #0F172A;
             box-shadow: 0 1px 2px rgba(10, 37, 64, .06);
         }
         .picker-instruction strong { display: block; margin-bottom: .14rem; }
         .picker-instruction.ready {
-            border-left-color: #C2410C; background: #FFF8F2;
+            border-left-color: #F97316; background: #FFEDD5;
         }
         .selection-summary {
             display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -315,8 +312,8 @@ def inject_styles() -> None:
         }
         .selection-item {
             display: flex; align-items: center; gap: .65rem; min-width: 0;
-            background: white; border: 1px solid #BCCBDD; border-radius: .65rem;
-            padding: .62rem .75rem; color: #0A2540; font-weight: 720;
+            background: white; border: 1px solid #CBD5E1; border-radius: .65rem;
+            padding: .62rem .75rem; color: #0F172A; font-weight: 720;
         }
         .selection-marker {
             display: inline-flex; flex: 0 0 auto; align-items: center;
@@ -324,31 +321,31 @@ def inject_styles() -> None:
             border-radius: 50%; background: #C2410C; color: white;
             font-size: .78rem; font-weight: 850;
         }
-        .selection-marker.depot { background: #0F4C81; font-size: .66rem; }
+        .selection-marker.depot { background: #0369A1; font-size: .66rem; }
         .workday-chip {
             display: flex; align-items: center; justify-content: space-between;
-            gap: .65rem; flex-wrap: wrap; border: 1px solid #A9BFD6;
-            background: #E1EBF6; color: #0A2540; border-radius: .7rem;
+            gap: .65rem; flex-wrap: wrap; border: 1px solid #BAE6FD;
+            background: #E0F2FE; color: #0F172A; border-radius: .7rem;
             padding: .7rem .85rem; margin: .65rem 0;
         }
-        .workday-chip strong { color: #0F4C81; }
+        .workday-chip strong { color: #0369A1; }
         .empty-state {
-            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #8FA5BE;
+            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #94A3B8;
             border-radius: .75rem; background: white;
         }
         .safety-note {
-            border-left: 4px solid #C2410C; background: #FFF4EA;
-            padding: .85rem 1rem; border-radius: .35rem; color: #B9380A;
+            border-left: 4px solid #F97316; background: #FFEDD5;
+            padding: .85rem 1rem; border-radius: .35rem; color: #C2410C;
         }
         .decision-card {
-            border: 1px solid #A9BFD6; border-left: 6px solid #0F4C81;
-            background: #E1EBF6; border-radius: .8rem; padding: 1.15rem 1.25rem;
+            border: 1px solid #BAE6FD; border-left: 6px solid #0369A1;
+            background: #E0F2FE; border-radius: .8rem; padding: 1.15rem 1.25rem;
             margin: .65rem 0 1rem;
         }
-        .decision-card h2 { margin: .15rem 0 .35rem; color: #0A2540; }
-        .decision-card p { margin: 0; color: #3D5670; line-height: 1.5; }
+        .decision-card h2 { margin: .15rem 0 .35rem; color: #0F172A; }
+        .decision-card p { margin: 0; color: #475569; line-height: 1.5; }
         .decision-label {
-            color: #0F4C81; font-size: .72rem; font-weight: 850;
+            color: #0369A1; font-size: .72rem; font-weight: 850;
             letter-spacing: .11em; text-transform: uppercase;
         }
         .route-summary {
@@ -356,29 +353,29 @@ def inject_styles() -> None:
             gap: .65rem; margin: .8rem 0 1.2rem;
         }
         .route-fact {
-            background: white; border: 1px solid #A9BCD1; border-radius: .7rem;
+            background: white; border: 1px solid #CBD5E1; border-radius: .7rem;
             box-shadow: 0 1px 2px rgba(10, 37, 64, .07);
             padding: .78rem .9rem; min-width: 0;
         }
         .route-fact-label {
-            color: #3D5670; font-size: .7rem; font-weight: 800;
+            color: #475569; font-size: .7rem; font-weight: 800;
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-fact-value {
-            color: #0A2540; font-size: 1.08rem; font-weight: 800;
+            color: #0F172A; font-size: 1.08rem; font-weight: 800;
             margin-top: .12rem; overflow-wrap: anywhere;
         }
         .route-stop {
             display: grid; grid-template-columns: 2.65rem minmax(0, 1fr) auto;
             gap: .72rem; align-items: center; background: white;
-            border: 1px solid #A9BCD1; border-left: 4px solid #C2410C;
+            border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
             box-shadow: 0 1px 2px rgba(10, 37, 64, .07); border-radius: .72rem;
             padding: .7rem .78rem; margin-bottom: .5rem; min-width: 0;
         }
         .route-stop-number {
             display: flex; align-items: center; justify-content: center;
             width: 2.35rem; height: 2.35rem; border-radius: 50%;
-            color: white; background: #C2410C; font-weight: 850; font-size: 1rem;
+            color: white; background: #EA580C; font-weight: 850; font-size: 1rem;
         }
         .route-stop-copy { min-width: 0; }
         .route-stop-kicker {
@@ -386,38 +383,38 @@ def inject_styles() -> None:
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-stop-name {
-            color: #0A2540; font-weight: 800; line-height: 1.25;
+            color: #0F172A; font-weight: 800; line-height: 1.25;
             overflow-wrap: anywhere;
         }
         .route-stop-task {
-            color: #3D5670; font-size: .78rem; line-height: 1.25;
+            color: #475569; font-size: .78rem; line-height: 1.25;
             overflow-wrap: anywhere; margin-top: .12rem;
         }
         .route-stop-time {
-            color: #12283F; font-weight: 800; white-space: nowrap;
+            color: #1E293B; font-weight: 800; white-space: nowrap;
             text-align: right;
         }
         .route-stop-travel {
-            color: #3D5670; font-size: .72rem; margin-top: .12rem;
+            color: #475569; font-size: .72rem; margin-top: .12rem;
         }
         .route-return {
-            border: 1px dashed #8FA5BE; border-radius: .65rem;
-            color: #3D5670; padding: .62rem .78rem; margin-top: .2rem;
+            border: 1px dashed #94A3B8; border-radius: .65rem;
+            color: #475569; padding: .62rem .78rem; margin-top: .2rem;
             background: white; overflow-wrap: anywhere;
         }
         .map-note {
-            color: #3D5670; font-size: .78rem; line-height: 1.4;
+            color: #475569; font-size: .78rem; line-height: 1.4;
             margin: .15rem 0 .55rem;
         }
         div[data-testid="stMetric"] {
-            background: white; border: 1px solid #A9BCD1;
+            background: white; border: 1px solid #CBD5E1;
             padding: .85rem 1rem; border-radius: .7rem;
         }
         button[kind="primary"] {
-            background: #0F4C81; border-color: #0F4C81;
+            background: #0369A1; border-color: #0369A1;
         }
         button[kind="primary"]:hover {
-            background: #0A3860; border-color: #0A3860;
+            background: #0369A1; border-color: #0369A1;
         }
         @media (max-width: 700px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
@@ -449,7 +446,7 @@ def render_hero() -> None:
     st.markdown(
         """
         <div class="hero-heading">
-          Plan a cooler workday in three clicks.
+          Plan a cooler workday in three simple steps.
         </div>
         <div class="hero-copy">
         Pick a U.S. area, tap the crew base and work sites, then let CertiRoute
@@ -631,7 +628,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[15, 76, 129, 255],
+            get_color=[2, 132, 199, 255],
             get_width=5,
             width_units="'pixels'",
         ),
@@ -641,7 +638,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=24,
             radius_units="'pixels'",
-            get_fill_color=[10, 37, 64, 255],
+            get_fill_color=[15, 23, 42, 255],
             pickable=True,
         ),
         pdk.Layer(
@@ -650,7 +647,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=17,
             radius_units="'pixels'",
-            get_fill_color=[194, 65, 12, 255],
+            get_fill_color=[234, 88, 12, 255],
             stroked=True,
             get_line_color=[255, 255, 255, 255],
             get_line_width=2,
@@ -681,7 +678,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[10, 37, 64, 255],
+            get_color=[15, 23, 42, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
@@ -698,7 +695,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             map_style=pdk.map_styles.CARTO_LIGHT,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
-                "style": {"backgroundColor": "#0A2540", "color": "white"},
+                "style": {"backgroundColor": "#0F172A", "color": "white"},
             },
         ),
         width="stretch",
@@ -1167,39 +1164,20 @@ def render_detail_sections(
 def render_empty_state(
     *,
     job_count: int,
-    missing_count: int,
-    request_count: int,
-    key_available: bool,
 ) -> None:
-    """Explain exactly what the primary action will produce."""
+    """Keep the pre-result state focused on the outcome, not API mechanics."""
 
     st.markdown(
         f"""
         <div class="empty-state">
           <h3 style="margin-top:0">Your numbered crew route will appear here</h3>
-          <p>Build the route to turn these {job_count} jobs into one clear
-          decision, a numbered map, an ordered stop list, and a depot return
-          time.</p>
+          <p>CertiRoute will check real street-level temperatures around these
+          {job_count} jobs, choose the best feasible order, and show the crew
+          exactly where to go first.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    if missing_count and not key_available:
-        st.error(
-            "FortyGuard connection required. Add `FORTYGUARD_API_KEY` to `.env` "
-            "and reload. No schedule is calculated without real temperature evidence."
-        )
-    elif missing_count:
-        st.info(
-            f"Ready to build. {request_count - missing_count} of {request_count} "
-            "temperature snapshots are already saved; "
-            f"{missing_count} will be retrieved from FortyGuard."
-        )
-    else:
-        st.info(
-            f"Ready to build. All {request_count} required FortyGuard temperature "
-            "snapshots are already saved."
-        )
 
 
 def render_safety_boundary(*, compact: bool) -> None:
@@ -1224,111 +1202,430 @@ def render_safety_boundary(*, compact: bool) -> None:
     )
 
 
-def render_job_source() -> tuple[JobManifest | None, bool]:
-    """Collect and validate a real manifest, with the example kept secondary."""
+MAP_SCENARIO_KEY = "certiroute_map_scenario"
+MAP_GENERATION_KEY = "certiroute_map_generation"
+SCENARIO_SOURCE_KEY = "certiroute_scenario_source"
+SOURCE_MANIFEST_KEY = "certiroute_source_manifest"
 
-    st.markdown("## 1. Add work orders")
-    source = st.segmented_control(
-        "Work-order source",
-        options=["Upload my jobs", "Use Phoenix example"],
-        default="Upload my jobs",
-        key="job_source",
-        help=(
-            "Uploaded work orders are used only for this app session and are "
-            "not written to project storage."
+
+def load_map_scenario() -> MapScenarioState:
+    """Restore the current map choices without trusting corrupt session values."""
+
+    saved = st.session_state.get(MAP_SCENARIO_KEY)
+    if isinstance(saved, MapScenarioState):
+        return saved
+    if isinstance(saved, Mapping):
+        try:
+            return MapScenarioState.from_dict(saved)
+        except ValueError:
+            pass
+    state = MapScenarioState()
+    st.session_state[MAP_SCENARIO_KEY] = state.to_dict()
+    st.session_state.setdefault(MAP_GENERATION_KEY, 0)
+    st.session_state.setdefault(SCENARIO_SOURCE_KEY, "map")
+    return state
+
+
+def invalidate_route_result() -> None:
+    """Prevent any changed selection from displaying a stale route."""
+
+    for key in (
+        "certiroute_active_scenario",
+        "certiroute_result_scenario",
+        "certiroute_temperature_batch",
+        "view_mode",
+    ):
+        st.session_state.pop(key, None)
+
+
+def save_map_scenario(
+    state: MapScenarioState,
+    *,
+    source: str | None = None,
+    source_manifest: JobManifest | None = None,
+) -> None:
+    """Persist map choices and invalidate results that no longer match."""
+
+    st.session_state[MAP_SCENARIO_KEY] = state.to_dict()
+    if source is not None:
+        st.session_state[SCENARIO_SOURCE_KEY] = source
+    if source_manifest is None:
+        st.session_state.pop(SOURCE_MANIFEST_KEY, None)
+    else:
+        st.session_state[SOURCE_MANIFEST_KEY] = source_manifest
+    invalidate_route_result()
+
+
+def start_fresh_map(state: MapScenarioState) -> None:
+    """Clear all points and remount the picker at the selected city."""
+
+    fresh = MapScenarioState(operating_area_id=state.operating_area_id)
+    save_map_scenario(fresh, source="map")
+    st.session_state[MAP_GENERATION_KEY] = (
+        int(st.session_state.get(MAP_GENERATION_KEY, 0)) + 1
+    )
+
+
+def source_manifest() -> JobManifest | None:
+    """Return a session manifest only when it matches a supported source."""
+
+    value = st.session_state.get(SOURCE_MANIFEST_KEY)
+    return value if isinstance(value, JobManifest) else None
+
+
+def render_picker_instruction(state: MapScenarioState) -> None:
+    """Tell the user exactly what their next map tap will do."""
+
+    if state.depot is None:
+        if state.job_count:
+            title = "Click where the crew starts and returns"
+            detail = (
+                f"Your {state.job_count} imported work sites are already orange. "
+                "One map click places the blue crew base."
+            )
+        else:
+            title = "First, click where the crew starts and returns"
+            detail = "Pan or zoom if needed. Your first click becomes the blue base."
+        style = ""
+    elif state.job_count < MIN_MANIFEST_JOBS:
+        remaining = MIN_MANIFEST_JOBS - state.job_count
+        title = "Now click each place the crew needs to visit"
+        detail = (
+            f"Add {remaining} more orange work "
+            f"{'site' if remaining == 1 else 'sites'} inside the dashed work area."
+        )
+        style = ""
+    else:
+        title = f"Ready — {state.job_count} work sites selected"
+        detail = "Add another site, adjust the optional details, or build the route."
+        style = " ready"
+    st.markdown(
+        f'<div class="picker-instruction{style}"><strong>{title}</strong>'
+        f"{detail}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_selection_summary(
+    state: MapScenarioState, manifest_hint: JobManifest | None
+) -> None:
+    """Show selected places without exposing latitude or longitude."""
+
+    cards: list[str] = []
+    if state.depot is not None:
+        cards.append(
+            '<div class="selection-item">'
+            '<span class="selection-marker depot">BASE</span>'
+            "<span>Crew start &amp; return</span></div>"
+        )
+    for index, _site in enumerate(state.job_sites, 1):
+        if manifest_hint is not None and index <= len(manifest_hint.jobs):
+            job = manifest_hint.jobs[index - 1]
+            label = escape(site_and_task(job.name)[0])
+            duration = job.duration_minutes
+        else:
+            label = f"Work site {index}"
+            duration = DEFAULT_JOB_DURATION_MINUTES
+        cards.append(
+            '<div class="selection-item">'
+            f'<span class="selection-marker">{index}</span>'
+            f"<span>{label} · {duration} min</span></div>"
+        )
+    if cards:
+        st.markdown(
+            '<div class="selection-summary">' + "".join(cards) + "</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def _load_example_scenario(state: MapScenarioState) -> None:
+    validation = validate_job_manifest(load_sample_jobs())
+    if not validation.is_valid or validation.manifest is None:
+        st.error("The bundled Phoenix walkthrough failed validation.")
+        return
+    manifest = validation.manifest
+    example_state = MapScenarioState(
+        operating_area_id=DEFAULT_OPERATING_AREA_ID,
+        depot=MapPoint(EXAMPLE_DEPOT.latitude, EXAMPLE_DEPOT.longitude),
+        job_sites=tuple(
+            MapPoint(job.location.latitude, job.location.longitude)
+            for job in manifest.jobs
         ),
     )
-
-    if source == "Use Phoenix example":
-        validation = validate_job_manifest(load_sample_jobs())
-        if not validation.is_valid or validation.manifest is None:
-            st.error("The bundled Phoenix example failed validation.")
-            return None, True
-        manifest = validation.manifest
-        st.info(
-            "Example mode: Phoenix landmarks are real, but the work orders and "
-            "constraints are fictional. Route temperatures still come only from "
-            "FortyGuard."
-        )
-        with st.expander("Preview the Phoenix example jobs"):
-            st.dataframe(manifest.frame, hide_index=True, width="stretch")
-        return manifest, True
-
-    upload_column, template_column = st.columns([1.8, 1])
-    with upload_column:
-        uploaded = st.file_uploader(
-            "Upload work orders (CSV)",
-            type=["csv"],
-            key="job_manifest_upload",
-            help=(
-                f"UTF-8 CSV, 1 MB maximum, with {MIN_MANIFEST_JOBS}–"
-                f"{MAX_MANIFEST_JOBS} U.S. work sites."
-            ),
-        )
-    with template_column:
-        st.markdown("**New to the format?**")
-        st.download_button(
-            "Download CSV template",
-            data=JOB_TEMPLATE_CSV,
-            file_name="certiroute-work-orders-template.csv",
-            mime="text/csv",
-            width="stretch",
-        )
-        st.caption("Replace both example rows with your own work orders.")
-
-    if uploaded is None:
-        st.info(
-            "Start with the template, add 2–9 work sites, then upload it here. "
-            "Required fields: ID, site name, coordinates, duration, priority, "
-            "earliest start, and latest finish."
-        )
-        with st.expander("See the eight required CSV columns"):
-            st.code(",".join(REQUIRED_JOB_COLUMNS), language="text")
-            st.markdown(
-                "Times use 24-hour `HH:MM`. Priority is 1–5. Coordinates must "
-                "be U.S. latitude/longitude values supported by FortyGuard."
-            )
-        return None, False
-
-    validation = parse_uploaded_jobs(uploaded.getvalue())
-    if not validation.is_valid or validation.manifest is None:
-        st.error("This work-order file is not ready yet.")
-        for message in validation.error_messages or (
-            "Check that the file is a UTF-8 CSV using the downloadable template.",
-        ):
-            st.markdown(f"- {escape(message)}")
-        return None, False
-
-    manifest = validation.manifest
-    st.success(
-        f"{len(manifest.jobs)} work orders validated. No API request has been made."
+    save_map_scenario(example_state, source="example", source_manifest=manifest)
+    st.session_state[MAP_GENERATION_KEY] = (
+        int(st.session_state.get(MAP_GENERATION_KEY, 0)) + 1
     )
-    with st.expander("Review uploaded jobs"):
-        st.dataframe(
-            manifest.frame,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "job_id": st.column_config.TextColumn("Work order", width="small"),
-                "name": st.column_config.TextColumn("Site and task", width="large"),
-                "duration_minutes": st.column_config.NumberColumn(
-                    "Duration (min)", width="small"
-                ),
-                "priority": st.column_config.NumberColumn("Priority", width="small"),
-                "earliest_start": st.column_config.TextColumn(
-                    "Not before", width="small"
-                ),
-                "latest_finish": st.column_config.TextColumn(
-                    "Finish by", width="small"
-                ),
-            },
-        )
+    st.rerun()
+
+
+def _load_uploaded_scenario(state: MapScenarioState, manifest: JobManifest) -> None:
+    imported_state = MapScenarioState(
+        operating_area_id=state.operating_area_id,
+        job_sites=tuple(
+            MapPoint(job.location.latitude, job.location.longitude)
+            for job in manifest.jobs
+        ),
+    )
+    save_map_scenario(imported_state, source="upload", source_manifest=manifest)
+    st.session_state[MAP_GENERATION_KEY] = (
+        int(st.session_state.get(MAP_GENERATION_KEY, 0)) + 1
+    )
+    st.rerun()
+
+
+def render_advanced_sources(state: MapScenarioState) -> None:
+    """Keep spreadsheet import and the judge walkthrough out of onboarding."""
+
+    with st.expander("Advanced: import work orders or load the walkthrough"):
+        st.markdown("**Already export jobs from another system?**")
         st.caption(
-            "Check names, coordinates, durations, priorities, and time windows "
-            "against your source system before continuing."
+            "Import is optional. The map above is the fastest way to start. "
+            "Uploaded work orders stay in this app session."
         )
-        st.map(manifest.frame[["latitude", "longitude"]])
-    return manifest, False
+        upload_column, template_column = st.columns([1.6, 1])
+        with upload_column:
+            uploaded = st.file_uploader(
+                "Import work orders (CSV)",
+                type=["csv"],
+                key="job_manifest_upload",
+                help=(
+                    f"UTF-8 CSV, 1 MB maximum, with {MIN_MANIFEST_JOBS}–"
+                    f"{MAX_MANIFEST_JOBS} U.S. work sites."
+                ),
+            )
+        with template_column:
+            st.download_button(
+                "Download import template",
+                data=JOB_TEMPLATE_CSV,
+                file_name="certiroute-work-orders-template.csv",
+                mime="text/csv",
+                width="stretch",
+            )
+
+        if uploaded is not None:
+            validation = parse_uploaded_jobs(uploaded.getvalue())
+            if not validation.is_valid or validation.manifest is None:
+                st.error("This import needs a few fixes.")
+                for message in validation.error_messages:
+                    st.markdown(f"- {escape(message)}")
+            else:
+                imported = validation.manifest
+                st.success(f"{len(imported.jobs)} work sites are ready to place.")
+                preview = imported.frame[["name", "duration_minutes"]].rename(
+                    columns={"name": "Work site", "duration_minutes": "Minutes"}
+                )
+                st.dataframe(preview, hide_index=True, width="stretch")
+                if st.button(
+                    "Use these imported jobs",
+                    width="stretch",
+                    key="use_imported_jobs",
+                ):
+                    _load_uploaded_scenario(state, imported)
+
+        st.divider()
+        st.markdown("**Want to see a finished setup first?**")
+        st.caption(
+            "Load six fictional Phoenix jobs at real landmarks. Temperature "
+            "evidence still comes only from FortyGuard."
+        )
+        if st.button(
+            "Load the Phoenix walkthrough",
+            width="stretch",
+            key="load_phoenix_walkthrough",
+        ):
+            _load_example_scenario(state)
+
+
+def render_map_setup() -> MapScenarioState:
+    """Render the map-first job input and apply at most one new click."""
+
+    state = load_map_scenario()
+    generation = int(st.session_state.get(MAP_GENERATION_KEY, 0))
+    labels = [area.label for area in OPERATING_AREA_PRESETS]
+    ids_by_label = {area.label: area.area_id for area in OPERATING_AREA_PRESETS}
+    selected_label = st.selectbox(
+        "Choose a U.S. work area",
+        options=labels,
+        index=labels.index(state.operating_area.label),
+        key=f"operating_area_{generation}",
+        help="This only positions the map. You choose the exact places by clicking.",
+    )
+    selected_area_id = ids_by_label[selected_label]
+    if selected_area_id != state.operating_area_id:
+        changed = select_operating_area(state, selected_area_id)
+        save_map_scenario(changed, source="map")
+        st.session_state[MAP_GENERATION_KEY] = generation + 1
+        st.rerun()
+
+    manifest_hint = source_manifest()
+    render_picker_instruction(state)
+    returned = map_picker.render_map_picker(
+        state.operating_area,
+        depot=state.depot,
+        job_sites=state.job_sites,
+        generation=generation,
+        height=430,
+    )
+    last_clicked = (
+        returned.get("last_clicked") if isinstance(returned, Mapping) else None
+    )
+    if isinstance(last_clicked, Mapping):
+        latitude = last_clicked.get("lat")
+        longitude = last_clicked.get("lng")
+        try:
+            result = apply_map_click(
+                state,
+                latitude=latitude,  # type: ignore[arg-type]
+                longitude=longitude,  # type: ignore[arg-type]
+            )
+        except ValueError:
+            st.warning("That map click could not be used. Please try a nearby point.")
+        else:
+            if result.action is MapClickAction.JOB_LIMIT_REACHED:
+                save_map_scenario(
+                    result.state,
+                    source=st.session_state.get(SCENARIO_SOURCE_KEY, "map"),
+                    source_manifest=manifest_hint,
+                )
+                st.warning(f"A route can include up to {MAX_MANIFEST_JOBS} work sites.")
+            elif result.point_was_added:
+                source = str(st.session_state.get(SCENARIO_SOURCE_KEY, "map"))
+                keep_manifest = (
+                    manifest_hint
+                    if source == "upload" and result.action is MapClickAction.DEPOT_SET
+                    else None
+                )
+                save_map_scenario(
+                    result.state,
+                    source=source if keep_manifest is not None else "map",
+                    source_manifest=keep_manifest,
+                )
+                st.rerun()
+
+    render_selection_summary(state, manifest_hint)
+    undo_column, reset_column = st.columns(2)
+    with undo_column:
+        if st.button(
+            "Undo last point",
+            width="stretch",
+            disabled=state.depot is None and not state.job_sites,
+        ):
+            save_map_scenario(undo_last_point(state), source="map")
+            st.rerun()
+    with reset_column:
+        if st.button(
+            "Start over",
+            width="stretch",
+            disabled=state.depot is None and not state.job_sites,
+        ):
+            start_fresh_map(state)
+            st.rerun()
+
+    render_advanced_sources(state)
+    return state
+
+
+def render_workday_settings(
+    *,
+    scenario_token: str,
+    is_example: bool,
+    manifest_hint: JobManifest | None,
+) -> tuple[date, time, time]:
+    """Use useful defaults while keeping the historical mode explicit."""
+
+    yesterday = date.today() - timedelta(days=1)
+    default_date = min(DEFAULT_REPLAY_DATE, yesterday) if is_example else yesterday
+    if manifest_hint is None:
+        default_start = DEFAULT_SHIFT_START
+        default_end = DEFAULT_SHIFT_END
+    else:
+        default_start = time.fromisoformat(
+            str(manifest_hint.frame["earliest_start"].min())
+        )
+        default_end = time.fromisoformat(
+            str(manifest_hint.frame["latest_finish"].max())
+        )
+
+    with st.expander("Change replay day or shift (optional)"):
+        st.caption(
+            "This version replays a completed day so every result can be checked "
+            "against stable temperature evidence."
+        )
+        selected_date = st.date_input(
+            "Replay day",
+            value=default_date,
+            min_value=date(2021, 1, 1),
+            max_value=yesterday,
+            key=f"replay_date_{scenario_token}",
+        )
+        start_column, end_column = st.columns(2)
+        with start_column:
+            shift_start = st.time_input(
+                "Crew starts",
+                value=default_start,
+                step=timedelta(minutes=15),
+                key=f"shift_start_{scenario_token}",
+            )
+        with end_column:
+            shift_end = st.time_input(
+                "Crew finishes",
+                value=default_end,
+                step=timedelta(minutes=15),
+                key=f"shift_end_{scenario_token}",
+            )
+
+    st.markdown(
+        '<div class="workday-chip"><span><strong>Workday</strong> · '
+        "Past-day replay</span>"
+        f"<span>{selected_date.strftime('%d %b %Y')} · "
+        f"{shift_start.strftime('%H:%M')}–{shift_end.strftime('%H:%M')}</span></div>",
+        unsafe_allow_html=True,
+    )
+    return selected_date, shift_start, shift_end
+
+
+def build_map_manifest(
+    state: MapScenarioState,
+    *,
+    shift_start: time,
+    shift_end: time,
+    scenario_token: str,
+) -> JobManifestValidation:
+    """Create ordinary jobs from map points, with only useful edits exposed."""
+
+    validation = build_default_job_manifest(
+        state,
+        shift_start=shift_start,
+        shift_end=shift_end,
+    )
+    if not validation.is_valid or validation.manifest is None:
+        return validation
+
+    frame = validation.manifest.frame.copy()
+    with st.expander("Name jobs or change visit time (optional)"):
+        st.caption(
+            "Every map point already works as a 45-minute job. Add names only if "
+            "they will help the crew."
+        )
+        for index in range(len(frame)):
+            name_column, duration_column = st.columns([2.2, 1])
+            with name_column:
+                frame.loc[index, "name"] = st.text_input(
+                    f"Job {index + 1} name",
+                    value=str(frame.loc[index, "name"]),
+                    key=f"job_name_{scenario_token}_{index}",
+                )
+            with duration_column:
+                frame.loc[index, "duration_minutes"] = st.number_input(
+                    f"Minutes at job {index + 1}",
+                    min_value=5,
+                    max_value=240,
+                    value=int(frame.loc[index, "duration_minutes"]),
+                    step=5,
+                    key=f"job_duration_{scenario_token}_{index}",
+                )
+    return validate_job_manifest(frame)
 
 
 def preflight_route(
@@ -1396,74 +1693,26 @@ render_hero()
 render_three_steps()
 route_result_slot = st.container()
 
-manifest, is_example = render_job_source()
-if manifest is None:
+st.markdown("## Build a route from the map")
+map_state = render_map_setup()
+if not map_state.is_ready or map_state.depot is None:
     st.markdown("---")
     render_safety_boundary(compact=True)
     st.stop()
 
-domain_jobs = list(manifest.jobs)
-source_token = "example" if is_example else "upload"
-scenario_token = f"{source_token}_{manifest.fingerprint[:12]}"
-default_shift_start = time.fromisoformat(str(manifest.frame["earliest_start"].min()))
-default_shift_end = time.fromisoformat(str(manifest.frame["latest_finish"].max()))
-default_depot = EXAMPLE_DEPOT if is_example else domain_jobs[0].location
-yesterday = date.today() - timedelta(days=1)
-default_date = min(DEFAULT_REPLAY_DATE, yesterday) if is_example else yesterday
-
-st.markdown("## 2. Confirm the shift")
-with st.container(border=True):
-    schedule_column, depot_column = st.columns(2, gap="large")
-    with schedule_column:
-        st.markdown("**When does this crew work?**")
-        selected_date = st.date_input(
-            "Historical replay date",
-            value=default_date,
-            min_value=date(2021, 1, 1),
-            max_value=yesterday,
-            key=f"replay_date_{scenario_token}",
-            help=(
-                "This version validates a completed workday. Current-day and "
-                "forecast routing will be added after the API time-zone contract "
-                "is confirmed."
-            ),
-        )
-        shift_start = st.time_input(
-            "Shift starts",
-            value=(EXAMPLE_SHIFT_START if is_example else default_shift_start),
-            step=timedelta(minutes=15),
-            key=f"shift_start_{scenario_token}",
-        )
-        shift_end = st.time_input(
-            "Shift finishes",
-            value=EXAMPLE_SHIFT_END if is_example else default_shift_end,
-            step=timedelta(minutes=15),
-            key=f"shift_end_{scenario_token}",
-        )
-    with depot_column:
-        st.markdown("**Where does the crew start and finish?**")
-        depot_latitude = st.number_input(
-            "Depot latitude",
-            min_value=-90.0,
-            max_value=90.0,
-            value=float(default_depot.latitude),
-            step=0.0001,
-            format="%.6f",
-            key=f"depot_latitude_{scenario_token}",
-        )
-        depot_longitude = st.number_input(
-            "Depot longitude",
-            min_value=-180.0,
-            max_value=180.0,
-            value=float(default_depot.longitude),
-            step=0.0001,
-            format="%.6f",
-            key=f"depot_longitude_{scenario_token}",
-        )
-        st.caption(
-            "For uploads, the first job is only a starting suggestion. Replace "
-            "it with the crew's actual U.S. depot."
-        )
+source_token = str(st.session_state.get(SCENARIO_SOURCE_KEY, "map"))
+manifest_hint = source_manifest()
+if manifest_hint is not None and len(manifest_hint.jobs) != map_state.job_count:
+    manifest_hint = None
+    source_token = "map"
+generation = int(st.session_state.get(MAP_GENERATION_KEY, 0))
+widget_token = f"{source_token}_{generation}"
+is_example = source_token == "example"
+selected_date, shift_start, shift_end = render_workday_settings(
+    scenario_token=widget_token,
+    is_example=is_example,
+    manifest_hint=manifest_hint,
+)
 
 shift_duration_minutes = minutes_of_day(shift_end) - minutes_of_day(shift_start)
 if shift_duration_minutes <= 0:
@@ -1475,7 +1724,28 @@ if shift_duration_minutes > 12 * 60:
     render_safety_boundary(compact=True)
     st.stop()
 
-depot = GeoPoint(latitude=depot_latitude, longitude=depot_longitude)
+if manifest_hint is None:
+    validation = build_map_manifest(
+        map_state,
+        shift_start=shift_start,
+        shift_end=shift_end,
+        scenario_token=widget_token,
+    )
+    if not validation.is_valid or validation.manifest is None:
+        st.error("One or more job details need attention before routing.")
+        for message in validation.error_messages:
+            st.markdown(f"- {escape(message)}")
+        render_safety_boundary(compact=True)
+        st.stop()
+    manifest = validation.manifest
+else:
+    manifest = manifest_hint
+
+domain_jobs = list(manifest.jobs)
+depot = GeoPoint(
+    latitude=map_state.depot.latitude,
+    longitude=map_state.depot.longitude,
+)
 sample_times = hourly_sample_times(shift_start, shift_end)
 requests = build_profile_requests(
     domain_jobs,
@@ -1498,31 +1768,20 @@ except CacheCorruptionError as exc:
     st.stop()
 
 key_available = api_key_available()
-st.markdown("## 3. Build the crew route")
+st.markdown("## Create the crew route")
 with st.container(border=True):
     st.markdown(
         f"""
-        <div class="route-summary">
-          <div class="route-fact">
-            <div class="route-fact-label">Work orders</div>
-            <div class="route-fact-value">{len(domain_jobs)} validated</div>
-          </div>
-          <div class="route-fact">
-            <div class="route-fact-label">Service area</div>
-            <div class="route-fact-value">{area:.2f} mi²</div>
-          </div>
-          <div class="route-fact">
-            <div class="route-fact-label">Temperature evidence</div>
-            <div class="route-fact-value">
-              {collection_plan.cache_hit_count} / {collection_plan.request_count} ready
-            </div>
-          </div>
+        <div class="picker-instruction ready">
+          <strong>{len(domain_jobs)} work sites · crew returns to the blue base</strong>
+          CertiRoute will use real FortyGuard temperatures for
+          {selected_date.strftime("%d %b %Y")} and return one numbered visit order.
         </div>
         """,
         unsafe_allow_html=True,
     )
     build_clicked = st.button(
-        "Build heat-aware route",
+        "Create my heat-aware route",
         type="primary",
         width="stretch",
         disabled=(
@@ -1530,15 +1789,14 @@ with st.container(border=True):
         ),
     )
     st.caption(
-        "First CertiRoute proves the full shift is feasible. Then it loads only "
-        "the missing real FortyGuard temperature snapshots—never substitutes."
+        "Nothing is sent until you press this button. CertiRoute never replaces "
+        "missing temperature evidence with invented data."
     )
 
 if oversized:
     st.error(
-        f"These jobs span {area:.2f} mi², above the current "
-        f"{DEFAULT_MAX_AOI_AREA_SQUARE_MILES:.0f} mi² FortyGuard request limit. "
-        "Upload one compact service zone for this route."
+        "One or more work sites are too far apart for a single temperature "
+        "request. Undo the distant point or start a separate nearby route."
     )
 elif collection_plan.new_task_count > 0 and not key_available:
     st.error(
@@ -1570,42 +1828,34 @@ if st.session_state.get("certiroute_result_scenario") == scenario_key:
 
 if build_clicked and not oversized:
     try:
-        with st.status("Building a heat-aware workday…", expanded=True) as status:
-            st.write(
-                f"✓ Validated {len(domain_jobs)} work orders, their windows, "
-                "and the depot return"
-            )
+        with st.status(
+            "Checking heat and building the route…", expanded=True
+        ) as status:
+            st.write(f"✓ Read {len(domain_jobs)} work sites and the crew base")
             preflight_route(
                 domain_jobs,
                 depot=depot,
                 shift_start=shift_start,
                 shift_end=shift_end,
             )
-            st.write("✓ Confirmed at least one complete route fits this shift")
+            st.write("✓ Confirmed the crew can finish every job in this shift")
             progress = st.progress(
                 collection_plan.cache_hit_count / collection_plan.request_count,
-                text=(
-                    "Loading real FortyGuard temperatures · "
-                    f"{collection_plan.cache_hit_count} of "
-                    f"{collection_plan.request_count} already saved"
-                ),
+                text=("Checking real FortyGuard temperatures for every work hour"),
             )
             batch = collect_batch(domain_jobs, collection_plan, store)
             progress.progress(
                 1.0,
-                text=(
-                    f"Loaded {collection_plan.request_count} of "
-                    f"{collection_plan.request_count} temperature snapshots"
-                ),
+                text="Real temperature evidence is ready",
             )
-            st.write("✓ Matched every work site to its returned temperature tile")
-            st.write("✓ Compared feasible stop orders and preserved every window")
+            st.write("✓ Compared feasible visit orders and kept every job on time")
             status.update(label="Crew route ready", state="complete")
     except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
         batch = None
         st.error(
             "No complete depot-to-depot route fits these job windows and shift. "
-            "Adjust the depot, shift, durations, or time windows, then try again. "
+            "Shorten a visit, lengthen the shift, or remove a distant job, "
+            "then try again. "
             f"No FortyGuard request was submitted. Details: {exc}"
         )
     except (CacheCorruptionError, FortyGuardError, ValidationError, ValueError) as exc:
@@ -1632,9 +1882,6 @@ if batch is not None:
 else:
     render_empty_state(
         job_count=len(domain_jobs),
-        missing_count=collection_plan.new_task_count,
-        request_count=collection_plan.request_count,
-        key_available=key_available,
     )
     st.markdown("---")
     render_safety_boundary(compact=True)

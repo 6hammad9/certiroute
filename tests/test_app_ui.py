@@ -1,9 +1,9 @@
-"""UI contract tests for the real-data-only Streamlit experience."""
+"""UI contract tests for the guided, real-data-only Streamlit experience."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
@@ -13,10 +13,12 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
+import certiroute.map_picker as map_picker
 from certiroute.collection import HeatmapSnapshotStore, SnapshotTemporalScope
 from certiroute.config import get_settings
 from certiroute.domain import GeoPoint, Job
 from certiroute.fortyguard import FortyGuardClient
+from certiroute.map_scenario import MapScenarioState
 from certiroute.real_conditions import build_profile_requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -37,15 +39,48 @@ SITE_CURVES = {
 }
 
 
+@dataclass
+class MapDriver:
+    """Replace the Folium component with one controllable AppTest boundary."""
+
+    last_clicked: dict[str, float] | None = None
+    calls: list[dict[str, object]] = field(default_factory=list)
+
+    def render(
+        self,
+        operating_area: object,
+        *,
+        depot: object,
+        job_sites: object,
+        generation: int = 0,
+        height: int = 500,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        self.calls.append(
+            {
+                "operating_area": operating_area,
+                "depot": depot,
+                "job_sites": tuple(job_sites),  # type: ignore[arg-type]
+                "generation": generation,
+                "height": height,
+            }
+        )
+        return {"last_clicked": self.last_clicked}
+
+
 @dataclass(frozen=True)
 class RenderedStates:
-    """Network-isolated upload, example-crew, and planner product states."""
+    """Network-isolated onboarding, map, import, and result product states."""
 
     empty: AppTest
-    upload_ready: AppTest
-    infeasible_upload: AppTest
+    duplicate: AppTest
+    map_ready: AppTest
+    import_waiting_for_depot: AppTest
+    import_ready: AppTest
+    infeasible_import: AppTest
     crew: AppTest
     planner: AppTest
+    map_driver: MapDriver
     network_calls: list[str]
 
 
@@ -119,24 +154,55 @@ def _publish_cached_replay(cache_root: Path) -> None:
         )
 
 
-def _run_app() -> AppTest:
+def _run_app(driver: MapDriver) -> AppTest:
+    driver.last_clicked = None
     app = AppTest.from_file(APP_PATH)
     app.run(timeout=60)
     assert not app.exception
     return app
 
 
-def _select_example_and_build(app: AppTest) -> AppTest:
-    """Choose the secondary Phoenix example and explicitly build its route."""
+def _button(app: AppTest, label: str):
+    return next(button for button in app.button if button.label == label)
 
-    app.segmented_control(key="job_source").select("Use Phoenix example").run(
-        timeout=60
-    )
+
+def _click_map(
+    app: AppTest,
+    driver: MapDriver,
+    *,
+    latitude: float,
+    longitude: float,
+) -> AppTest:
+    """Publish one click; its repeated rerun payload must be ignored by the app."""
+
+    driver.last_clicked = {"lat": latitude, "lng": longitude}
+    app.run(timeout=60)
+    driver.last_clicked = None
     assert not app.exception
-    build = next(
-        button for button in app.button if button.label == "Build heat-aware route"
-    )
-    build.click().run(timeout=60)
+    return app
+
+
+def _scenario(app: AppTest) -> MapScenarioState:
+    value = app.session_state["certiroute_map_scenario"]
+    if isinstance(value, MapScenarioState):
+        return value
+    return MapScenarioState.from_dict(value)
+
+
+def _import_jobs(app: AppTest, upload: tuple[str, bytes, str]) -> AppTest:
+    app.file_uploader(key="job_manifest_upload").upload(*upload).run(timeout=60)
+    assert not app.exception
+    _button(app, "Use these imported jobs").click().run(timeout=60)
+    assert not app.exception
+    return app
+
+
+def _load_example_and_build(app: AppTest) -> AppTest:
+    """Load the secondary walkthrough and explicitly create its route."""
+
+    _button(app, "Load the Phoenix walkthrough").click().run(timeout=60)
+    assert not app.exception
+    _button(app, "Create my heat-aware route").click().run(timeout=60)
     assert not app.exception
     return app
 
@@ -170,9 +236,10 @@ INFEASIBLE_UPLOAD = (
 
 @pytest.fixture(scope="module")
 def rendered_states(tmp_path_factory: pytest.TempPathFactory) -> RenderedStates:
-    """Render empty and cached states while making network use impossible."""
+    """Render every state while making unexpected network use impossible."""
 
     patch = pytest.MonkeyPatch()
+    driver = MapDriver()
     network_calls: list[str] = []
 
     def reject_network(*_args: object, **_kwargs: object) -> object:
@@ -181,42 +248,54 @@ def rendered_states(tmp_path_factory: pytest.TempPathFactory) -> RenderedStates:
 
     patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
     patch.setattr(FortyGuardClient, "create_heatmap", reject_network)
+    patch.setattr(map_picker, "render_map_picker", driver.render)
     get_settings.cache_clear()
 
     empty_root = tmp_path_factory.mktemp("empty_heatmap_cache")
     patch.setenv("CERTIROUTE_HEATMAP_CACHE_PATH", str(empty_root))
-    empty = _run_app()
-    upload_ready = _run_app()
-    upload_ready.file_uploader[0].upload(*VALID_UPLOAD).run(timeout=60)
-    assert not upload_ready.exception
-    infeasible_upload = _run_app()
-    infeasible_upload.file_uploader[0].upload(*INFEASIBLE_UPLOAD).run(timeout=60)
-    assert not infeasible_upload.exception
-    next(
-        button
-        for button in infeasible_upload.button
-        if button.label == "Build heat-aware route"
-    ).click().run(timeout=60)
-    assert not infeasible_upload.exception
+    empty = _run_app(driver)
+
+    duplicate = _run_app(driver)
+    _click_map(duplicate, driver, latitude=33.44855, longitude=-112.07391)
+    _click_map(duplicate, driver, latitude=33.44530, longitude=-112.06670)
+    _click_map(duplicate, driver, latitude=33.44530, longitude=-112.06670)
+
+    map_ready = _run_app(driver)
+    _click_map(map_ready, driver, latitude=33.44855, longitude=-112.07391)
+    _click_map(map_ready, driver, latitude=33.44530, longitude=-112.06670)
+    _click_map(map_ready, driver, latitude=33.45210, longitude=-112.07830)
+
+    import_waiting_for_depot = _import_jobs(_run_app(driver), VALID_UPLOAD)
+
+    import_ready = _import_jobs(_run_app(driver), VALID_UPLOAD)
+    _click_map(import_ready, driver, latitude=33.44855, longitude=-112.07391)
+
+    infeasible_import = _import_jobs(_run_app(driver), INFEASIBLE_UPLOAD)
+    _click_map(infeasible_import, driver, latitude=33.44855, longitude=-112.07391)
+    _button(infeasible_import, "Create my heat-aware route").click().run(timeout=60)
+    assert not infeasible_import.exception
 
     cached_root = tmp_path_factory.mktemp("cached_heatmap_cache")
     _publish_cached_replay(cached_root)
     patch.setenv("CERTIROUTE_HEATMAP_CACHE_PATH", str(cached_root))
-    crew = _select_example_and_build(_run_app())
+    crew = _load_example_and_build(_run_app(driver))
 
-    # Use an independent AppTest session for the planner contract so no state
-    # from the crew view can make the separation test pass accidentally.
-    planner = _select_example_and_build(_run_app())
+    # Keep planner assertions independent from the crew-facing session.
+    planner = _load_example_and_build(_run_app(driver))
     planner.segmented_control(key="view_mode").select("Planner details").run(timeout=60)
     assert not planner.exception
 
     try:
         yield RenderedStates(
             empty=empty,
-            upload_ready=upload_ready,
-            infeasible_upload=infeasible_upload,
+            duplicate=duplicate,
+            map_ready=map_ready,
+            import_waiting_for_depot=import_waiting_for_depot,
+            import_ready=import_ready,
+            infeasible_import=infeasible_import,
             crew=crew,
             planner=planner,
+            map_driver=driver,
             network_calls=network_calls,
         )
     finally:
@@ -237,73 +316,122 @@ def _dataframe_with_column(app: AppTest, column: str) -> pd.DataFrame:
     return next(frame.value for frame in app.dataframe if column in frame.value.columns)
 
 
-def test_first_run_leads_with_upload_and_makes_no_network_request(
+def test_first_run_is_guided_map_first_and_makes_no_network_request(
     rendered_states: RenderedStates,
 ) -> None:
     app = rendered_states.empty
     text = _all_text(app)
-    source = app.segmented_control(key="job_source")
 
     assert app.title[0].value == "CertiRoute"
-    assert "Turn real field jobs into one heat-aware crew route" in text
-    assert "Add work orders" in text
-    assert "Confirm shift" in text
-    assert "Build crew route" in text
-    assert "REAL FORTYGUARD DATA" in text
-    assert "YOUR WORK ORDERS" in text
-    assert source.options == ["Upload my jobs", "Use Phoenix example"]
-    assert source.value == "Upload my jobs"
-    assert len(app.file_uploader) == 1
-    assert app.file_uploader[0].label == "Upload work orders (CSV)"
-    assert [button.label for button in app.download_button] == ["Download CSV template"]
+    assert "Plan a cooler workday in three simple steps" in text
+    assert "No coordinates or spreadsheet setup required" in text
+    assert "Choose an area" in text
+    assert "Tap work sites" in text
+    assert "Get the route" in text
+    assert "First, click where the crew starts and returns" in text
+    assert app.selectbox[0].label == "Choose a U.S. work area"
+    assert app.selectbox[0].value == "Phoenix, Arizona"
 
-    assert not app.button
-    assert not app.radio
-    assert not app.checkbox
+    assert not app.date_input
+    assert not app.time_input
+    assert not app.number_input
     assert not app.metric
     assert not app.dataframe
-    assert not app.get("deck_gl_json_chart")
-    assert "Start with the template" in text
+    assert "latitude" not in text.lower()
+    assert "longitude" not in text.lower()
+    assert [expander.label for expander in app.expander] == [
+        "Advanced: import work orders or load the walkthrough"
+    ]
+    assert app.file_uploader[0].label == "Import work orders (CSV)"
+    assert _button(app, "Undo last point").disabled
+    assert _button(app, "Start over").disabled
+    assert rendered_states.map_driver.calls
     assert rendered_states.network_calls == []
 
 
-def test_valid_upload_reaches_shift_depot_and_build_controls_without_network(
+def test_repeated_component_payload_does_not_duplicate_a_work_site(
     rendered_states: RenderedStates,
 ) -> None:
-    app = rendered_states.upload_ready
+    app = rendered_states.duplicate
+    state = _scenario(app)
     text = _all_text(app)
 
-    assert app.segmented_control(key="job_source").value == "Upload my jobs"
-    assert "2 work orders validated. No API request has been made." in text
-    assert "2. Confirm the shift" in text
-    assert len(app.date_input) == 1
-    assert {widget.label for widget in app.time_input} == {
-        "Shift starts",
-        "Shift finishes",
-    }
-    assert {widget.label for widget in app.number_input} == {
-        "Depot latitude",
-        "Depot longitude",
-    }
-    assert [button.label for button in app.button] == ["Build heat-aware route"]
-    assert not app.button[0].disabled
-    assert [button.label for button in app.download_button] == ["Download CSV template"]
-    uploaded_jobs = next(
-        frame.value for frame in app.dataframe if "job_id" in frame.value.columns
+    assert state.depot is not None
+    assert state.job_count == 1
+    assert "Add 1 more orange work site" in text
+    assert "Ready — 2 work sites selected" not in text
+    assert not any(
+        button.label == "Create my heat-aware route" for button in app.button
     )
-    assert list(uploaded_jobs["job_id"]) == ["REAL-001", "REAL-002"]
     assert rendered_states.network_calls == []
 
 
-def test_infeasible_upload_is_blocked_before_any_temperature_request(
+def test_map_clicks_create_a_ready_route_setup_with_plain_defaults(
     rendered_states: RenderedStates,
 ) -> None:
-    app = rendered_states.infeasible_upload
+    app = rendered_states.map_ready
+    state = _scenario(app)
+    text = _all_text(app)
+
+    assert state.depot is not None
+    assert state.job_count == 2
+    assert "Ready — 2 work sites selected" in text
+    assert "Crew start &amp; return" in text
+    assert "Work site 1 · 45 min" in text
+    assert "Work site 2 · 45 min" in text
+    assert "Workday" in text
+    assert "Past-day replay" in text
+    assert _button(app, "Create my heat-aware route").disabled is False
+    assert {widget.label for widget in app.number_input} == {
+        "Minutes at job 1",
+        "Minutes at job 2",
+    }
+    assert {widget.label for widget in app.time_input} == {
+        "Crew starts",
+        "Crew finishes",
+    }
+    assert "latitude" not in text.lower()
+    assert "longitude" not in text.lower()
+    assert rendered_states.network_calls == []
+
+
+def test_csv_import_is_optional_and_only_asks_for_one_map_click(
+    rendered_states: RenderedStates,
+) -> None:
+    waiting = rendered_states.import_waiting_for_depot
+    ready = rendered_states.import_ready
+    waiting_text = _all_text(waiting)
+    ready_text = _all_text(ready)
+
+    waiting_state = _scenario(waiting)
+    assert waiting_state.depot is None
+    assert waiting_state.job_count == 2
+    assert "Your 2 imported work sites are already orange" in waiting_text
+    assert "One map click places the blue crew base" in waiting_text
+    assert not any(
+        button.label == "Create my heat-aware route" for button in waiting.button
+    )
+
+    ready_state = _scenario(ready)
+    assert ready_state.depot is not None
+    assert ready_state.job_count == 2
+    assert "Ready — 2 work sites selected" in ready_text
+    assert _button(ready, "Create my heat-aware route").disabled is False
+    assert not ready.text_input
+    assert not ready.number_input
+    assert "Depot latitude" not in ready_text
+    assert "Depot longitude" not in ready_text
+    assert rendered_states.network_calls == []
+
+
+def test_infeasible_import_is_blocked_before_any_temperature_request(
+    rendered_states: RenderedStates,
+) -> None:
+    app = rendered_states.infeasible_import
     text = _all_text(app)
 
     assert "No complete depot-to-depot route fits" in text
     assert "No FortyGuard request was submitted" in text
-    assert app.segmented_control(key="job_source").value == "Upload my jobs"
     assert rendered_states.network_calls == []
 
 
@@ -361,7 +489,7 @@ def test_crew_route_map_makes_the_visit_order_visible(
     assert layer_types.count("TextLayer") == 2
 
     route_layer = next(layer for layer in layers if layer["@@type"] == "PathLayer")
-    assert len(route_layer["data"][0]["path"]) == 8  # depot + six stops + depot
+    assert len(route_layer["data"][0]["path"]) == 8
 
     number_layer = next(
         layer
@@ -395,9 +523,13 @@ def test_crew_route_has_navigation_and_download_actions(
     assert query["travelmode"] == ["driving"]
     assert len(query["waypoints"][0].split("|")) == 6
 
-    assert len(app.download_button) == 1
-    assert app.download_button[0].label == "Download crew route (CSV)"
-    assert app.download_button[0].proto.url
+    downloads = [
+        button
+        for button in app.download_button
+        if button.label == "Download crew route (CSV)"
+    ]
+    assert len(downloads) == 1
+    assert downloads[0].proto.url
 
 
 def test_crew_route_hides_planner_complexity(
@@ -407,11 +539,7 @@ def test_crew_route_hides_planner_complexity(
     text = _all_text(app)
 
     assert not app.metric
-    assert len(app.dataframe) == 1
-    assert "Plan" not in app.dataframe[0].value.columns
-    assert [expander.label for expander in app.expander] == [
-        "Preview the Phoenix example jobs"
-    ]
+    assert all("Plan" not in frame.value.columns for frame in app.dataframe)
     assert not app.get("vega_lite_chart")
     assert "Modeled exposure" not in text
     assert "degree-hours" not in text
@@ -420,7 +548,7 @@ def test_crew_route_hides_planner_complexity(
     assert "Planning aid—not safety clearance" in text
 
 
-def test_planner_view_owns_the_comparison_metrics_and_method_table(
+def test_planner_view_owns_comparison_metrics_and_method_table(
     rendered_states: RenderedStates,
 ) -> None:
     app = rendered_states.planner
@@ -491,25 +619,25 @@ def test_planner_view_exposes_auditable_api_evidence(
     )
 
 
-def test_planner_view_keeps_methods_and_full_safety_detail_secondary(
+def test_planner_view_keeps_methods_and_safety_detail_secondary(
     rendered_states: RenderedStates,
 ) -> None:
     app = rendered_states.planner
     text = _all_text(app)
     expander_labels = [expander.label for expander in app.expander]
 
-    assert expander_labels == [
-        "Review the 6 example work orders",
-        "Verify the FortyGuard temperature evidence",
-        "Compare planning methods",
-        "How the score works—and what comes next",
-        "Preview the Phoenix example jobs",
-    ]
+    assert "Verify the FortyGuard temperature evidence" in expander_labels
+    assert "Compare planning methods" in expander_labels
+    assert "How the score works—and what comes next" in expander_labels
     assert "Planning support, not safety clearance" in text
     assert "not a regulatory limit" in text
     assert "does not determine that work is safe" in text
     assert "modeled ambient-heat load" in text.lower()
     assert "degree-hours" in text.lower()
-    assert not app.download_button
+    assert not [
+        button
+        for button in app.download_button
+        if button.label == "Download crew route (CSV)"
+    ]
     assert not app.get("link_button")
     assert rendered_states.network_calls == []

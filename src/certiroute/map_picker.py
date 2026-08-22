@@ -17,9 +17,9 @@ from streamlit_folium import st_folium
 
 from certiroute.map_scenario import MapPoint, OperatingAreaPreset
 
-DEPOT_COLOR: Final = "#102A43"
+DEPOT_COLOR: Final = "#0369A1"
 JOB_COLOR: Final = "#C2410C"
-GUIDE_COLOR: Final = "#0B6B8A"
+GUIDE_COLOR: Final = "#0284C7"
 SQUARE_METRES_PER_SQUARE_MILE: Final = 1_609.344**2
 SERVICE_AREA_GUIDE_SQUARE_MILES: Final = 10.0
 SERVICE_AREA_GUIDE_RADIUS_METRES: Final = math.sqrt(

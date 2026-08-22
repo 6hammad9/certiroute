@@ -11,17 +11,26 @@ duration, priority, deadlines, and depot return.
 
 The working interface is deliberately narrower than the full research vision:
 
-- a primary upload flow for a customer's own 2–9 U.S. work orders;
-- manifest, shift, depot, feasibility, and 10 mi² service-area validation before
-  any API submission;
+- a primary map-first flow: choose a U.S. work area, click the crew base, then
+  click 2–9 work sites without entering coordinates;
+- automatic 45-minute, priority-3 jobs available for the full selected shift,
+  with names, durations, completed replay day, and shift exposed only as
+  optional changes;
+- selection, work-order, shift, depot, feasibility, and 10 mi² service-area
+  validation before any API submission;
 - hourly FortyGuard snapshots for a completed historical replay, with no
   substitute temperature data;
 - one distance-efficient operations baseline and one heat-aware recommendation;
 - an explicit recommendation to reorder **or keep the baseline**;
 - a default **Crew route** with one numbered map, ordered stop cards, depot
   return time, and Google Maps/CSV hand-off;
+- an honest separation between the straight-line route-order preview and Google
+  Maps road navigation—the current scheduler does not claim road-network
+  optimization;
 - a separate **Planner details** view for method comparison, exact modeled
   temperatures, scoring assumptions, safety limits, and API source records;
+- an advanced CSV import for customers who already export structured work
+  orders, with a downloadable template rather than a required onboarding task;
 - an explicitly optional Phoenix example with fictional work orders at real
   landmarks and real saved or API-retrieved FortyGuard temperatures;
 - no certainty score until forecast reliability is empirically calibrated.
@@ -36,7 +45,8 @@ without presenting an authored confidence value as measured evidence.
 - **Initial customers:** utilities, telecom operators, construction firms,
   municipal public-works teams, field-maintenance companies, and last-mile
   operators
-- **Customer input:** a compact U.S. service zone supplied as a validated CSV
+- **Customer input:** a compact U.S. service zone selected directly on a map;
+  optional CSV import supports existing dispatch-system exports
 - **Optional demonstration geography:** a six-stop Phoenix corridor selected
   after validating API coverage and real-data quality
 
@@ -59,19 +69,26 @@ that hides this uncertainty can give an operator false confidence.
 
 ## The proposed solution
 
-Given a list of jobs, the implemented product:
+Given a dispatcher and a map, the implemented product:
 
-1. Validates the uploaded job manifest, depot, completed replay date, same-day
-   shift, and compact service area.
-2. Proves that at least one depot-to-depot route satisfies the job windows
+1. Positions the map from a friendly U.S. city preset; the first click sets the
+   crew's blue start/return base and the next 2–9 clicks create orange work
+   sites.
+2. Supplies usable job and workday defaults, while allowing optional names,
+   durations, completed replay date, and same-day shift changes. Advanced users
+   can instead import a validated CSV and then click the actual crew base.
+3. Validates the selection and compact service area, then waits for the explicit
+   **Create my heat-aware route** action.
+4. Proves that at least one depot-to-depot order satisfies the job windows
    before it can submit a FortyGuard request.
-3. Loads saved evidence and collects only missing real FortyGuard snapshots,
+5. Loads saved evidence and collects only missing real FortyGuard snapshots,
    then maps each job coordinate to the returned temperature tiles.
-4. Estimates heat exposure over each job and the worker's full shift.
-5. Optimizes job order and timing subject to travel, duration, priority,
-   deadline, and modeled heat exposure.
-6. Presents one crew-ready route first, while keeping method comparison, exact
-   temperatures, source evidence, and limitations in **Planner details**.
+6. Estimates heat exposure over each job and the worker's full shift, and
+   optimizes job order and timing subject to straight-line travel estimates,
+   duration, priority, deadlines, and modeled heat exposure.
+7. Presents one crew-ready order first, while keeping method comparison, exact
+   temperatures, source evidence, and limitations in **Planner details**. The
+   same ordered stops can be opened in Google Maps for road navigation.
 
 The future reliability layer will estimate how trustworthy each prediction is
 under distribution shift and incorporate calibrated uncertainty into planning.
@@ -140,11 +157,18 @@ as a guarantee of medical safety.
 
 The implemented real-data product supports:
 
-- A UTF-8 customer CSV of 1 MB or less containing 2–9 work orders with these
-  eight required columns (unrelated export columns are ignored):
+- A guided map-first setup with a U.S. city preset, a first click for the crew
+  start/return base, and 2–9 subsequent clicks for work sites
+- Default map-created work orders named `Work site N`, each with a 45-minute
+  duration, priority 3, and availability across the selected shift
+- Optional editing of job names and durations; the primary path does not expose
+  coordinates, priority, or per-job time windows
+- A default completed historical replay of yesterday and an 08:00–17:00 shift,
+  with optional replay-day and same-day shift changes up to 12 hours
+- An advanced UTF-8 CSV import of 1 MB or less for 2–9 existing work orders,
+  backed by a downloadable template with these required columns (unrelated
+  export columns are ignored):
   `job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish`
-- User confirmation of the depot, a completed historical replay date, and a
-  same-day shift no longer than 12 hours
 - A compact service area of at most 10 mi²
 - WGS84 coordinate validation plus a clear U.S.-only coverage requirement;
   FortyGuard remains the authority that enforces its coverage boundary
@@ -161,6 +185,9 @@ The implemented real-data product supports:
 - A route-first crew view with a clear keep/change decision, numbered map,
   ordered stop cards, first stop, depot return, Google Maps directions hand-off,
   and downloadable CSV run sheet
+- Straight-line connecting lines and travel estimates at 25 km/h in the in-app
+  preview; Google Maps supplies road directions for the preserved stop order,
+  so the MVP does not claim to optimize against the road network
 - A planner view with exact modeled temperatures, cumulative exposure, hot-work
   time, estimated travel, on-time completion, method comparison, scoring,
   source records, and safety boundaries
@@ -212,15 +239,20 @@ Measure:
 
 ## Three-minute demo story
 
-1. A dispatcher uploads a real work-order CSV; the optional Phoenix example is
-   available only as a clearly labelled judge walkthrough.
-2. CertiRoute validates the jobs, depot, completed replay date, shift, service
-   area, and route feasibility before any API submission.
-3. The app reuses saved evidence, collects only missing real FortyGuard
+1. A dispatcher chooses a U.S. work area, clicks once for the blue crew base,
+   and clicks 2–9 orange work sites; no coordinates or CSV are required.
+2. The app shows ready defaults and a selected-work summary. Optional controls
+   can name jobs, change visit duration, or change the completed replay day and
+   shift; advanced CSV import and the Phoenix walkthrough stay collapsed.
+3. The dispatcher presses **Create my heat-aware route**. CertiRoute validates
+   the jobs, depot, shift, service area, and route feasibility before any API
+   submission.
+4. The app reuses saved evidence, collects only missing real FortyGuard
    snapshots, and never substitutes temperatures.
-4. The default crew view gives one plain-language keep/change decision.
-5. The crew follows large stop numbers on the map and matching ordered cards,
-   then opens the same stop order in Google Maps or downloads the CSV run sheet.
+5. The default crew view gives one plain-language keep/change decision. The crew
+   follows large stop numbers on the straight-line order preview and matching
+   cards, then opens the same stop order in Google Maps for road navigation or
+   downloads the CSV run sheet.
 6. A planner opens the secondary view to audit both methods, exact modeled
    temperatures, scoring assumptions, and FortyGuard source records.
 7. The demo closes with the ambient-temperature safety boundary and the honest
@@ -237,10 +269,12 @@ configurable rather than silently hard-coded.
 
 ## Definition of hackathon success
 
-The project succeeds when a first-time dispatcher can upload a valid customer
-manifest, correct invalid inputs without an API call, confirm the shift and
-depot, and build a feasible route from real FortyGuard evidence. A judge should
-understand the selected stop order at a glance, hand it to a crew, audit why it
-was chosen, and verify every temperature source record. The optional Phoenix
-example must provide the same complete path without being mistaken for customer
-data. Certainty is communicated only after it is empirically calibrated.
+The project succeeds when a first-time dispatcher can choose an area, click the
+base and work sites, and build a feasible route from real FortyGuard evidence
+without learning coordinates or a CSV schema. A judge should understand the
+selected stop order at a glance, distinguish the straight-line preview from
+road navigation, hand the order to a crew, audit why it was chosen, and verify
+every temperature source record. Advanced CSV import must remain available for
+real dispatch exports, and the optional Phoenix example must provide the same
+complete path without being mistaken for customer data. Certainty is
+communicated only after it is empirically calibrated.

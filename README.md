@@ -1,6 +1,7 @@
 # CertiRoute
 
-CertiRoute is a heat-aware scheduler for mobile outdoor crews. It converts
+CertiRoute is a heat-aware scheduler for mobile outdoor crews. A dispatcher
+marks the crew base and work sites directly on a map; CertiRoute converts
 FortyGuard's hyperlocal temperature intelligence into an operational decision:
 keep the distance-efficient work order, or change it when the modeled exposure
 benefit justifies the travel trade-off.
@@ -15,7 +16,8 @@ The working product and research brief is in
 - `httpx` for the FortyGuard API integration
 - Pure-Python beam-search scheduling (heavier solvers such as OR-Tools are
   deferred until scenario-based optimization requires them)
-- PyDeck for the numbered route map
+- Folium and `streamlit-folium` for the click-to-place setup map
+- PyDeck for the numbered route-result preview
 - Pytest and Ruff for verification
 
 ## Repository layout
@@ -26,7 +28,9 @@ data/sample/                 Optional fictional Phoenix example work orders
 docs/                        Product, research, and build documentation
 notebooks/                   Exploration and model experiments
 src/certiroute/
-  job_manifest.py             Customer CSV validation and scenario fingerprinting
+  map_scenario.py            Guided map-selection state and default jobs
+  map_picker.py              Clickable Folium map adapter
+  job_manifest.py            Work-order validation and scenario fingerprinting
   fortyguard/                FortyGuard API adapter
   collection/                Secret-aware forecast/residual archive
   risk/                      Exposure and certainty calculations
@@ -49,34 +53,44 @@ Copy-Item .env.example .env
 
 The interface is one guided, real-data-only workflow:
 
-1. Upload a customer work-order CSV, or explicitly choose the optional Phoenix
-   example.
-2. Confirm the depot, a completed replay date, and a same-day shift of no more
-   than 12 hours.
-3. Build the route only after CertiRoute proves that at least one complete
-   depot-to-depot schedule satisfies the uploaded job windows.
-4. Follow the default **Crew route**: one decision, one numbered map, an ordered
-   stop card for each job, depot-return time, and Google Maps/CSV hand-off.
-5. Open **Planner details** when the scheduling comparison, exact modeled
+1. Choose a U.S. work area to position the map. Pan or zoom to the actual
+   neighborhood if needed.
+2. Click once for the blue crew start/return base, then click 2–9 orange work
+   sites. Coordinates stay behind the interface.
+3. Keep the ready-to-use defaults—45 minutes per site, priority 3, and each job
+   available for the full 08:00–17:00 shift—or optionally change names,
+   durations, the completed replay day, and the same-day shift.
+4. Press **Create my heat-aware route**. Nothing is submitted until this
+   explicit action, and CertiRoute first proves that a complete depot-to-depot
+   schedule is feasible.
+5. Follow the default **Crew route**: one decision, one numbered route preview,
+   an ordered stop card for each job, depot-return time, and Google Maps/CSV
+   hand-off. Open **Planner details** only when the comparison, exact modeled
    temperatures, scoring assumptions, safety limits, or API source records are
    needed.
 
-Uploads must be UTF-8 CSV files of 1 MB or less, with 2–9 jobs contained in a
-compact service area of at most 10 mi². FortyGuard currently serves U.S.
-locations, so uploaded sites must be in the United States. The required columns
-are:
+The map workflow creates ordinary work orders automatically, so a first-time
+user does not need coordinates or a spreadsheet schema. All points must be in a
+compact U.S. service area of at most 10 mi²; the dashed circle around the base
+is an approximate guide, and the application validates the actual request area
+before building.
+
+CSV import is optional and lives under **Advanced: import work orders or load
+the walkthrough**. It is intended for dispatchers who already export jobs from
+another system. The app supplies a downloadable template and accepts UTF-8 CSV
+files of 1 MB or less with 2–9 jobs. The required columns are:
 
 ```text
 job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish
 ```
 
 Times use 24-hour `HH:MM`; priority is 1–5. Extra export columns are accepted
-but ignored. The interface supplies a downloadable template and validates the
-manifest before planning. Coordinates are checked as WGS84 values; FortyGuard
-enforces its U.S.-coverage boundary. Uploaded work orders are not written to
-the repository.
+but ignored. An import places the orange job markers; the dispatcher then
+clicks the actual blue crew base. Coordinates are checked as WGS84 values;
+FortyGuard enforces its U.S.-coverage boundary. Uploaded work orders are not
+written to the repository.
 
-Only missing FortyGuard snapshots are retrieved, and only after **Build
+Only missing FortyGuard snapshots are retrieved, and only after **Create my
 heat-aware route** is clicked. Completed responses are cached under Git-ignored
 `data/raw/`, so an interrupted collection can resume from real API evidence.
 The active result is keyed by the normalized job manifest, depot, date, shift,
@@ -88,6 +102,12 @@ The bundled Phoenix file remains useful for a one-click walkthrough, but it is
 not the primary input or a data fallback. Its landmarks are real; its work
 orders and constraints are fictional; its saved or newly collected temperature
 evidence is real FortyGuard output.
+
+The numbered in-app route is an order preview: its connecting lines and travel
+times use straight-line distance at 25 km/h. CertiRoute currently chooses the
+job order but is not a road-routing engine. **Open ordered stops in Google
+Maps** hands that same order to Google for road navigation; the downloadable
+run sheet provides the same sequence for another dispatch system.
 
 This version plans completed historical replays only. Current-day routing and
 forecasts up to 12 hours ahead are deferred until FortyGuard's request-time-zone
