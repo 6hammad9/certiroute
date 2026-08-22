@@ -15,14 +15,14 @@ The working product and research brief is in
 - `httpx` for the FortyGuard API integration
 - Pure-Python beam-search scheduling (heavier solvers such as OR-Tools are
   deferred until scenario-based optimization requires them)
-- PyDeck for maps and route schematics
+- PyDeck for the numbered route map
 - Pytest and Ruff for verification
 
 ## Repository layout
 
 ```text
 app/                         Streamlit entry point
-data/sample/                 Synthetic, non-sensitive demo inputs
+data/sample/                 Fictional, non-sensitive demo work orders
 docs/                        Product, research, and build documentation
 notebooks/                   Exploration and model experiments
 src/certiroute/
@@ -46,16 +46,19 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m streamlit run app\main.py
 ```
 
-The interface is one guided, real-data-only page:
+The interface is one guided, real-data-only page with two deliberately separate
+views:
 
 1. Review six fictional work orders at real Phoenix landmarks.
 2. Build a historical replay from ten hourly, per-site FortyGuard heatmaps.
-3. Compare the distance-efficient operations baseline with the heat-aware order.
-4. Read the modeled-exposure benefit beside hot-work time, estimated travel,
-   completion, and auditable API provenance.
+3. Follow the default **Crew route**: one decision, one numbered map, an ordered
+   stop card for each job, depot-return time, and Google Maps/CSV hand-off.
+4. Open **Planner details** when the scheduling comparison, exact modeled
+   temperatures, scoring assumptions, safety limits, or API source records are
+   needed.
 
 The default replay covers one 9.48 mi² Phoenix service area at 60 m tile
-granularity. Missing hours are retrieved only after **Build heat-aware schedule**
+granularity. Missing hours are retrieved only after **Build crew route**
 is clicked. Completed responses are cached under Git-ignored `data/raw/`, so an
 interrupted collection resumes and a prepared demonstration reloads from real
 API evidence. The product interface never generates substitute temperature

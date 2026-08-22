@@ -1,9 +1,10 @@
 # Build Plan
 
-Status as of 2026-08-21: the product now presents one guided, real-data-only
-historical replay. It consumes ten hourly per-job FortyGuard heatmap tiles,
-compares a distance-efficient operations baseline with a heat-aware schedule,
-and keeps provenance and limitations below the decision. The current research
+Status as of 2026-08-22: the product now presents one guided, real-data-only
+historical replay. Its default **Crew route** reduces the result to one decision,
+one numbered map, an ordered stop list, and route hand-off controls. Scheduling
+comparisons, exact modeled temperatures, scoring, provenance, and detailed
+safety limits remain available in **Planner details**. The current research
 focus is collecting the evidence needed for calibrated forecast intervals.
 
 ## Phase 1 — Data contract and vertical slice
@@ -39,14 +40,17 @@ focus is collecting the evidence needed for calibrated forecast intervals.
 
 ## Phase 4 — Product demo
 
-- [x] Rebuild the dashboard as one newcomer-friendly page with a three-step
-  tutorial, one action, one recommendation, four business metrics, two-plan
-  timeline, dispatcher sequence, and secondary evidence expanders.
+- [x] Rebuild the dashboard as one newcomer-friendly page with a compact
+  three-step guide, one **Build crew route** action, and separate crew/planner
+  views.
 - [x] Remove the synthetic fallback, certainty controls, duplicate four-plan
   comparison, and API jargon from the customer path.
+- [x] Make the default crew result a single numbered map with ordered stop cards,
+  a clear first stop and depot return, plus Google Maps and CSV hand-off.
+- [x] Move method comparison, exact modeled temperatures, source records,
+  scoring assumptions, and detailed safety boundaries into **Planner details**.
 - [x] Create one realistic demonstration scenario spanning six Phoenix land-cover
   contexts while keeping fictional work orders explicitly labelled.
-- [ ] Add a timeline, Pareto trade-off control, and downloadable results.
 - [x] Add bounded polling, retry handling, caching primitives, and AOI guards.
 - [x] Replace the compact 0.78 mi², 230-work-minute API-plumbing portfolio with a
   9.48 mi², 410-work-minute Phoenix corridor. The real 2026-07-15 replay is a

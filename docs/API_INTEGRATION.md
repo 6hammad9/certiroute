@@ -65,7 +65,7 @@ temperature. Its real-data workflow now:
 
 1. Builds one shared, bounded AOI around the job coordinates.
 2. Retrieves the exact missing single-hour heatmaps only after the operator
-   clicks the page's single **Build heat-aware schedule** action.
+   clicks the page's single **Build crew route** action.
 3. Stores completed, secret-free raw results in an append-only local cache with
    request fingerprints and two independent SHA-256 integrity checks.
 4. Parses every `map_data.features` Polygon/MultiPolygon and maps each job to the
@@ -74,8 +74,9 @@ temperature. Its real-data workflow now:
    substituting an AOI average or synthetic value.
 6. Builds per-job profiles from the requested hours and linearly interpolates
    between those real API samples during interval-exact schedule scoring.
-7. Displays request hours, activity IDs, collection timestamps, tile values,
-   granularity, and saved/new provenance in a secondary evidence panel.
+7. Keeps request hours, activity IDs, collection timestamps, tile values,
+   granularity, and saved/new provenance in **Planner details**, separate from
+   the crew-facing route.
 
 The default historical replay uses ten hourly samples from 08:00 through 17:00.
 Historical exact requests can be reused indefinitely; current/forecast cache
@@ -84,8 +85,9 @@ UI workflow yet. A request-fingerprint index avoids reparsing unrelated large
 payloads when loading a prepared replay.
 
 The API does not return a calibrated forecast-confidence probability. The
-customer-facing result therefore compares only the operations baseline and
-point-temperature heat-aware plan. It neither displays nor implies a certainty
+planner-facing result therefore compares only the operations baseline and
+point-temperature heat-aware plan. The default crew view shows only the selected
+stop order and hand-off controls. Neither view displays or implies a certainty
 score; calibration remains future research.
 
 ## Important constraints
