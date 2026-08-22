@@ -392,9 +392,6 @@ def inject_styles() -> None:
             color: var(--heat); font-size: .7rem; font-weight: 900;
             letter-spacing: .11em; text-transform: uppercase;
         }
-        /* Bento: one hero decision tile with satellite fact tiles.
-           Minimal by construction - no borders, separation comes from the
-           surface lift against the dark canvas. */
         .bento {
             display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 14px; margin: .6rem 0 1.5rem;
@@ -533,7 +530,6 @@ def inject_styles() -> None:
             .bento { grid-template-columns: 1fr; }
             .bento-hero, .bento-tile { grid-column: span 1; grid-row: auto; }
             .route-summary { grid-template-columns: 1fr; }
-
             .route-stop { grid-template-columns: 2.65rem minmax(0, 1fr); }
             .route-stop-time {
                 grid-column: 2; text-align: left; white-space: normal;
@@ -737,7 +733,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[112, 255, 210, 255],
+            get_color=[8, 47, 73, 255],
             get_width=5,
             width_units="'pixels'",
         ),
@@ -747,7 +743,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=24,
             radius_units="'pixels'",
-            get_fill_color=[112, 255, 210, 255],
+            get_fill_color=[8, 47, 73, 255],
             pickable=True,
         ),
         pdk.Layer(
@@ -756,7 +752,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=17,
             radius_units="'pixels'",
-            get_fill_color=[255, 145, 55, 255],
+            get_fill_color=[255, 106, 0, 255],
             stroked=True,
             get_line_color=[255, 255, 255, 255],
             get_line_width=2,
@@ -770,7 +766,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="marker",
             get_size=15,
             size_units="'pixels'",
-            get_color=[112, 255, 210, 255],
+            get_color=[8, 47, 73, 255],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
             billboard=True,
@@ -787,7 +783,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[112, 255, 210, 255],
+            get_color=[8, 47, 73, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
@@ -801,7 +797,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
         pdk.Deck(
             layers=layers,
             initial_view_state=view,
-            map_style=pdk.map_styles.CARTO_DARK,
+            map_style=pdk.map_styles.CARTO_LIGHT,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
                 "style": {"backgroundColor": "#082F49", "color": "white"},
