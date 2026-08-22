@@ -119,6 +119,43 @@ score; calibration remains future research.
   request must match the selected forecast's hour, AOI, granularity, analytic
   type, and time assumption before residuals are calculated.
 
+## Filter types and the absence of hourly forecasts
+
+Verified by direct probing on 2026-08-22 with a 193-tile central Phoenix AOI
+at 60 m. This is the single most consequential constraint on the product.
+
+| Filter type | Behaviour | Current date |
+| --- | --- | --- |
+| 1 | One specific hour. Varies correctly by hour. | Returns **zero tiles** |
+| 2 | Accepted, then completes with `n_cells: 0` | Empty |
+| 3 | **Whole-day aggregate. `start_time` is ignored.** | Returns tiles |
+| 4 | HTTP 500 | n/a |
+
+Evidence that type 1 is historical-only: yesterday 14:00 returned 193 tiles,
+while today at 08:00 (already past), 11:00, and 14:00 all returned a
+*successful but empty* response - `{"map_data": {"features": []}}` with no
+error. The boundary is the calendar day, not the 12-hour forecast horizon.
+
+Evidence that type 3 ignores the hour: for the same past date, 06:00, 14:00
+and 20:00 all returned a mean of exactly 37.9728 C, while filter type 1 gave
+34.28 C at 06:00 and 41.82 C at 14:00.
+
+### What this means
+
+FortyGuard advertises 12-hour forecasting in its Temperature Dashboard, but
+**no hourly forecast is reachable through this heatmap API**. Consequences:
+
+- Hourly forecast-versus-realization residuals cannot be collected, so
+  forecast-skill calibration is blocked by the API surface, not by calendar
+  time. Multi-lead prediction intervals are not currently possible.
+- Same-day planning can only use a daily aggregate, not an hourly curve.
+- Historical replay - what the product does today - is fully supported and is
+  the only mode with true hourly resolution.
+
+Any claim about predicting future temperature must be qualified accordingly,
+or must come from a model we build on historical data rather than from the
+vendor.
+
 ## Known documentation ambiguities
 
 - Heatmap request timezone semantics are not documented. The UI must not label

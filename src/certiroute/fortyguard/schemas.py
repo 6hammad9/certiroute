@@ -155,12 +155,37 @@ class SingleHourDateTime(BaseModel):
         return value.strftime("%H:%M")
 
 
+class DailyAggregateDateTime(BaseModel):
+    """FortyGuard filter type 3: a whole-day aggregate for one date.
+
+    Verified against the live API on 2026-08-22. Unlike filter type 1 this
+    ignores ``start_time`` entirely - 06:00, 14:00 and 20:00 for the same date
+    all returned an identical mean - and it is the only mode that returns
+    tiles for the current date. ``start_time`` is still sent because the
+    endpoint requires the field.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    start_date: date
+    start_time: time = time(12, 0)
+    filter_type: Literal[3] = 3
+
+    @field_serializer("start_date")
+    def serialize_date(self, value: date) -> str:
+        return value.isoformat()
+
+    @field_serializer("start_time")
+    def serialize_time(self, value: time) -> str:
+        return value.strftime("%H:%M")
+
+
 class HeatmapRequest(BaseModel):
     """Initial supported subset of the FortyGuard Create Heatmap contract."""
 
     model_config = ConfigDict(frozen=True)
 
     polygon_aoi: PolygonFeatureCollection
-    date_time: SingleHourDateTime
+    date_time: SingleHourDateTime | DailyAggregateDateTime
     granularity: Literal[60, 80, 100] = 100
     analytic_type: Literal["tcm"] = "tcm"
