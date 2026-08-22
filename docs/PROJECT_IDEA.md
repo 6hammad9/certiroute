@@ -11,14 +11,19 @@ duration, priority, deadlines, and depot return.
 
 The working interface is deliberately narrower than the full research vision:
 
-- six fictional work orders at real Phoenix landmarks;
-- ten hourly FortyGuard heatmaps with no substitute temperature data;
+- a primary upload flow for a customer's own 2–9 U.S. work orders;
+- manifest, shift, depot, feasibility, and 10 mi² service-area validation before
+  any API submission;
+- hourly FortyGuard snapshots for a completed historical replay, with no
+  substitute temperature data;
 - one distance-efficient operations baseline and one heat-aware recommendation;
 - an explicit recommendation to reorder **or keep the baseline**;
 - a default **Crew route** with one numbered map, ordered stop cards, depot
   return time, and Google Maps/CSV hand-off;
 - a separate **Planner details** view for method comparison, exact modeled
   temperatures, scoring assumptions, safety limits, and API source records;
+- an explicitly optional Phoenix example with fictional work orders at real
+  landmarks and real saved or API-retrieved FortyGuard temperatures;
 - no certainty score until forecast reliability is empirically calibrated.
 
 This keeps the professor-inspired reliability work as a defensible next layer
@@ -31,12 +36,13 @@ without presenting an authored confidence value as measured evidence.
 - **Initial customers:** utilities, telecom operators, construction firms,
   municipal public-works teams, field-maintenance companies, and last-mile
   operators
-- **Initial U.S. demonstration geography:** a six-stop Phoenix corridor selected
+- **Customer input:** a compact U.S. service zone supplied as a validated CSV
+- **Optional demonstration geography:** a six-stop Phoenix corridor selected
   after validating API coverage and real-data quality
 
-The commercial product is an operational planning tool. The certainty model is
-its technical differentiator, rather than the product being presented only as a
-forecasting experiment.
+The commercial product is an operational planning tool. The planned certainty
+model is its research differentiator, rather than the product being presented
+only as a forecasting experiment.
 
 ## The problem
 
@@ -53,21 +59,23 @@ that hides this uncertainty can give an operator false confidence.
 
 ## The proposed solution
 
-Given a list of jobs, CertiRoute will:
+Given a list of jobs, the implemented product:
 
-1. Retrieve historical, current-day, and available forecast temperature data
-   from FortyGuard for each job location and time window. The implemented first
-   step is a historical replay that maps each coordinate to its returned tile at
-   three or more sampled hours.
-2. Estimate heat exposure over each job and over the worker's full shift.
-3. estimate how trustworthy each risk prediction is under the current input
-   conditions.
-4. Optimize job order and timing subject to travel, duration, priority,
-   deadline, and uncertainty-aware heat-screening constraints.
-5. Present one crew-ready route first, then keep the method comparison, exact
-   temperatures, source evidence, and limitations in a separate planner view.
+1. Validates the uploaded job manifest, depot, completed replay date, same-day
+   shift, and compact service area.
+2. Proves that at least one depot-to-depot route satisfies the job windows
+   before it can submit a FortyGuard request.
+3. Loads saved evidence and collects only missing real FortyGuard snapshots,
+   then maps each job coordinate to the returned temperature tiles.
+4. Estimates heat exposure over each job and the worker's full shift.
+5. Optimizes job order and timing subject to travel, duration, priority,
+   deadline, and modeled heat exposure.
+6. Presents one crew-ready route first, while keeping method comparison, exact
+   temperatures, source evidence, and limitations in **Planner details**.
 
-Example output:
+The future reliability layer will estimate how trustworthy each prediction is
+under distribution shift and incorporate calibrated uncertainty into planning.
+A future certainty-aware output might read:
 
 > Move Site C from 13:10 to 08:40. The optimized schedule is expected to reduce
 > cumulative heat exposure by 28% while adding 11 minutes of travel. Prediction
@@ -80,7 +88,7 @@ Most heat applications follow this pattern:
 
 > Read temperature → display a map → issue a threshold alert.
 
-CertiRoute follows a different pattern:
+The complete CertiRoute research direction follows a different pattern:
 
 > Forecast exposure → assess whether the estimate is trustworthy → optimize an
 > operational decision under uncertainty → quantify the avoided risk.
@@ -89,12 +97,15 @@ The project combines five elements:
 
 - Hyperlocal, time-dependent temperature intelligence
 - Cumulative exposure rather than only instantaneous thresholds
-- Explicit prediction certainty and distribution-shift awareness
+- Planned, empirically calibrated prediction certainty and distribution-shift
+  awareness
 - Constrained route and schedule optimization
 - A measurable modeled-exposure-versus-efficiency business outcome
 
-The core claim is not merely "routing around heat." It is **planning
-conservatively when the heat-risk estimates themselves may be uncertain**.
+The current product claim is measurable heat-aware scheduling with real source
+evidence. The research thesis goes further: **plan conservatively when the
+heat-risk estimates themselves may be uncertain**. CertiRoute does not claim
+that second capability is implemented yet.
 
 ## Connection to the professor's research
 
@@ -127,12 +138,23 @@ as a guarantee of medical safety.
 
 ## Current MVP scope
 
-The implemented real-data demo supports:
+The implemented real-data product supports:
 
-- Six fictional work orders at real Phoenix landmarks, with duration, priority,
-  and time windows
-- Ten hourly FortyGuard temperature heatmaps for the selected historical replay
-  date, with strict rejection of missing or uncovered values
+- A UTF-8 customer CSV of 1 MB or less containing 2–9 work orders with these
+  eight required columns (unrelated export columns are ignored):
+  `job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish`
+- User confirmation of the depot, a completed historical replay date, and a
+  same-day shift no longer than 12 hours
+- A compact service area of at most 10 mi²
+- WGS84 coordinate validation plus a clear U.S.-only coverage requirement;
+  FortyGuard remains the authority that enforces its coverage boundary
+- Preflight route-feasibility validation before any API submission
+- Hourly FortyGuard temperature snapshots for the selected shift, with strict
+  rejection of missing or uncovered values and collection of only missing
+  snapshots
+- A scenario fingerprint covering the normalized manifest, depot, date, shift,
+  granularity, and heatmap requests so changed inputs cannot display stale
+  results
 - A documented, configurable heat-exposure score
 - Two planner-comparable schedules: a distance-efficient operations baseline
   and a point-temperature heat-aware schedule
@@ -142,13 +164,16 @@ The implemented real-data demo supports:
 - A planner view with exact modeled temperatures, cumulative exposure, hot-work
   time, estimated travel, on-time completion, method comparison, scoring,
   source records, and safety boundaries
-- No synthetic or substitute temperature profile and no certainty indicator
-  before calibration evidence exists
+- An optional Phoenix example whose landmarks are real, whose work orders are
+  fictional, and whose temperature evidence remains real FortyGuard output
+- No synthetic or substitute temperature in heat scoring or the route result,
+  and no certainty indicator before calibration evidence exists
 
 The scheduler's real-data mode is now implemented for historical replay. It
 uses real FortyGuard API output but does not call that output sensor ground
-truth. Current-day/forecast collection and calibrated reliability remain the
-next milestones.
+truth. Current-day and up-to-12-hour forecast collection remain deferred until
+the API request-time-zone semantics are documented and verified. Calibrated
+reliability remains a later research milestone.
 
 ## Non-goals for the MVP
 
@@ -187,15 +212,18 @@ Measure:
 
 ## Three-minute demo story
 
-1. A dispatcher chooses a historical Phoenix replay date and builds the route.
-2. CertiRoute checks every job and its constraints against ten real FortyGuard
-   heatmaps.
-3. The default crew view gives one plain-language keep/change decision.
-4. The crew follows large stop numbers on the map and matching ordered cards,
+1. A dispatcher uploads a real work-order CSV; the optional Phoenix example is
+   available only as a clearly labelled judge walkthrough.
+2. CertiRoute validates the jobs, depot, completed replay date, shift, service
+   area, and route feasibility before any API submission.
+3. The app reuses saved evidence, collects only missing real FortyGuard
+   snapshots, and never substitutes temperatures.
+4. The default crew view gives one plain-language keep/change decision.
+5. The crew follows large stop numbers on the map and matching ordered cards,
    then opens the same stop order in Google Maps or downloads the CSV run sheet.
-5. A planner opens the secondary view to audit both methods, exact modeled
+6. A planner opens the secondary view to audit both methods, exact modeled
    temperatures, scoring assumptions, and FortyGuard source records.
-6. The demo closes with the ambient-temperature safety boundary and the honest
+7. The demo closes with the ambient-temperature safety boundary and the honest
    statement that forecast certainty remains unclaimed research work.
 
 ## Responsible-use boundary
@@ -209,9 +237,10 @@ configurable rather than silently hard-coded.
 
 ## Definition of hackathon success
 
-The current project succeeds when a judge can replay the Phoenix workday and
+The project succeeds when a first-time dispatcher can upload a valid customer
+manifest, correct invalid inputs without an API call, confirm the shift and
+depot, and build a feasible route from real FortyGuard evidence. A judge should
 understand the selected stop order at a glance, hand it to a crew, audit why it
-was chosen, and verify that every temperature input came from FortyGuard. A
-future customer-input version should preserve operational constraints, reduce
-modeled exposure when the data supports a change, and communicate uncertainty
-only after it is calibrated.
+was chosen, and verify every temperature source record. The optional Phoenix
+example must provide the same complete path without being mistaken for customer
+data. Certainty is communicated only after it is empirically calibrated.

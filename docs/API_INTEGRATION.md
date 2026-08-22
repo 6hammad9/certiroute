@@ -1,7 +1,7 @@
 # FortyGuard API Integration Notes
 
 Last checked against the official documentation and one live request on
-2026-08-21.
+2026-08-22.
 
 ## Implemented contract
 
@@ -63,26 +63,31 @@ the integrity-checked, Git-ignored local cache rather than source control.
 The schedule no longer uses the AOI aggregate as though every job had the same
 temperature. Its real-data workflow now:
 
-1. Builds one shared, bounded AOI around the job coordinates.
-2. Retrieves the exact missing single-hour heatmaps only after the operator
-   clicks the page's single **Build crew route** action.
-3. Stores completed, secret-free raw results in an append-only local cache with
+1. Validates 2–9 uploaded work orders and fingerprints the normalized manifest.
+2. Builds one shared, bounded AOI around the job coordinates and rejects it if
+   it exceeds the configured 10 mi² product boundary.
+3. Proves that a complete depot-to-depot route can fit the entered shift and job
+   windows before any network submission.
+4. Retrieves the exact missing single-hour heatmaps only after the operator
+   clicks **Build heat-aware route**.
+5. Stores completed, secret-free raw results in an append-only local cache with
    request fingerprints and two independent SHA-256 integrity checks.
-4. Parses every `map_data.features` Polygon/MultiPolygon and maps each job to the
+6. Parses every `map_data.features` Polygon/MultiPolygon and maps each job to the
    tile that geometrically covers its coordinate.
-5. Rejects missing, malformed, uncovered, or conflicting tile data rather than
+7. Rejects missing, malformed, uncovered, or conflicting tile data rather than
    substituting an AOI average or synthetic value.
-6. Builds per-job profiles from the requested hours and linearly interpolates
+8. Builds per-job profiles from the requested hours and linearly interpolates
    between those real API samples during interval-exact schedule scoring.
-7. Keeps request hours, activity IDs, collection timestamps, tile values,
+9. Keeps request hours, activity IDs, collection timestamps, tile values,
    granularity, and saved/new provenance in **Planner details**, separate from
    the crew-facing route.
 
-The default historical replay uses ten hourly samples from 08:00 through 17:00.
-Historical exact requests can be reused indefinitely; current/forecast cache
-support exists behind an explicit freshness TTL but is not exposed in the first
-UI workflow yet. A request-fingerprint index avoids reparsing unrelated large
-payloads when loading a prepared replay.
+The optional Phoenix example uses ten hourly samples from 08:00 through 17:00.
+Uploaded scenarios derive samples hourly from the confirmed shift and include
+both boundaries. Historical exact requests can be reused indefinitely;
+current/forecast cache support exists behind an explicit freshness TTL but is
+not exposed in the first UI workflow yet. A request-fingerprint index avoids
+reparsing unrelated large payloads when loading a prepared replay.
 
 The API does not return a calibrated forecast-confidence probability. The
 planner-facing result therefore compares only the operations baseline and

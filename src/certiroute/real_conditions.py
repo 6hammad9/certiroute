@@ -29,8 +29,8 @@ HACKATHON_DATA_START = date(2021, 1, 1)
 DEFAULT_REAL_SAMPLE_TIMES = (time(8, 0), time(12, 0), time(17, 0))
 DEFAULT_LIVE_CACHE_TTL = timedelta(minutes=15)
 REQUEST_TIME_ASSUMPTION = (
-    "The API request wall clock is aligned to the Phoenix crew-shift clock for "
-    "this prototype; FortyGuard's heatmap request timezone is not documented."
+    "The API request wall clock is aligned to the entered crew-shift clock for "
+    "this historical replay; FortyGuard's heatmap request timezone is not documented."
 )
 
 

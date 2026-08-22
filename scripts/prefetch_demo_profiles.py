@@ -56,9 +56,7 @@ def main() -> None:
     )
     parser.add_argument("--start-hour", type=int, default=8)
     parser.add_argument("--end-hour", type=int, default=17)
-    parser.add_argument(
-        "--granularity", type=int, default=100, choices=(60, 80, 100)
-    )
+    parser.add_argument("--granularity", type=int, default=100, choices=(60, 80, 100))
     parser.add_argument(
         "--live",
         action="store_true",

@@ -22,10 +22,11 @@ The working product and research brief is in
 
 ```text
 app/                         Streamlit entry point
-data/sample/                 Fictional, non-sensitive demo work orders
+data/sample/                 Optional fictional Phoenix example work orders
 docs/                        Product, research, and build documentation
 notebooks/                   Exploration and model experiments
 src/certiroute/
+  job_manifest.py             Customer CSV validation and scenario fingerprinting
   fortyguard/                FortyGuard API adapter
   collection/                Secret-aware forecast/residual archive
   risk/                      Exposure and certainty calculations
@@ -46,27 +47,54 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m streamlit run app\main.py
 ```
 
-The interface is one guided, real-data-only page with two deliberately separate
-views:
+The interface is one guided, real-data-only workflow:
 
-1. Review six fictional work orders at real Phoenix landmarks.
-2. Build a historical replay from ten hourly, per-site FortyGuard heatmaps.
-3. Follow the default **Crew route**: one decision, one numbered map, an ordered
+1. Upload a customer work-order CSV, or explicitly choose the optional Phoenix
+   example.
+2. Confirm the depot, a completed replay date, and a same-day shift of no more
+   than 12 hours.
+3. Build the route only after CertiRoute proves that at least one complete
+   depot-to-depot schedule satisfies the uploaded job windows.
+4. Follow the default **Crew route**: one decision, one numbered map, an ordered
    stop card for each job, depot-return time, and Google Maps/CSV hand-off.
-4. Open **Planner details** when the scheduling comparison, exact modeled
+5. Open **Planner details** when the scheduling comparison, exact modeled
    temperatures, scoring assumptions, safety limits, or API source records are
    needed.
 
-The default replay covers one 9.48 mi² Phoenix service area at 60 m tile
-granularity. Missing hours are retrieved only after **Build crew route**
-is clicked. Completed responses are cached under Git-ignored `data/raw/`, so an
-interrupted collection resumes and a prepared demonstration reloads from real
-API evidence. The product interface never generates substitute temperature
-profiles.
+Uploads must be UTF-8 CSV files of 1 MB or less, with 2–9 jobs contained in a
+compact service area of at most 10 mi². FortyGuard currently serves U.S.
+locations, so uploaded sites must be in the United States. The required columns
+are:
 
-Forecast reliability remains a research layer rather than a current UI claim.
-Until forecast-versus-realization calibration is complete, CertiRoute does not
-display or optimize a certainty score in its real-data result.
+```text
+job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish
+```
+
+Times use 24-hour `HH:MM`; priority is 1–5. Extra export columns are accepted
+but ignored. The interface supplies a downloadable template and validates the
+manifest before planning. Coordinates are checked as WGS84 values; FortyGuard
+enforces its U.S.-coverage boundary. Uploaded work orders are not written to
+the repository.
+
+Only missing FortyGuard snapshots are retrieved, and only after **Build
+heat-aware route** is clicked. Completed responses are cached under Git-ignored
+`data/raw/`, so an interrupted collection can resume from real API evidence.
+The active result is keyed by the normalized job manifest, depot, date, shift,
+granularity, and heatmap requests, preventing a changed scenario from reusing a
+stale route. Generated or substitute temperatures never enter the heat score or
+crew-route result.
+
+The bundled Phoenix file remains useful for a one-click walkthrough, but it is
+not the primary input or a data fallback. Its landmarks are real; its work
+orders and constraints are fictional; its saved or newly collected temperature
+evidence is real FortyGuard output.
+
+This version plans completed historical replays only. Current-day routing and
+forecasts up to 12 hours ahead are deferred until FortyGuard's request-time-zone
+semantics are documented and verified. Forecast reliability remains a research
+layer rather than a current UI claim. Until forecast-versus-realization
+calibration is complete, CertiRoute does not display or optimize a certainty
+score in its real-data result.
 
 Never commit `.env` or an API key.
 

@@ -39,9 +39,11 @@ SITE_CURVES = {
 
 @dataclass(frozen=True)
 class RenderedStates:
-    """Network-isolated first-run, crew, and planner product states."""
+    """Network-isolated upload, example-crew, and planner product states."""
 
     empty: AppTest
+    upload_ready: AppTest
+    infeasible_upload: AppTest
     crew: AppTest
     planner: AppTest
     network_calls: list[str]
@@ -124,6 +126,48 @@ def _run_app() -> AppTest:
     return app
 
 
+def _select_example_and_build(app: AppTest) -> AppTest:
+    """Choose the secondary Phoenix example and explicitly build its route."""
+
+    app.segmented_control(key="job_source").select("Use Phoenix example").run(
+        timeout=60
+    )
+    assert not app.exception
+    build = next(
+        button for button in app.button if button.label == "Build heat-aware route"
+    )
+    build.click().run(timeout=60)
+    assert not app.exception
+    return app
+
+
+VALID_UPLOAD = (
+    "real-work-orders.csv",
+    (
+        b"job_id,name,latitude,longitude,duration_minutes,priority,"
+        b"earliest_start,latest_finish\n"
+        b"REAL-001,Customer rooftop inspection,33.44855,-112.07391,45,5,"
+        b"08:00,12:00\n"
+        b"REAL-002,Customer cooling-unit service,33.44530,-112.06670,60,3,"
+        b"09:00,16:00\n"
+    ),
+    "text/csv",
+)
+
+INFEASIBLE_UPLOAD = (
+    "infeasible-work-orders.csv",
+    (
+        b"job_id,name,latitude,longitude,duration_minutes,priority,"
+        b"earliest_start,latest_finish\n"
+        b"TIGHT-001,First simultaneous job,33.44855,-112.07391,60,5,"
+        b"08:00,09:00\n"
+        b"TIGHT-002,Second simultaneous job,33.44860,-112.07385,60,5,"
+        b"08:00,09:00\n"
+    ),
+    "text/csv",
+)
+
+
 @pytest.fixture(scope="module")
 def rendered_states(tmp_path_factory: pytest.TempPathFactory) -> RenderedStates:
     """Render empty and cached states while making network use impossible."""
@@ -142,23 +186,35 @@ def rendered_states(tmp_path_factory: pytest.TempPathFactory) -> RenderedStates:
     empty_root = tmp_path_factory.mktemp("empty_heatmap_cache")
     patch.setenv("CERTIROUTE_HEATMAP_CACHE_PATH", str(empty_root))
     empty = _run_app()
+    upload_ready = _run_app()
+    upload_ready.file_uploader[0].upload(*VALID_UPLOAD).run(timeout=60)
+    assert not upload_ready.exception
+    infeasible_upload = _run_app()
+    infeasible_upload.file_uploader[0].upload(*INFEASIBLE_UPLOAD).run(timeout=60)
+    assert not infeasible_upload.exception
+    next(
+        button
+        for button in infeasible_upload.button
+        if button.label == "Build heat-aware route"
+    ).click().run(timeout=60)
+    assert not infeasible_upload.exception
 
     cached_root = tmp_path_factory.mktemp("cached_heatmap_cache")
     _publish_cached_replay(cached_root)
     patch.setenv("CERTIROUTE_HEATMAP_CACHE_PATH", str(cached_root))
-    crew = _run_app()
+    crew = _select_example_and_build(_run_app())
 
     # Use an independent AppTest session for the planner contract so no state
     # from the crew view can make the separation test pass accidentally.
-    planner = _run_app()
-    planner.segmented_control(key="view_mode").select("Planner details").run(
-        timeout=60
-    )
+    planner = _select_example_and_build(_run_app())
+    planner.segmented_control(key="view_mode").select("Planner details").run(timeout=60)
     assert not planner.exception
 
     try:
         yield RenderedStates(
             empty=empty,
+            upload_ready=upload_ready,
+            infeasible_upload=infeasible_upload,
             crew=crew,
             planner=planner,
             network_calls=network_calls,
@@ -181,33 +237,73 @@ def _dataframe_with_column(app: AppTest, column: str) -> pd.DataFrame:
     return next(frame.value for frame in app.dataframe if column in frame.value.columns)
 
 
-def test_empty_cache_is_a_guided_real_only_first_run(
+def test_first_run_leads_with_upload_and_makes_no_network_request(
     rendered_states: RenderedStates,
 ) -> None:
     app = rendered_states.empty
     text = _all_text(app)
+    source = app.segmented_control(key="job_source")
 
     assert app.title[0].value == "CertiRoute"
-    assert "A clear, numbered work route built around Phoenix heat" in text
-    assert "Choose date" in text
-    assert "Build route" in text
-    assert "Follow stops 1–6" in text
-    assert "REAL FORTYGUARD TEMPERATURES" in text
-    assert "Your numbered crew route will appear here" in text
-    assert "a numbered map" in text
-    assert "the first stop" in text
-    assert "the depot return time" in text
+    assert "Turn real field jobs into one heat-aware crew route" in text
+    assert "Add work orders" in text
+    assert "Confirm shift" in text
+    assert "Build crew route" in text
+    assert "REAL FORTYGUARD DATA" in text
+    assert "YOUR WORK ORDERS" in text
+    assert source.options == ["Upload my jobs", "Use Phoenix example"]
+    assert source.value == "Upload my jobs"
+    assert len(app.file_uploader) == 1
+    assert app.file_uploader[0].label == "Upload work orders (CSV)"
+    assert [button.label for button in app.download_button] == ["Download CSV template"]
 
-    assert len(app.button) == 1
-    assert app.button[0].label == "Build crew route"
-    assert not app.segmented_control
+    assert not app.button
     assert not app.radio
     assert not app.checkbox
     assert not app.metric
     assert not app.dataframe
-    assert not app.expander
     assert not app.get("deck_gl_json_chart")
-    assert "synthetic fallback" not in text.lower()
+    assert "Start with the template" in text
+    assert rendered_states.network_calls == []
+
+
+def test_valid_upload_reaches_shift_depot_and_build_controls_without_network(
+    rendered_states: RenderedStates,
+) -> None:
+    app = rendered_states.upload_ready
+    text = _all_text(app)
+
+    assert app.segmented_control(key="job_source").value == "Upload my jobs"
+    assert "2 work orders validated. No API request has been made." in text
+    assert "2. Confirm the shift" in text
+    assert len(app.date_input) == 1
+    assert {widget.label for widget in app.time_input} == {
+        "Shift starts",
+        "Shift finishes",
+    }
+    assert {widget.label for widget in app.number_input} == {
+        "Depot latitude",
+        "Depot longitude",
+    }
+    assert [button.label for button in app.button] == ["Build heat-aware route"]
+    assert not app.button[0].disabled
+    assert [button.label for button in app.download_button] == ["Download CSV template"]
+    uploaded_jobs = next(
+        frame.value for frame in app.dataframe if "job_id" in frame.value.columns
+    )
+    assert list(uploaded_jobs["job_id"]) == ["REAL-001", "REAL-002"]
+    assert rendered_states.network_calls == []
+
+
+def test_infeasible_upload_is_blocked_before_any_temperature_request(
+    rendered_states: RenderedStates,
+) -> None:
+    app = rendered_states.infeasible_upload
+    text = _all_text(app)
+
+    assert "No complete depot-to-depot route fits" in text
+    assert "No FortyGuard request was submitted" in text
+    assert app.segmented_control(key="job_source").value == "Upload my jobs"
     assert rendered_states.network_calls == []
 
 
@@ -221,9 +317,7 @@ def test_crew_route_leads_with_one_plain_language_decision(
     assert control.options == ["Crew route", "Planner details"]
     assert control.value == "Crew route"
     assert "Route result" in text
-    assert (
-        "Keep the current stop order" in text or "Use this stop order" in text
-    )
+    assert "Keep the current stop order" in text or "Use this stop order" in text
     assert "First stop" in text
     assert "Jobs on time" in text
     assert "Follow this route" in text
@@ -313,8 +407,11 @@ def test_crew_route_hides_planner_complexity(
     text = _all_text(app)
 
     assert not app.metric
-    assert not app.dataframe
-    assert not app.expander
+    assert len(app.dataframe) == 1
+    assert "Plan" not in app.dataframe[0].value.columns
+    assert [expander.label for expander in app.expander] == [
+        "Preview the Phoenix example jobs"
+    ]
     assert not app.get("vega_lite_chart")
     assert "Modeled exposure" not in text
     assert "degree-hours" not in text
@@ -402,10 +499,11 @@ def test_planner_view_keeps_methods_and_full_safety_detail_secondary(
     expander_labels = [expander.label for expander in app.expander]
 
     assert expander_labels == [
-        "Review the six demonstration work orders",
+        "Review the 6 example work orders",
         "Verify the FortyGuard temperature evidence",
         "Compare planning methods",
         "How the score works—and what comes next",
+        "Preview the Phoenix example jobs",
     ]
     assert "Planning support, not safety clearance" in text
     assert "not a regulatory limit" in text
