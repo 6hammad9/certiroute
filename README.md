@@ -55,7 +55,7 @@ The interface is one guided, real-data-only workflow:
 
 1. Choose a nearby U.S. city to position the map, then pan or zoom wherever the
    crew actually works. The city is a starting view, not a boundary.
-2. Click once for the blue crew start/return base, then click 2–9 orange work
+2. Click once for the mint crew start/return base, then click 2–9 orange work
    sites. Coordinates stay behind the interface.
 3. Keep the ready-to-use defaults—45 minutes per site, priority 3, and each job
    available for the full 08:00–17:00 shift—or optionally change names,
@@ -87,7 +87,7 @@ job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_f
 
 Times use 24-hour `HH:MM`; priority is 1–5. Extra export columns are accepted
 but ignored. An import places the orange job markers; the dispatcher then
-clicks the actual blue crew base. Coordinates are checked as WGS84 values;
+clicks the actual mint crew base. Coordinates are checked as WGS84 values;
 FortyGuard enforces its U.S.-coverage boundary. Uploaded work orders are not
 written to the repository.
 

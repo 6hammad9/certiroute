@@ -253,20 +253,20 @@ def inject_styles() -> None:
         """
         <style>
         :root {
-            --ink: #111827;
-            --muted: #5B6472;
-            --rule: #D9DEE7;
-            --canvas: #F7F5F1;
-            --surface: #FFFFFF;
-            --route: #082F49;
-            --route-soft: #EAF4FB;
-            --route-ink: #FFFFFF;
-            --heat: #FF6A00;
-            --heat-ink: #B83B00;
-            --heat-soft: #FFF0E5;
-            --caution: #B83B00;
+            --ink: #F2F7FC;
+            --muted: #9FB2C9;
+            --rule: #27384F;
+            --canvas: #0B1524;
+            --surface: #152232;
+            --route: #70FFD2;
+            --route-soft: #102E30;
+            --route-ink: #06251C;
+            --heat: #FF9137;
+            --heat-ink: #FFCC4D;
+            --heat-soft: #2A2213;
+            --caution: #FFFC8C;
         }
-        html { color-scheme: light; }
+        html { color-scheme: dark; }
         .stApp, [data-testid="stAppViewContainer"], .main {
             background: var(--canvas) !important; color: var(--ink);
         }
@@ -341,7 +341,7 @@ def inject_styles() -> None:
         .journey-node {
             display: flex; align-items: center; justify-content: center;
             width: 30px; height: 30px; border-radius: 50%;
-            background: var(--heat); color: var(--route); font-size: .78rem;
+            background: var(--heat); color: var(--route-ink); font-size: .78rem;
             font-weight: 900; border: 2px solid var(--surface); box-sizing: border-box;
         }
         .journey-node.depot {
@@ -382,14 +382,14 @@ def inject_styles() -> None:
         .empty-state h3 { text-align: left; color: var(--ink); }
         .empty-state p { text-align: left; }
         .safety-note {
-            border-left: 4px solid var(--heat); background: var(--heat-soft);
-            padding: .8rem 1rem; color: var(--heat-ink);
+            border-left: 4px solid var(--caution); background: var(--heat-soft);
+            padding: .8rem 1rem; color: var(--caution);
         }
         .decision-card { background: var(--route); }
         .decision-card h2 { margin: .15rem 0 .35rem; color: var(--route-ink); }
-        .decision-card p { margin: 0; color: #E6EEF3; line-height: 1.5; }
+        .decision-card p { margin: 0; color: #0B3A2E; line-height: 1.5; }
         .decision-label {
-            color: var(--heat); font-size: .7rem; font-weight: 900;
+            color: var(--route-ink); font-size: .7rem; font-weight: 900;
             letter-spacing: .11em; text-transform: uppercase;
         }
         .bento {
@@ -455,7 +455,7 @@ def inject_styles() -> None:
         .route-stop-number {
             display: flex; align-items: center; justify-content: center;
             width: 2.35rem; height: 2.35rem; border-radius: 50%;
-            color: var(--route); background: var(--heat); border: 3px solid white;
+            color: var(--route-ink); background: var(--heat); border: 3px solid white;
             font-weight: 900; font-size: 1rem;
         }
         .route-stop-copy { min-width: 0; }
@@ -503,10 +503,12 @@ def inject_styles() -> None:
         }
         button[kind="primary"] {
             background: var(--route); border-color: var(--route);
-            border-radius: 2px; min-height: 3rem; font-weight: 800;
+            color: var(--route-ink); border-radius: 2px;
+            min-height: 3rem; font-weight: 800;
         }
         button[kind="primary"]:hover {
-            background: #0C4A6E; border-color: #0C4A6E;
+            background: var(--caution); border-color: var(--caution);
+            color: var(--route-ink);
         }
         div[data-testid="stExpander"] details,
         div[data-testid="stFileUploaderDropzone"] { border-radius: 2px; }
@@ -733,7 +735,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[8, 47, 73, 255],
+            get_color=[112, 255, 210, 255],
             get_width=5,
             width_units="'pixels'",
         ),
@@ -743,7 +745,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=24,
             radius_units="'pixels'",
-            get_fill_color=[8, 47, 73, 255],
+            get_fill_color=[112, 255, 210, 255],
             pickable=True,
         ),
         pdk.Layer(
@@ -752,7 +754,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=17,
             radius_units="'pixels'",
-            get_fill_color=[255, 106, 0, 255],
+            get_fill_color=[255, 145, 55, 255],
             stroked=True,
             get_line_color=[255, 255, 255, 255],
             get_line_width=2,
@@ -766,7 +768,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="marker",
             get_size=15,
             size_units="'pixels'",
-            get_color=[8, 47, 73, 255],
+            get_color=[11, 21, 36, 255],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
             billboard=True,
@@ -783,12 +785,12 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[8, 47, 73, 255],
+            get_color=[242, 247, 252, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
             background=True,
-            get_background_color=[255, 255, 255, 235],
+            get_background_color=[11, 21, 36, 235],
             background_padding=[5, 3],
             billboard=True,
         ),
@@ -797,10 +799,10 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
         pdk.Deck(
             layers=layers,
             initial_view_state=view,
-            map_style=pdk.map_styles.CARTO_LIGHT,
+            map_style=pdk.map_styles.CARTO_DARK,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
-                "style": {"backgroundColor": "#082F49", "color": "white"},
+                "style": {"backgroundColor": "#0B1524", "color": "#F2F7FC"},
             },
         ),
         width="stretch",
@@ -1405,11 +1407,11 @@ def render_picker_instruction(state: MapScenarioState) -> None:
             title = "Click where the crew starts and returns"
             detail = (
                 f"Your {state.job_count} imported work sites are already orange. "
-                "One map click places the blue crew base."
+                "One map click places the mint crew base."
             )
         else:
             title = "First, click where the crew starts and returns"
-            detail = "Pan or zoom if needed. Your first click becomes the blue base."
+            detail = "Pan or zoom if needed. Your first click becomes the mint base."
         style = ""
     elif state.job_count < MIN_MANIFEST_JOBS:
         remaining = MIN_MANIFEST_JOBS - state.job_count
@@ -1445,7 +1447,7 @@ def render_selection_summary(
         "Crew start &amp; return" if state.depot is not None else "Place the crew base"
     )
     depot_meta = (
-        "Blue marker selected"
+        "Mint marker selected"
         if state.depot is not None
         else "Your first map click starts the route"
     )
@@ -1939,7 +1941,7 @@ st.markdown("## Create the crew route")
 st.markdown(
     f"""
     <div class="build-summary">
-      <strong>{len(domain_jobs)} work sites · start and finish at the blue base</strong>
+      <strong>{len(domain_jobs)} work sites · start and finish at the mint base</strong>
       Real FortyGuard temperature intelligence for
       {selected_date.strftime("%d %b %Y")}, turned into one numbered visit order.
     </div>

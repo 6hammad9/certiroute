@@ -38,6 +38,20 @@ The working interface is deliberately narrower than the full research vision:
 This keeps the professor-inspired reliability work as a defensible next layer
 without presenting an authored confidence value as measured evidence.
 
+## Visual identity
+
+The interface keeps a bento-style result summary and a continuous
+start-to-stops-to-return journey. Its chosen accent palette has fixed semantic
+roles:
+
+- `#70FFD2` — route, crew base, and successful/cool states
+- `#FF9137` — numbered work stops and primary heat action
+- `#FFCC4D` — heat labels and evidence emphasis
+- `#FFFC8C` — cautions and safety boundaries
+
+Dark neutral surfaces provide the contrast required for these four light accent
+colors; they are supporting neutrals, not replacement brand colors.
+
 ## Hackathon positioning
 
 - **Primary track:** Track 3 — Industrial & Enterprise
@@ -45,7 +59,8 @@ without presenting an authored confidence value as measured evidence.
 - **Initial customers:** utilities, telecom operators, construction firms,
   municipal public-works teams, field-maintenance companies, and last-mile
   operators
-- **Customer input:** a compact U.S. service zone selected directly on a map;
+- **Customer input:** U.S. crew locations selected directly on a freely pannable
+  map, with per-request AOI partitioning handled behind the interface;
   optional CSV import supports existing dispatch-system exports
 - **Optional demonstration geography:** a six-stop Phoenix corridor selected
   after validating API coverage and real-data quality
@@ -72,7 +87,7 @@ that hides this uncertainty can give an operator false confidence.
 Given a dispatcher and a map, the implemented product:
 
 1. Positions the map from a friendly U.S. city preset; the first click sets the
-   crew's blue start/return base and the next 2–9 clicks create orange work
+   crew's mint start/return base and the next 2–9 clicks create orange work
    sites.
 2. Supplies usable job and workday defaults, while allowing optional names,
    durations, completed replay date, and same-day shift changes. Advanced users
@@ -241,7 +256,7 @@ Measure:
 ## Three-minute demo story
 
 1. A dispatcher positions the map near a U.S. city, pans wherever needed,
-   clicks once for the blue crew base, and clicks 2–9 orange work sites; no
+   clicks once for the mint crew base, and clicks 2–9 orange work sites; no
    coordinates or CSV are required.
 2. The app shows ready defaults and a selected-work summary. Optional controls
    can name jobs, change visit duration, or change the completed replay day and

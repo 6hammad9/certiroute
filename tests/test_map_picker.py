@@ -24,6 +24,15 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
     )
 
     assert base_map.location == pytest.approx([33.4484, -112.0740])
+    assert map_picker.DEPOT_COLOR == "#70FFD2"
+    assert map_picker.JOB_COLOR == "#FF9137"
+    assert map_picker.MARKER_TEXT_COLOR == "#0B1524"
+    tile_layer = next(
+        child
+        for child in base_map._children.values()
+        if isinstance(child, folium.TileLayer)
+    )
+    assert "dark_all" in tile_layer.tiles
     assert not any(
         isinstance(child, folium.Marker) for child in base_map._children.values()
     )
@@ -38,6 +47,7 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
     marker_html = " ".join(marker.icon.options["html"] for marker in markers)
     assert map_picker.DEPOT_COLOR in marker_html
     assert map_picker.JOB_COLOR in marker_html
+    assert map_picker.MARKER_TEXT_COLOR in marker_html
     assert "START" in marker_html
     assert "Work location 1" in marker_html
     assert "Work location 2" in marker_html

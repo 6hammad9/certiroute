@@ -58,7 +58,7 @@ is the evidence needed for calibrated forecast intervals.
   three-step guide, one **Create my heat-aware route** action, and separate
   crew/planner views.
 - [x] Make direct map selection the primary input: choose a U.S. city preset,
-  click once for the blue crew base, and click 2–9 orange work sites without
+  click once for the mint crew base, and click 2–9 orange work sites without
   entering latitude or longitude.
 - [x] Create valid work orders from those clicks using a 45-minute duration,
   priority 3, and full-shift availability; expose only optional names and

@@ -325,6 +325,7 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert app.title[0].value == "CertiRoute"
     assert "Plan a cooler workday in three simple steps" in text
     assert "No coordinates or spreadsheet setup required" in text
+    assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
     assert "Position the map" in text
     assert "Tap base + sites" in text
     assert "Get the route" in text
@@ -410,7 +411,7 @@ def test_csv_import_is_optional_and_only_asks_for_one_map_click(
     assert waiting_state.depot is None
     assert waiting_state.job_count == 2
     assert "Your 2 imported work sites are already orange" in waiting_text
-    assert "One map click places the blue crew base" in waiting_text
+    assert "One map click places the mint crew base" in waiting_text
     assert not any(
         button.label == "Create my heat-aware route" for button in waiting.button
     )
@@ -490,6 +491,16 @@ def test_crew_route_map_makes_the_visit_order_visible(
     assert layer_types.count("PathLayer") == 2
     assert layer_types.count("ScatterplotLayer") == 2
     assert layer_types.count("TextLayer") == 2
+    assert [112, 255, 210, 255] in [
+        layer["getColor"] for layer in layers if layer["@@type"] == "PathLayer"
+    ]
+
+    stop_layer = next(
+        layer
+        for layer in layers
+        if layer["@@type"] == "ScatterplotLayer" and layer.get("getRadius") == 17
+    )
+    assert stop_layer["getFillColor"] == [255, 145, 55, 255]
 
     route_layer = next(layer for layer in layers if layer["@@type"] == "PathLayer")
     assert len(route_layer["data"][0]["path"]) == 8
