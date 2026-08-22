@@ -326,6 +326,8 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert "Plan a cooler workday in three simple steps" in text
     assert "No coordinates or spreadsheet setup required" in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
+    assert "color-scheme: light" in text
+    assert "--canvas: #F7F8F6" in text
     assert "Position the map" in text
     assert "Tap base + sites" in text
     assert "Get the route" in text
@@ -455,6 +457,14 @@ def test_crew_route_leads_with_one_plain_language_decision(
     assert "Follow this route" in text
     assert "Stop 1 is where the shift begins" in text
     assert "Return to crew base" in text
+    decision_markup = next(
+        str(element.value)
+        for element in app.markdown
+        if 'class="bento-hero decision-card"' in str(element.value)
+    )
+    assert 'class="bento-tile route-fact stop"' in decision_markup
+    assert 'class="bento-tile route-fact time"' in decision_markup
+    assert 'class="bento-tile route-fact status"' in decision_markup
     assert rendered_states.network_calls == []
 
 

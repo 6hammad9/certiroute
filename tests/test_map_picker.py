@@ -32,7 +32,7 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
         for child in base_map._children.values()
         if isinstance(child, folium.TileLayer)
     )
-    assert "dark_all" in tile_layer.tiles
+    assert "light_all" in tile_layer.tiles
     assert not any(
         isinstance(child, folium.Marker) for child in base_map._children.values()
     )

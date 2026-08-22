@@ -46,11 +46,12 @@ roles:
 
 - `#70FFD2` — route, crew base, and successful/cool states
 - `#FF9137` — numbered work stops and primary heat action
-- `#FFCC4D` — heat labels and evidence emphasis
+- `#FFCC4D` — timing and evidence emphasis
 - `#FFFC8C` — cautions and safety boundaries
 
-Dark neutral surfaces provide the contrast required for these four light accent
-colors; they are supporting neutrals, not replacement brand colors.
+The product uses a white-mode shell. Because all four accents are light, they
+appear as fills, markers, and slim rules with dark ink rather than as small text
+directly on white. This keeps the bento interface minimal and readable.
 
 ## Hackathon positioning
 

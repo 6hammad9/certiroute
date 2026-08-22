@@ -38,7 +38,7 @@ def build_map_picker(
     base_map = folium.Map(
         location=[operating_area.center.latitude, operating_area.center.longitude],
         zoom_start=operating_area.zoom,
-        tiles="CartoDB dark_matter",
+        tiles="CartoDB positron",
         control_scale=True,
         prefer_canvas=True,
     )

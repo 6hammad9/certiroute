@@ -253,20 +253,21 @@ def inject_styles() -> None:
         """
         <style>
         :root {
-            --ink: #F2F7FC;
-            --muted: #9FB2C9;
-            --rule: #27384F;
-            --canvas: #0B1524;
-            --surface: #152232;
+            --ink: #111827;
+            --muted: #5B6472;
+            --rule: #E1E5E3;
+            --canvas: #F7F8F6;
+            --surface: #FFFFFF;
             --route: #70FFD2;
-            --route-soft: #102E30;
+            --route-soft: #E8FFF8;
             --route-ink: #06251C;
             --heat: #FF9137;
-            --heat-ink: #FFCC4D;
-            --heat-soft: #2A2213;
+            --heat-ink: #713400;
+            --heat-soft: #FFF4E8;
+            --gold: #FFCC4D;
             --caution: #FFFC8C;
         }
-        html { color-scheme: dark; }
+        html { color-scheme: light; }
         .stApp, [data-testid="stAppViewContainer"], .main {
             background: var(--canvas) !important; color: var(--ink);
         }
@@ -286,7 +287,11 @@ def inject_styles() -> None:
             color: var(--muted); font-size: .72rem; font-weight: 800;
             letter-spacing: .08em; text-transform: uppercase; margin-top: .8rem;
         }
-        .hero-proof .heat { color: var(--heat-ink); }
+        .hero-proof .heat {
+            color: var(--heat-ink); text-decoration: underline;
+            text-decoration-color: var(--gold); text-decoration-thickness: .2rem;
+            text-underline-offset: .18rem;
+        }
         .eyebrow {
             color: var(--heat-ink); font-size: .72rem; font-weight: 850;
             letter-spacing: .14em; text-transform: uppercase;
@@ -303,9 +308,10 @@ def inject_styles() -> None:
             text-transform: uppercase;
         }
         .process-number {
-            color: var(--route); font-size: .72rem; font-weight: 900;
+            color: var(--route-ink); font-size: .72rem; font-weight: 900;
+            border-bottom: 3px solid var(--route);
         }
-        .process-arrow { color: var(--heat); font-weight: 900; }
+        .process-arrow { color: var(--heat-ink); font-weight: 900; }
         .picker-instruction {
             display: flex; justify-content: space-between; gap: 1rem;
             align-items: baseline; border-top: 2px solid var(--route);
@@ -327,7 +333,8 @@ def inject_styles() -> None:
         .journey-list { position: relative; }
         .journey-list::before {
             content: ""; position: absolute; left: 15px; top: 18px; bottom: 18px;
-            width: 2px; background: var(--route); opacity: .9;
+            width: 3px; background: var(--route);
+            box-shadow: 0 0 0 1px var(--route-ink);
         }
         .journey-row {
             position: relative; z-index: 1; display: grid;
@@ -347,6 +354,7 @@ def inject_styles() -> None:
         .journey-node.depot {
             width: 18px; height: 18px; margin-left: 6px;
             background: var(--route); color: var(--route-ink);
+            border: 2px solid var(--route-ink);
         }
         .journey-node.depot.pending {
             background: var(--surface); border: 2px solid var(--route);
@@ -354,6 +362,7 @@ def inject_styles() -> None:
         .journey-node.return {
             width: 18px; height: 18px; margin-left: 6px;
             background: var(--surface); border: 3px solid var(--route);
+            box-shadow: 0 0 0 1px var(--route-ink);
         }
         .journey-node.pending {
             background: var(--surface); border: 2px solid var(--heat);
@@ -374,7 +383,9 @@ def inject_styles() -> None:
             border-bottom: 1px solid var(--rule); color: var(--muted);
             padding: .7rem 0; margin: .7rem 0;
         }
-        .workday-chip strong { color: var(--route); }
+        .workday-chip strong {
+            color: var(--route-ink); border-bottom: 3px solid var(--route);
+        }
         .empty-state {
             padding: 1.25rem 0; border-top: 1px solid var(--ink);
             border-bottom: 1px solid var(--rule); color: var(--muted);
@@ -382,8 +393,8 @@ def inject_styles() -> None:
         .empty-state h3 { text-align: left; color: var(--ink); }
         .empty-state p { text-align: left; }
         .safety-note {
-            border-left: 4px solid var(--caution); background: var(--heat-soft);
-            padding: .8rem 1rem; color: var(--caution);
+            border-left: 4px solid var(--heat); background: var(--caution);
+            padding: .8rem 1rem; color: var(--ink);
         }
         .decision-card { background: var(--route); }
         .decision-card h2 { margin: .15rem 0 .35rem; color: var(--route-ink); }
@@ -397,18 +408,22 @@ def inject_styles() -> None:
             gap: 14px; margin: .6rem 0 1.5rem;
         }
         .bento > * {
-            border-radius: 18px; padding: 1.2rem 1.35rem; min-width: 0;
+            border: 1px solid var(--rule); border-radius: 18px;
+            padding: 1.2rem 1.35rem; min-width: 0;
         }
         .bento-hero {
             grid-column: span 4; grid-row: span 3;
-            background: var(--route); display: flex; flex-direction: column;
+            background: var(--route); border-color: var(--route);
+            display: flex; flex-direction: column;
             justify-content: center;
         }
         .bento-tile {
             grid-column: span 2; background: var(--surface);
             display: flex; flex-direction: column; justify-content: center;
         }
-        .bento-tile.accent { background: var(--heat-soft); }
+        .bento-tile.stop { border-top: 4px solid var(--heat); }
+        .bento-tile.time { border-top: 4px solid var(--gold); }
+        .bento-tile.status { border-top: 4px solid var(--caution); }
         .bento-tile .route-fact-label { margin-bottom: .3rem; }
         .route-summary {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -434,7 +449,8 @@ def inject_styles() -> None:
         }
         .route-rail::before {
             content: ""; position: absolute; left: 2.42rem; top: 2.2rem;
-            bottom: 2.2rem; width: 2px; background: var(--route);
+            bottom: 2.2rem; width: 3px; background: var(--route);
+            box-shadow: 0 0 0 1px var(--route-ink);
         }
         .route-endpoint {
             position: relative; z-index: 1; display: grid;
@@ -443,7 +459,7 @@ def inject_styles() -> None:
         }
         .route-endpoint-node {
             width: 18px; height: 18px; margin-left: .5rem; border-radius: 50%;
-            background: var(--route); border: 2px solid white;
+            background: var(--route); border: 2px solid var(--route-ink);
         }
         .route-stop {
             position: relative; z-index: 1;
@@ -487,18 +503,20 @@ def inject_styles() -> None:
         .route-return-node {
             width: 18px; height: 18px; margin-left: .5rem; border-radius: 2px;
             background: var(--surface); border: 3px solid var(--route);
-            box-sizing: border-box;
+            box-sizing: border-box; box-shadow: 0 0 0 1px var(--route-ink);
         }
         .map-note {
             color: var(--muted); font-size: .76rem; line-height: 1.4;
             margin: .15rem 0 .55rem;
         }
         div[data-testid="stMetric"] {
-            background: var(--surface); border-radius: 18px;
+            background: var(--surface); border: 1px solid var(--rule);
+            border-radius: 18px;
             padding: 1.05rem 1.2rem;
         }
         div[data-testid="stExpander"] {
-            border: 0; border-radius: 18px; background: var(--surface);
+            border: 1px solid var(--rule); border-radius: 18px;
+            background: var(--surface);
             overflow: hidden;
         }
         button[kind="primary"] {
@@ -785,12 +803,12 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[242, 247, 252, 255],
+            get_color=[11, 21, 36, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
             background=True,
-            get_background_color=[11, 21, 36, 235],
+            get_background_color=[255, 255, 255, 235],
             background_padding=[5, 3],
             billboard=True,
         ),
@@ -799,7 +817,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
         pdk.Deck(
             layers=layers,
             initial_view_state=view,
-            map_style=pdk.map_styles.CARTO_DARK,
+            map_style=pdk.map_styles.CARTO_LIGHT,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
                 "style": {"backgroundColor": "#0B1524", "color": "#F2F7FC"},
@@ -1003,18 +1021,18 @@ def render_crew_decision(
             <h2>{title}</h2>
             <p>{explanation}</p>
           </div>
-          <div class="bento-tile route-fact">
+          <div class="bento-tile route-fact stop">
             <div class="route-fact-label">First stop</div>
             <div class="route-fact-value">1 · {first_site}</div>
           </div>
-          <div class="bento-tile route-fact">
+          <div class="bento-tile route-fact time">
             <div class="route-fact-label">Shift route</div>
             <div class="route-fact-value">
               {minute_label(crew_plan.stops[0].start_minute)} →
               {minute_label(crew_plan.route_finish_minute)}
             </div>
           </div>
-          <div class="bento-tile route-fact">
+          <div class="bento-tile route-fact status">
             <div class="route-fact-label">Jobs on time</div>
             <div class="route-fact-value">
               {len(crew_plan.stops)} of {len(baseline.stops)}
