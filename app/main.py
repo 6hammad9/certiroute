@@ -665,8 +665,8 @@ def render_crew_decision(
         decision_label = "Route confirmed"
         title = "Keep the current stop order"
         explanation = (
-            "FortyGuard found nearly the same heat pattern across today's six "
-            "sites. Reordering would not reduce heat enough to justify extra "
+            "CertiRoute checked every feasible stop order against FortyGuard "
+            "temperatures. None reduced modeled heat enough to justify extra "
             f"travel. Start at <strong>{first_site}</strong> at "
             f"<strong>{minute_label(crew_plan.stops[0].start_minute)}</strong>."
         )
