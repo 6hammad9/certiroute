@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import os
+from collections.abc import Mapping
 from datetime import UTC, date, datetime, time, timedelta
 from html import escape
 from io import StringIO
@@ -20,6 +21,7 @@ import pydeck as pdk
 import streamlit as st
 from pydantic import ValidationError
 
+import certiroute.map_picker as map_picker
 from certiroute.collection import (
     CacheCorruptionError,
     HeatmapSnapshotStore,
@@ -41,6 +43,22 @@ from certiroute.job_manifest import (
     JobManifestIssue,
     JobManifestValidation,
     validate_job_manifest,
+)
+from certiroute.map_scenario import (
+    DEFAULT_JOB_DURATION_MINUTES,
+    DEFAULT_OPERATING_AREA_ID,
+    DEFAULT_SHIFT_END,
+    DEFAULT_SHIFT_START,
+    OPERATING_AREA_BY_ID,
+    OPERATING_AREA_PRESETS,
+    MapClickAction,
+    MapPoint,
+    MapScenarioState,
+    apply_map_click,
+    build_default_job_manifest,
+    reset_points,
+    select_operating_area,
+    undo_last_point,
 )
 from certiroute.optimization import (
     ConditionPoint,
@@ -241,25 +259,25 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        .stApp { background: #F6FAFB; }
+        .stApp { background: #EEF2F7; }
         .block-container { max-width: 1180px; padding-top: 1.6rem; }
         h1 { letter-spacing: -0.045em; }
         h2, h3 { letter-spacing: -0.025em; }
         .hero-copy {
-            color: #486581; font-size: 1.08rem; line-height: 1.55;
+            color: #3D5670; font-size: 1.08rem; line-height: 1.55;
             max-width: 780px; margin-top: -0.45rem;
         }
         .hero-heading {
-            color: #102A43; font-size: 1.55rem; font-weight: 750;
+            color: #0A2540; font-size: 1.55rem; font-weight: 750;
             letter-spacing: -0.025em; line-height: 1.3; margin: .8rem 0 1rem;
         }
         .eyebrow {
-            color: #0B6B8A; font-size: .77rem; font-weight: 800;
+            color: #C2410C; font-size: .77rem; font-weight: 800;
             letter-spacing: .12em; text-transform: uppercase;
         }
         .badge {
-            display: inline-block; border: 1px solid #B8D8E3;
-            background: #EAF6F8; color: #0B5A73; border-radius: 999px;
+            display: inline-block; border: 1px solid #A9BFD6;
+            background: #E1EBF6; color: #0D3F6B; border-radius: 999px;
             padding: .28rem .62rem; margin: .15rem .3rem .15rem 0;
             font-size: .72rem; font-weight: 750; letter-spacing: .035em;
         }
@@ -268,21 +286,54 @@ def inject_styles() -> None:
         }
         .process-strip {
             display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
-            color: #486581; margin: 1rem 0 1.25rem;
+            color: #3D5670; margin: 1rem 0 1.25rem;
         }
         .process-step {
             display: inline-flex; align-items: center; gap: .45rem;
-            border: 1px solid #C8DCE3; background: white;
+            border: 1px solid #A9BCD1; background: white;
             border-radius: 999px; padding: .42rem .72rem; font-weight: 700;
         }
         .process-number {
             display: inline-flex; align-items: center; justify-content: center;
             width: 1.45rem; height: 1.45rem; border-radius: 50%;
-            color: white; background: #0B6B8A; font-size: .78rem;
+            color: white; background: #0F4C81; font-size: .78rem;
         }
-        .process-arrow { color: #829AB1; font-weight: 800; }
+        .process-arrow { color: #6B84A0; font-weight: 800; }
+        .picker-instruction {
+            border: 1px solid #A9BFD6; border-left: 5px solid #0F4C81;
+            background: #FFFFFF; border-radius: .72rem; padding: .82rem 1rem;
+            margin: .45rem 0 .75rem; color: #0A2540;
+            box-shadow: 0 1px 2px rgba(10, 37, 64, .06);
+        }
+        .picker-instruction strong { display: block; margin-bottom: .14rem; }
+        .picker-instruction.ready {
+            border-left-color: #C2410C; background: #FFF8F2;
+        }
+        .selection-summary {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .55rem; margin: .75rem 0;
+        }
+        .selection-item {
+            display: flex; align-items: center; gap: .65rem; min-width: 0;
+            background: white; border: 1px solid #BCCBDD; border-radius: .65rem;
+            padding: .62rem .75rem; color: #0A2540; font-weight: 720;
+        }
+        .selection-marker {
+            display: inline-flex; flex: 0 0 auto; align-items: center;
+            justify-content: center; width: 1.8rem; height: 1.8rem;
+            border-radius: 50%; background: #C2410C; color: white;
+            font-size: .78rem; font-weight: 850;
+        }
+        .selection-marker.depot { background: #0F4C81; font-size: .66rem; }
+        .workday-chip {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: .65rem; flex-wrap: wrap; border: 1px solid #A9BFD6;
+            background: #E1EBF6; color: #0A2540; border-radius: .7rem;
+            padding: .7rem .85rem; margin: .65rem 0;
+        }
+        .workday-chip strong { color: #0F4C81; }
         .empty-state {
-            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #9FB3C8;
+            text-align: center; padding: 1.7rem 1rem; border: 1px dashed #8FA5BE;
             border-radius: .75rem; background: white;
         }
         .safety-note {
@@ -290,14 +341,14 @@ def inject_styles() -> None:
             padding: .85rem 1rem; border-radius: .35rem; color: #B9380A;
         }
         .decision-card {
-            border: 1px solid #B8D8E3; border-left: 6px solid #0B6B8A;
-            background: #EAF6F8; border-radius: .8rem; padding: 1.15rem 1.25rem;
+            border: 1px solid #A9BFD6; border-left: 6px solid #0F4C81;
+            background: #E1EBF6; border-radius: .8rem; padding: 1.15rem 1.25rem;
             margin: .65rem 0 1rem;
         }
-        .decision-card h2 { margin: .15rem 0 .35rem; color: #102A43; }
-        .decision-card p { margin: 0; color: #486581; line-height: 1.5; }
+        .decision-card h2 { margin: .15rem 0 .35rem; color: #0A2540; }
+        .decision-card p { margin: 0; color: #3D5670; line-height: 1.5; }
         .decision-label {
-            color: #0B6B8A; font-size: .72rem; font-weight: 850;
+            color: #0F4C81; font-size: .72rem; font-weight: 850;
             letter-spacing: .11em; text-transform: uppercase;
         }
         .route-summary {
@@ -305,21 +356,23 @@ def inject_styles() -> None:
             gap: .65rem; margin: .8rem 0 1.2rem;
         }
         .route-fact {
-            background: white; border: 1px solid #C8DCE3; border-radius: .7rem;
+            background: white; border: 1px solid #A9BCD1; border-radius: .7rem;
+            box-shadow: 0 1px 2px rgba(10, 37, 64, .07);
             padding: .78rem .9rem; min-width: 0;
         }
         .route-fact-label {
-            color: #486581; font-size: .7rem; font-weight: 800;
+            color: #3D5670; font-size: .7rem; font-weight: 800;
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-fact-value {
-            color: #102A43; font-size: 1.08rem; font-weight: 800;
+            color: #0A2540; font-size: 1.08rem; font-weight: 800;
             margin-top: .12rem; overflow-wrap: anywhere;
         }
         .route-stop {
             display: grid; grid-template-columns: 2.65rem minmax(0, 1fr) auto;
             gap: .72rem; align-items: center; background: white;
-            border: 1px solid #C8DCE3; border-radius: .72rem;
+            border: 1px solid #A9BCD1; border-left: 4px solid #C2410C;
+            box-shadow: 0 1px 2px rgba(10, 37, 64, .07); border-radius: .72rem;
             padding: .7rem .78rem; margin-bottom: .5rem; min-width: 0;
         }
         .route-stop-number {
@@ -329,46 +382,49 @@ def inject_styles() -> None:
         }
         .route-stop-copy { min-width: 0; }
         .route-stop-kicker {
-            color: #0B6B8A; font-size: .66rem; font-weight: 850;
+            color: #C2410C; font-size: .66rem; font-weight: 850;
             letter-spacing: .08em; text-transform: uppercase;
         }
         .route-stop-name {
-            color: #102A43; font-weight: 800; line-height: 1.25;
+            color: #0A2540; font-weight: 800; line-height: 1.25;
             overflow-wrap: anywhere;
         }
         .route-stop-task {
-            color: #486581; font-size: .78rem; line-height: 1.25;
+            color: #3D5670; font-size: .78rem; line-height: 1.25;
             overflow-wrap: anywhere; margin-top: .12rem;
         }
         .route-stop-time {
-            color: #243B53; font-weight: 800; white-space: nowrap;
+            color: #12283F; font-weight: 800; white-space: nowrap;
             text-align: right;
         }
         .route-stop-travel {
-            color: #486581; font-size: .72rem; margin-top: .12rem;
+            color: #3D5670; font-size: .72rem; margin-top: .12rem;
         }
         .route-return {
-            border: 1px dashed #9FB3C8; border-radius: .65rem;
-            color: #486581; padding: .62rem .78rem; margin-top: .2rem;
+            border: 1px dashed #8FA5BE; border-radius: .65rem;
+            color: #3D5670; padding: .62rem .78rem; margin-top: .2rem;
             background: white; overflow-wrap: anywhere;
         }
         .map-note {
-            color: #486581; font-size: .78rem; line-height: 1.4;
+            color: #3D5670; font-size: .78rem; line-height: 1.4;
             margin: .15rem 0 .55rem;
         }
         div[data-testid="stMetric"] {
-            background: white; border: 1px solid #C8DCE3;
+            background: white; border: 1px solid #A9BCD1;
             padding: .85rem 1rem; border-radius: .7rem;
         }
         button[kind="primary"] {
-            background: #0B6B8A; border-color: #0B6B8A;
+            background: #0F4C81; border-color: #0F4C81;
         }
         button[kind="primary"]:hover {
-            background: #07546A; border-color: #07546A;
+            background: #0A3860; border-color: #0A3860;
         }
         @media (max-width: 700px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
             .process-arrow { display: none; }
+            .process-strip { align-items: stretch; }
+            .process-step { flex: 1 1 100%; }
+            .selection-summary { grid-template-columns: 1fr; }
             .route-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .route-fact:first-child { grid-column: 1 / -1; }
             .route-stop { grid-template-columns: 2.65rem minmax(0, 1fr); }
@@ -393,17 +449,17 @@ def render_hero() -> None:
     st.markdown(
         """
         <div class="hero-heading">
-          Turn real field jobs into one heat-aware crew route.
+          Plan a cooler workday in three clicks.
         </div>
         <div class="hero-copy">
-        Upload a compact U.S. workday. CertiRoute searches feasible stop orders
-        against real FortyGuard temperature intelligence and returns one
-        crew-ready route.
+        Pick a U.S. area, tap the crew base and work sites, then let CertiRoute
+        turn real FortyGuard temperature intelligence into one crew-ready order.
+        No coordinates or spreadsheet setup required.
         </div>
         <div class="hero-badges" style="margin-top:.7rem">
           <span class="badge heat-badge">REAL FORTYGUARD DATA</span>
-          <span class="badge">YOUR WORK ORDERS</span>
-          <span class="badge">HISTORICAL REPLAY</span>
+          <span class="badge">MAP-FIRST SETUP</span>
+          <span class="badge">PAST-DAY REPLAY</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -430,15 +486,15 @@ def render_three_steps() -> None:
         """
         <div class="process-strip" aria-label="How CertiRoute works">
           <span class="process-step">
-            <span class="process-number">1</span>Add work orders
+            <span class="process-number">1</span>Choose an area
           </span>
           <span class="process-arrow">→</span>
           <span class="process-step">
-            <span class="process-number">2</span>Confirm shift
+            <span class="process-number">2</span>Tap work sites
           </span>
           <span class="process-arrow">→</span>
           <span class="process-step">
-            <span class="process-number">3</span>Build crew route
+            <span class="process-number">3</span>Get the route
           </span>
         </div>
         """,
@@ -575,7 +631,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             "PathLayer",
             [{"path": route}],
             get_path="path",
-            get_color=[11, 107, 138, 255],
+            get_color=[15, 76, 129, 255],
             get_width=5,
             width_units="'pixels'",
         ),
@@ -585,7 +641,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_position="position",
             get_radius=24,
             radius_units="'pixels'",
-            get_fill_color=[16, 42, 67, 255],
+            get_fill_color=[10, 37, 64, 255],
             pickable=True,
         ),
         pdk.Layer(
@@ -625,7 +681,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             get_text="label",
             get_size=12,
             size_units="'pixels'",
-            get_color=[16, 42, 67, 255],
+            get_color=[10, 37, 64, 255],
             get_pixel_offset=[0, -45],
             get_text_anchor="'middle'",
             get_alignment_baseline="'center'",
@@ -642,7 +698,7 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
             map_style=pdk.map_styles.CARTO_LIGHT,
             tooltip={
                 "html": "<b>Stop {sequence}: {site}</b><br/>{time}",
-                "style": {"backgroundColor": "#102A43", "color": "white"},
+                "style": {"backgroundColor": "#0A2540", "color": "white"},
             },
         ),
         width="stretch",

@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+from typing import Any
+
+import folium
+import pytest
+
+import certiroute.map_picker as map_picker
+from certiroute.map_scenario import OPERATING_AREA_BY_ID, MapPoint
+
+
+def phoenix_area():
+    return OPERATING_AREA_BY_ID["phoenix"]
+
+
+def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
+    depot = MapPoint(33.44855, -112.07391)
+    sites = (MapPoint(33.44965, -112.04760), MapPoint(33.43720, -112.05840))
+
+    base_map, selections = map_picker.build_map_picker(
+        phoenix_area(),
+        depot=depot,
+        job_sites=sites,
+    )
+
+    assert base_map.location == pytest.approx([33.4484, -112.0740])
+    assert not any(
+        isinstance(child, folium.Marker) for child in base_map._children.values()
+    )
+    markers = [
+        child for child in selections._children.values() if type(child) is folium.Marker
+    ]
+    circles = [
+        child
+        for child in selections._children.values()
+        if isinstance(child, folium.Circle)
+    ]
+    assert len(markers) == 3  # depot plus two work locations
+    assert len(circles) == 1
+
+    marker_html = " ".join(marker.icon.options["html"] for marker in markers)
+    assert map_picker.DEPOT_COLOR in marker_html
+    assert map_picker.JOB_COLOR in marker_html
+    assert "START" in marker_html
+    assert "Work location 1" in marker_html
+    assert "Work location 2" in marker_html
+
+
+def test_ten_square_mile_guide_is_approximate_and_optional() -> None:
+    depot = MapPoint(33.44855, -112.07391)
+
+    _, guided = map_picker.build_map_picker(
+        phoenix_area(), depot=depot, job_sites=(), show_service_area_guide=True
+    )
+    _, plain = map_picker.build_map_picker(
+        phoenix_area(), depot=depot, job_sites=(), show_service_area_guide=False
+    )
+
+    guide = next(
+        child for child in guided._children.values() if isinstance(child, folium.Circle)
+    )
+    assert guide.options["radius"] == pytest.approx(2871.4, rel=0.001)
+    assert not any(
+        isinstance(child, folium.Circle) for child in plain._children.values()
+    )
+
+
+def test_render_uses_one_stable_click_only_component_boundary(monkeypatch) -> None:
+    calls: list[dict[str, Any]] = []
+    click = {"last_clicked": {"lat": 33.45, "lng": -112.07}}
+
+    def fake_st_folium(_map: folium.Map, **kwargs: Any):
+        calls.append(kwargs)
+        return click
+
+    monkeypatch.setattr(map_picker, "st_folium", fake_st_folium)
+    first = map_picker.render_map_picker(
+        phoenix_area(),
+        depot=MapPoint(33.44855, -112.07391),
+        job_sites=(MapPoint(33.44965, -112.04760),),
+        generation=4,
+    )
+    second = map_picker.render_map_picker(
+        phoenix_area(),
+        depot=MapPoint(33.44855, -112.07391),
+        job_sites=(
+            MapPoint(33.44965, -112.04760),
+            MapPoint(33.43720, -112.05840),
+        ),
+        generation=4,
+    )
+
+    assert first == click
+    assert second == click
+    assert [call["key"] for call in calls] == [
+        "certiroute-work-map-phoenix-4",
+        "certiroute-work-map-phoenix-4",
+    ]
+    assert all(call["returned_objects"] == ["last_clicked"] for call in calls)
+    assert all(call["return_on_hover"] is False for call in calls)
+    assert all(call["use_container_width"] is True for call in calls)
+    assert all(
+        isinstance(call["feature_group_to_add"], folium.FeatureGroup) for call in calls
+    )
+
+
+def test_area_or_generation_change_deliberately_changes_component_key(
+    monkeypatch,
+) -> None:
+    keys: list[str] = []
+
+    def fake_st_folium(_map: folium.Map, **kwargs: Any):
+        keys.append(kwargs["key"])
+        return {"last_clicked": None}
+
+    monkeypatch.setattr(map_picker, "st_folium", fake_st_folium)
+    for area_id, generation in (("phoenix", 0), ("phoenix", 1), ("miami", 1)):
+        map_picker.render_map_picker(
+            OPERATING_AREA_BY_ID[area_id],
+            depot=None,
+            job_sites=(),
+            generation=generation,
+        )
+
+    assert keys == [
+        "certiroute-work-map-phoenix-0",
+        "certiroute-work-map-phoenix-1",
+        "certiroute-work-map-miami-1",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("generation", "height"),
+    [(-1, 500), (True, 500), (0, 279), (0, False)],
+)
+def test_invalid_component_lifecycle_values_are_rejected(generation, height) -> None:
+    with pytest.raises(ValueError):
+        map_picker.render_map_picker(
+            phoenix_area(),
+            depot=None,
+            job_sites=(),
+            generation=generation,
+            height=height,
+        )
