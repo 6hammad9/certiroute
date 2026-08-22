@@ -486,6 +486,7 @@ def test_crew_route_has_six_ordered_instruction_cards(
     assert route_markup.count("Start here") == 1
     assert route_markup.count("Next stop") == 5
     assert "Return to crew base" in route_markup
+    assert "\n" not in route_markup
 
 
 def test_crew_route_map_makes_the_visit_order_visible(

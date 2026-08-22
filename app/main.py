@@ -834,15 +834,15 @@ def render_crew_itinerary(plan: SchedulePlan) -> None:
     """List only the instructions a crew needs to follow the sequence."""
 
     cards: list[str] = [
-        """
-        <div class="route-endpoint">
-          <div class="route-endpoint-node"></div>
-          <div>
-            <div class="route-stop-kicker">Start</div>
-            <div class="route-stop-name">Crew base</div>
-          </div>
-        </div>
-        """
+        (
+            '<div class="route-endpoint">'
+            '<div class="route-endpoint-node"></div>'
+            "<div>"
+            '<div class="route-stop-kicker">Start</div>'
+            '<div class="route-stop-name">Crew base</div>'
+            "</div>"
+            "</div>"
+        )
     ]
     for stop in plan.stops:
         site, task = site_and_task(stop.job_name)
@@ -853,20 +853,19 @@ def render_crew_itinerary(plan: SchedulePlan) -> None:
             else f"{stop.inbound_travel_minutes} min estimated travel from prior stop"
         )
         cards.append(
-            f"""
-            <div class="route-stop" data-route-stop="{stop.sequence}">
-              <div class="route-stop-number">{stop.sequence}</div>
-              <div class="route-stop-copy">
-                <div class="route-stop-kicker">{instruction}</div>
-                <div class="route-stop-name">{escape(site)}</div>
-                <div class="route-stop-task">{escape(task)}</div>
-                <div class="route-stop-travel">{escape(travel)}</div>
-              </div>
-              <div class="route-stop-time">
-                {minute_label(stop.start_minute)}–{minute_label(stop.finish_minute)}
-              </div>
-            </div>
-            """
+            f'<div class="route-stop" data-route-stop="{stop.sequence}">'
+            f'<div class="route-stop-number">{stop.sequence}</div>'
+            '<div class="route-stop-copy">'
+            f'<div class="route-stop-kicker">{instruction}</div>'
+            f'<div class="route-stop-name">{escape(site)}</div>'
+            f'<div class="route-stop-task">{escape(task)}</div>'
+            f'<div class="route-stop-travel">{escape(travel)}</div>'
+            "</div>"
+            '<div class="route-stop-time">'
+            f"{minute_label(stop.start_minute)}&ndash;"
+            f"{minute_label(stop.finish_minute)}"
+            "</div>"
+            "</div>"
         )
     inbound = sum(stop.inbound_travel_minutes for stop in plan.stops)
     return_minutes = max(0, plan.total_travel_minutes - inbound)
@@ -874,7 +873,8 @@ def render_crew_itinerary(plan: SchedulePlan) -> None:
         '<div class="route-return"><div class="route-return-node"></div><div>'
         '<div class="route-stop-kicker">Finish</div>'
         '<div class="route-stop-name">Return to crew base</div>'
-        f'<div class="route-stop-travel">{return_minutes} min estimated travel · '
+        f'<div class="route-stop-travel">{return_minutes} min '
+        "estimated travel &middot; "
         f"back by <strong>{minute_label(plan.route_finish_minute)}</strong>"
         "</div></div></div>"
     )
