@@ -18,10 +18,10 @@ stands behind it.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from math import ceil
+from math import asin, ceil, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +39,67 @@ DEFAULT_ARTIFACT_ROOT = Path("data/climatology")
 
 class ClimatologyUnavailableError(LookupError):
     """No trained model covers the requested area."""
+
+
+class OutsideTrainedAreaError(ValueError):
+    """Work sites lie too far from the ground the model was trained on."""
+
+
+# How far from the trained sites the offsets are still treated as valid. The
+# diurnal shape is a regional property - how a metro's heat moves through a
+# day - not a per-tile one, which is why one model can serve points a user
+# places anywhere in that metro. It is emphatically not a national constant,
+# so this radius is deliberately metro-sized rather than generous.
+DEFAULT_TRAINED_RADIUS_KM = 60.0
+
+
+@dataclass(frozen=True)
+class TrainedArea:
+    """The ground a model actually learned from."""
+
+    min_latitude: float
+    max_latitude: float
+    min_longitude: float
+    max_longitude: float
+
+    @property
+    def centre(self) -> tuple[float, float]:
+        return (
+            (self.min_latitude + self.max_latitude) / 2,
+            (self.min_longitude + self.max_longitude) / 2,
+        )
+
+    def distance_km(self, latitude: float, longitude: float) -> float:
+        """Great-circle distance from this area's centre."""
+
+        centre_lat, centre_lon = self.centre
+        earth_radius_km = 6371.0088
+        lat1, lat2 = radians(centre_lat), radians(latitude)
+        delta_lat = lat2 - lat1
+        delta_lon = radians(longitude - centre_lon)
+        value = (
+            sin(delta_lat / 2) ** 2
+            + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
+        )
+        return 2 * earth_radius_km * asin(sqrt(value))
+
+    @classmethod
+    def covering(
+        cls, points: Iterable[tuple[float, float]]
+    ) -> TrainedArea:
+        latitudes = []
+        longitudes = []
+        for latitude, longitude in points:
+            latitudes.append(latitude)
+            longitudes.append(longitude)
+        if not latitudes:
+            raise ValueError("at least one training location is required")
+        return cls(
+            min_latitude=min(latitudes),
+            max_latitude=max(latitudes),
+            min_longitude=min(longitudes),
+            max_longitude=max(longitudes),
+        )
 
 
 @dataclass(frozen=True)
@@ -90,6 +151,30 @@ class DiurnalClimatology:
     training_dates: tuple[date, ...]
     evaluation: ClimatologyEvaluation
     trained_at_utc: datetime
+    trained_area: TrainedArea | None = None
+
+    def sites_outside_trained_area(
+        self,
+        locations: Mapping[str, tuple[float, float]],
+        *,
+        radius_km: float = DEFAULT_TRAINED_RADIUS_KM,
+    ) -> dict[str, float]:
+        """Sites too far from the trained ground, with how far off they are.
+
+        The map lets a dispatcher pan anywhere, so nothing stops a Phoenix
+        model being pointed at Tucson. The offsets would still produce a
+        confident-looking curve, and it would be meaningless. This is the
+        check that stops that silently happening.
+        """
+
+        if self.trained_area is None:
+            return {}
+        return {
+            job_id: distance
+            for job_id, (latitude, longitude) in locations.items()
+            if (distance := self.trained_area.distance_km(latitude, longitude))
+            > radius_km
+        }
 
     @property
     def covered_minutes(self) -> tuple[int, ...]:
@@ -140,6 +225,16 @@ class DiurnalClimatology:
                 str(k): v for k, v in sorted(self.shape.sample_counts.items())
             },
             "training_day_count": self.shape.day_count,
+            "trained_area": (
+                None
+                if self.trained_area is None
+                else {
+                    "min_latitude": self.trained_area.min_latitude,
+                    "max_latitude": self.trained_area.max_latitude,
+                    "min_longitude": self.trained_area.min_longitude,
+                    "max_longitude": self.trained_area.max_longitude,
+                }
+            ),
             "evaluation": {
                 "holdout_dates": [
                     d.isoformat() for d in self.evaluation.holdout_dates
@@ -192,6 +287,16 @@ class DiurnalClimatology:
                 ),
             ),
             trained_at_utc=datetime.fromisoformat(payload["trained_at_utc"]),
+            trained_area=(
+                None
+                if payload.get("trained_area") is None
+                else TrainedArea(
+                    min_latitude=float(payload["trained_area"]["min_latitude"]),
+                    max_latitude=float(payload["trained_area"]["max_latitude"]),
+                    min_longitude=float(payload["trained_area"]["min_longitude"]),
+                    max_longitude=float(payload["trained_area"]["max_longitude"]),
+                )
+            ),
         )
 
 
@@ -305,6 +410,7 @@ def train_climatology(
     label: str,
     granularity_m: int,
     holdout_days: int = 3,
+    trained_area: TrainedArea | None = None,
     trained_at_utc: datetime | None = None,
 ) -> DiurnalClimatology:
     """Learn offsets on the earlier days and score them on the later ones.
@@ -356,6 +462,7 @@ def train_climatology(
             unseen_site_mae_c=unseen_site_error(ordered, holdout_days=holdout_days),
         ),
         trained_at_utc=trained_at_utc or datetime.now(UTC),
+        trained_area=trained_area,
     )
 
 
@@ -400,6 +507,9 @@ def available_areas(*, root: Path | None = None) -> tuple[str, ...]:
 
 __all__ = [
     "ARTIFACT_SCHEMA_VERSION",
+    "DEFAULT_TRAINED_RADIUS_KM",
+    "OutsideTrainedAreaError",
+    "TrainedArea",
     "ClimatologyEvaluation",
     "ClimatologyUnavailableError",
     "DiurnalClimatology",

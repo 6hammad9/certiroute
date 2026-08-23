@@ -4,7 +4,12 @@ from datetime import UTC, date, datetime, time
 
 import pytest
 
-from certiroute.climatology import ClimatologyEvaluation, DiurnalClimatology
+from certiroute.climatology import (
+    ClimatologyEvaluation,
+    DiurnalClimatology,
+    OutsideTrainedAreaError,
+    TrainedArea,
+)
 from certiroute.daily_level import DailyLevelReading
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import DailyLevelShape
@@ -374,3 +379,68 @@ def test_a_calibration_day_cannot_score_its_own_model(jobs) -> None:
         score_plan_against_measurements(
             plan, measured(jobs, 26.0), depot=DEPOT, candidate_starts=CANDIDATES
         )
+
+
+def test_planning_far_from_the_trained_area_is_refused(jobs) -> None:
+    """A Phoenix model pointed at Tucson would look confident and mean nothing."""
+
+    model = climatology()
+    trained = DiurnalClimatology(
+        area_id=model.area_id,
+        label=model.label,
+        granularity_m=model.granularity_m,
+        shape=model.shape,
+        training_dates=model.training_dates,
+        evaluation=model.evaluation,
+        trained_at_utc=model.trained_at_utc,
+        trained_area=TrainedArea(
+            min_latitude=33.43,
+            max_latitude=33.45,
+            min_longitude=-112.08,
+            max_longitude=-111.95,
+        ),
+    )
+    tucson = [
+        job.model_copy(
+            update={
+                "location": GeoPoint(
+                    latitude=32.2226 + 0.003 * index, longitude=-110.9747
+                )
+            }
+        )
+        for index, job in enumerate(jobs)
+    ]
+
+    with pytest.raises(OutsideTrainedAreaError, match="beyond the 60 km"):
+        build_same_day_plan(
+            tucson,
+            trained,
+            reading(tucson),
+            depot=DEPOT,
+            candidate_starts=CANDIDATES,
+        )
+
+
+def test_planning_inside_the_trained_area_proceeds(jobs) -> None:
+    model = climatology()
+    trained = DiurnalClimatology(
+        area_id=model.area_id,
+        label=model.label,
+        granularity_m=model.granularity_m,
+        shape=model.shape,
+        training_dates=model.training_dates,
+        evaluation=model.evaluation,
+        trained_at_utc=model.trained_at_utc,
+        trained_area=TrainedArea(
+            min_latitude=33.43,
+            max_latitude=33.45,
+            min_longitude=-112.08,
+            max_longitude=-111.95,
+        ),
+    )
+
+    plan = build_same_day_plan(
+        jobs, trained, reading(jobs), depot=DEPOT, candidate_starts=CANDIDATES
+    )
+
+    assert plan.recommended_start == time(5, 0)

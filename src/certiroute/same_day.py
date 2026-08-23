@@ -20,7 +20,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, time
 
-from certiroute.climatology import DiurnalClimatology
+from certiroute.climatology import (
+    DEFAULT_TRAINED_RADIUS_KM,
+    DiurnalClimatology,
+    OutsideTrainedAreaError,
+)
 from certiroute.daily_level import DailyLevelReading
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import InsufficientHistoryError
@@ -208,6 +212,7 @@ def build_same_day_plan(
     baseline_start: time = time(8, 0),
     candidate_starts: Sequence[time] = DEFAULT_CANDIDATE_STARTS,
     shift_end: time = time(17, 0),
+    trained_radius_km: float = DEFAULT_TRAINED_RADIUS_KM,
     **scheduler_options: object,
 ) -> SameDayPlan:
     """Turn today's measured level into a start-time decision.
@@ -225,6 +230,22 @@ def build_same_day_plan(
     if missing:
         raise ValueError(
             "no whole-day level was read for: " + ", ".join(missing)
+        )
+
+    far = climatology.sites_outside_trained_area(
+        {
+            job.job_id: (job.location.latitude, job.location.longitude)
+            for job in jobs
+        },
+        radius_km=trained_radius_km,
+    )
+    if far:
+        worst = max(far.values())
+        raise OutsideTrainedAreaError(
+            f"{len(far)} work site(s) lie up to {worst:.0f} km from the ground "
+            f"{climatology.label} was trained on, which is beyond the "
+            f"{trained_radius_km:.0f} km this model is valid for: "
+            + ", ".join(sorted(far))
         )
 
     first_minute, last_minute = required_minutes(

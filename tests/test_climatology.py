@@ -8,6 +8,7 @@ from certiroute.climatology import (
     ARTIFACT_SCHEMA_VERSION,
     ClimatologyUnavailableError,
     DiurnalClimatology,
+    TrainedArea,
     available_areas,
     load_climatology,
     save_climatology,
@@ -235,3 +236,90 @@ def test_covers_reports_the_hours_the_model_actually_learned() -> None:
 
     assert model.covers([6 * 60, 11 * 60])
     assert not model.covers([5 * 60])
+
+
+# --- Applying a model only where it was actually trained --------------------
+#
+# The map lets a dispatcher pan anywhere, so nothing physically stops a Phoenix
+# model being pointed at Tucson. The offsets would still produce a confident
+# curve, and it would mean nothing.
+
+PHOENIX_AREA = TrainedArea(
+    min_latitude=33.4332,
+    max_latitude=33.4528,
+    min_longitude=-112.0759,
+    max_longitude=-111.9545,
+)
+
+
+def test_trained_area_covers_the_points_it_was_built_from() -> None:
+    area = TrainedArea.covering([(33.44, -112.07), (33.46, -111.95)])
+
+    assert area.min_latitude == pytest.approx(33.44)
+    assert area.max_latitude == pytest.approx(33.46)
+    assert area.centre[0] == pytest.approx(33.45)
+
+
+def test_trained_area_needs_at_least_one_point() -> None:
+    with pytest.raises(ValueError, match="at least one training location"):
+        TrainedArea.covering([])
+
+
+def test_sites_inside_the_trained_metro_are_accepted() -> None:
+    model = train_climatology(
+        history(),
+        area_id="phoenix",
+        label="Phoenix",
+        granularity_m=60,
+        holdout_days=2,
+        trained_area=PHOENIX_AREA,
+    )
+
+    # Scottsdale and Mesa are ordinary Phoenix-metro work.
+    nearby = {"A": (33.4942, -111.9261), "B": (33.4152, -111.8315)}
+
+    assert model.sites_outside_trained_area(nearby) == {}
+
+
+def test_a_site_in_another_city_is_reported_with_its_distance() -> None:
+    model = train_climatology(
+        history(),
+        area_id="phoenix",
+        label="Phoenix",
+        granularity_m=60,
+        holdout_days=2,
+        trained_area=PHOENIX_AREA,
+    )
+
+    # Tucson is roughly 180 km away and has its own diurnal behaviour.
+    far = model.sites_outside_trained_area({"T": (32.2226, -110.9747)})
+
+    assert set(far) == {"T"}
+    assert far["T"] > 150
+
+
+def test_a_model_without_a_trained_area_makes_no_claim() -> None:
+    """Older artifacts carry no area, and must not silently assert coverage."""
+
+    model = train_climatology(
+        history(), area_id="p", label="P", granularity_m=60, holdout_days=2
+    )
+
+    assert model.trained_area is None
+    assert model.sites_outside_trained_area({"T": (32.2226, -110.9747)}) == {}
+
+
+def test_the_trained_area_survives_a_round_trip(tmp_path) -> None:
+    model = train_climatology(
+        history(),
+        area_id="phoenix",
+        label="Phoenix",
+        granularity_m=60,
+        holdout_days=2,
+        trained_area=PHOENIX_AREA,
+    )
+
+    save_climatology(model, root=tmp_path)
+    loaded = load_climatology("phoenix", root=tmp_path)
+
+    assert loaded.trained_area == PHOENIX_AREA

@@ -18,7 +18,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from certiroute.climatology import save_climatology, train_climatology
+from certiroute.climatology import (
+    TrainedArea,
+    save_climatology,
+    train_climatology,
+)
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.config import get_settings
 from certiroute.daily_level import collect_daily_level
@@ -173,6 +177,9 @@ def main() -> None:
             label=label,
             granularity_m=args.granularity,
             holdout_days=args.holdout_days,
+            trained_area=TrainedArea.covering(
+                (job.location.latitude, job.location.longitude) for job in jobs
+            ),
         )
     except InsufficientHistoryError as exc:
         raise SystemExit(f"\nTraining refused: {exc}") from exc

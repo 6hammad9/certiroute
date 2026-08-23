@@ -25,6 +25,7 @@ import certiroute.map_picker as map_picker
 from certiroute.climatology import (
     ClimatologyUnavailableError,
     DiurnalClimatology,
+    OutsideTrainedAreaError,
     load_climatology,
 )
 from certiroute.collection import (
@@ -2245,7 +2246,12 @@ def render_hindsight(
                 uncertainty_penalty=0.0,
                 heat_weight=HEAT_WEIGHT,
             )
-    except (LeakageError, PlanningCoverageError, ProfileCoverageError) as exc:
+    except (
+        LeakageError,
+        OutsideTrainedAreaError,
+        PlanningCoverageError,
+        ProfileCoverageError,
+    ) as exc:
         st.info(f"This day cannot be graded: {exc}")
         return
     except (
@@ -2563,6 +2569,16 @@ if planning_today:
                 "No complete depot-to-depot route fits these job windows and "
                 "shift. Shorten a visit, lengthen the shift, or remove a distant "
                 f"job, then try again. Details: {exc}"
+            )
+        except OutsideTrainedAreaError as exc:
+            same_day_plan = None
+            st.error(
+                "These work sites are outside the area this heat model was "
+                f"trained on, so CertiRoute will not predict for them. {exc}"
+            )
+            st.info(
+                "Move the map back to a trained operating area, or pick a past "
+                "date to review a finished day from measured temperatures."
             )
         except (PlanningCoverageError, ProfileCoverageError) as exc:
             same_day_plan = None
