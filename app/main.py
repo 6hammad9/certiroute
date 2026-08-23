@@ -92,6 +92,7 @@ from certiroute.same_day import (
     score_plan_against_measurements,
 )
 from certiroute.shift_timing import ProfileCoverageError
+from certiroute.theme import RESULT_MODE_STYLES, STYLESHEET, icon
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_JOBS_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
@@ -257,6 +258,16 @@ def optimized_plans(
     }
 
 
+def step_done(message: str) -> None:
+    """One completed step in a progress log, marked with a drawn tick."""
+
+    st.markdown(
+        '<div class="step-done">'
+        f'{icon("check", size=15)}<span>{escape(message)}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def minute_label(minute_of_day: int | float) -> str:
     """Format minutes after midnight as a compact 24-hour time."""
 
@@ -276,360 +287,22 @@ def api_key_available() -> bool:
 
 
 def inject_styles() -> None:
-    """Apply a restrained dispatch-product visual system."""
+    """Apply the shared visual system defined in app/theme.py."""
 
-    st.markdown(
-        """
-        <style>
-        :root {
-            --ink: #111827;
-            --muted: #5B6472;
-            --rule: #E1E5E3;
-            --canvas: #F7F8F6;
-            --surface: #FFFFFF;
-            --route: #70FFD2;
-            --route-soft: #E8FFF8;
-            --route-ink: #06251C;
-            --heat: #FF9137;
-            --heat-ink: #713400;
-            --heat-soft: #FFF4E8;
-            --gold: #FFCC4D;
-            --caution: #FFFC8C;
-        }
-        html { color-scheme: light; }
-        .stApp, [data-testid="stAppViewContainer"], .main {
-            background: var(--canvas) !important; color: var(--ink);
-        }
-        [data-testid="stHeader"] { background: var(--canvas); }
-        .block-container { max-width: 1220px; padding-top: 1.35rem; }
-        h1 { color: var(--ink); letter-spacing: -0.055em; }
-        h2, h3 { color: var(--ink); letter-spacing: -0.035em; }
-        .hero-copy {
-            color: var(--muted); font-size: 1.05rem; line-height: 1.55;
-            max-width: 760px; margin-top: -.45rem;
-        }
-        .hero-heading {
-            color: var(--ink); font-size: 1.65rem; font-weight: 760;
-            letter-spacing: -.04em; line-height: 1.2; margin: .55rem 0 .8rem;
-        }
-        .hero-proof {
-            color: var(--muted); font-size: .72rem; font-weight: 800;
-            letter-spacing: .08em; text-transform: uppercase; margin-top: .8rem;
-        }
-        .hero-proof .heat {
-            color: var(--heat-ink); text-decoration: underline;
-            text-decoration-color: var(--gold); text-decoration-thickness: .2rem;
-            text-underline-offset: .18rem;
-        }
-        .eyebrow {
-            color: var(--heat-ink); font-size: .72rem; font-weight: 850;
-            letter-spacing: .14em; text-transform: uppercase;
-        }
-        .process-strip {
-            display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
-            color: var(--muted); margin: 1rem 0 1.45rem;
-            border-top: 1px solid var(--ink); padding-top: .7rem;
-            max-width: 760px;
-        }
-        .process-step {
-            display: inline-flex; align-items: center; gap: .35rem;
-            font-size: .72rem; font-weight: 800; letter-spacing: .075em;
-            text-transform: uppercase;
-        }
-        .process-number {
-            color: var(--route-ink); font-size: .72rem; font-weight: 900;
-            border-bottom: 3px solid var(--route);
-        }
-        .process-arrow { color: var(--heat-ink); font-weight: 900; }
-        .picker-instruction {
-            display: flex; justify-content: space-between; gap: 1rem;
-            align-items: baseline; border-top: 2px solid var(--route);
-            border-bottom: 1px solid var(--rule); padding: .7rem 0;
-            margin: .4rem 0 .8rem; color: var(--muted);
-        }
-        .picker-instruction strong {
-            color: var(--ink); font-size: 1.02rem; white-space: nowrap;
-        }
-        .picker-instruction.ready { border-top-color: var(--heat); }
-        .journey-panel {
-            background: var(--surface); border-top: 4px solid var(--ink);
-            padding: 1rem 1.05rem; min-height: 430px;
-        }
-        .journey-eyebrow {
-            color: var(--muted); font-size: .68rem; font-weight: 850;
-            letter-spacing: .14em; text-transform: uppercase; margin-bottom: .8rem;
-        }
-        .journey-list { position: relative; }
-        .journey-list::before {
-            content: ""; position: absolute; left: 15px; top: 18px; bottom: 18px;
-            width: 3px; background: var(--route);
-            box-shadow: 0 0 0 1px var(--route-ink);
-        }
-        .journey-row {
-            position: relative; z-index: 1; display: grid;
-            grid-template-columns: 32px minmax(0, 1fr); gap: .7rem;
-            align-items: center; min-height: 58px; padding: .25rem 0;
-        }
-        .journey-copy {
-            min-width: 0; border-bottom: 1px solid var(--rule); padding: .4rem 0 .6rem;
-        }
-        .journey-row:last-child .journey-copy { border-bottom: 0; }
-        .journey-node {
-            display: flex; align-items: center; justify-content: center;
-            width: 30px; height: 30px; border-radius: 50%;
-            background: var(--heat); color: var(--route-ink); font-size: .78rem;
-            font-weight: 900; border: 2px solid var(--surface); box-sizing: border-box;
-        }
-        .journey-node.depot {
-            width: 18px; height: 18px; margin-left: 6px;
-            background: var(--route); color: var(--route-ink);
-            border: 2px solid var(--route-ink);
-        }
-        .journey-node.depot.pending {
-            background: var(--surface); border: 2px solid var(--route);
-        }
-        .journey-node.return {
-            width: 18px; height: 18px; margin-left: 6px;
-            background: var(--surface); border: 3px solid var(--route);
-            box-shadow: 0 0 0 1px var(--route-ink);
-        }
-        .journey-node.pending {
-            background: var(--surface); border: 2px solid var(--heat);
-            color: var(--heat-ink);
-        }
-        .journey-kicker {
-            color: var(--muted); font-size: .63rem; font-weight: 850;
-            letter-spacing: .1em; text-transform: uppercase;
-        }
-        .journey-title {
-            color: var(--ink); font-size: .92rem; font-weight: 800;
-            line-height: 1.25; overflow-wrap: anywhere;
-        }
-        .journey-meta { color: var(--muted); font-size: .76rem; margin-top: .1rem; }
-        .workday-chip {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: .65rem; flex-wrap: wrap; border-top: 1px solid var(--ink);
-            border-bottom: 1px solid var(--rule); color: var(--muted);
-            padding: .7rem 0; margin: .7rem 0;
-        }
-        .workday-chip strong {
-            color: var(--route-ink); border-bottom: 3px solid var(--route);
-        }
-        .empty-state {
-            padding: 1.25rem 0; border-top: 1px solid var(--ink);
-            border-bottom: 1px solid var(--rule); color: var(--muted);
-        }
-        .empty-state h3 { text-align: left; color: var(--ink); }
-        .empty-state p { text-align: left; }
-        .safety-note {
-            border-left: 4px solid var(--heat); background: var(--caution);
-            padding: .8rem 1rem; color: var(--ink);
-        }
-        .decision-card { background: var(--route); }
-        .decision-card h2 { margin: .15rem 0 .35rem; color: var(--route-ink); }
-        .decision-card p { margin: 0; color: #0B3A2E; line-height: 1.5; }
-        .decision-label {
-            color: var(--route-ink); font-size: .7rem; font-weight: 900;
-            letter-spacing: .11em; text-transform: uppercase;
-        }
-        .bento {
-            display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
-            gap: 14px; margin: .6rem 0 1.5rem;
-        }
-        .bento > * {
-            border: 1px solid var(--rule); border-radius: 18px;
-            padding: 1.2rem 1.35rem; min-width: 0;
-        }
-        .bento-hero {
-            grid-column: span 4; grid-row: span 3;
-            background: var(--route); border-color: var(--route);
-            display: flex; flex-direction: column;
-            justify-content: center;
-        }
-        .bento-tile {
-            grid-column: span 2; background: var(--surface);
-            display: flex; flex-direction: column; justify-content: center;
-        }
-        .bento-tile.stop { border-top: 4px solid var(--heat); }
-        .bento-tile.time { border-top: 4px solid var(--gold); }
-        .bento-tile.status { border-top: 4px solid var(--caution); }
-        .bento-tile .route-fact-label { margin-bottom: .3rem; }
-        .timing-bars {
-            background: var(--surface); border: 1px solid var(--rule);
-            border-radius: 18px; padding: 1.1rem 1.25rem; margin: .2rem 0 1.5rem;
-            display: flex; flex-direction: column; gap: .55rem;
-        }
-        .timing-row {
-            display: grid; grid-template-columns: 3.4rem 1fr 6.5rem;
-            align-items: center; gap: .8rem;
-        }
-        .timing-label {
-            color: var(--muted); font-size: .85rem; font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-        .timing-track {
-            background: var(--canvas); border-radius: 999px; height: 14px;
-            overflow: hidden;
-        }
-        .timing-bar {
-            background: var(--heat); height: 100%; border-radius: 999px;
-            min-width: 6px;
-        }
-        .timing-tag {
-            color: var(--muted); font-size: .66rem; font-weight: 850;
-            letter-spacing: .07em; text-transform: uppercase; text-align: right;
-        }
-        .timing-row.picked .timing-label { color: var(--ink); }
-        .timing-row.picked .timing-bar { background: var(--route); }
-        .timing-row.picked .timing-tag { color: var(--route-ink); }
-        .route-summary {
-            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px; margin: 0 0 1.35rem;
-        }
-        .route-fact {
-            background: var(--surface); border-radius: 18px;
-            padding: 1.05rem 1.2rem; min-width: 0;
-        }
-        .route-fact:last-child { border-right: 0; }
-        .route-fact-label {
-            color: var(--muted); font-size: .66rem; font-weight: 850;
-            letter-spacing: .08em; text-transform: uppercase;
-        }
-        .route-fact-value {
-            color: var(--ink); font-size: 1.05rem; font-weight: 800;
-            margin-top: .12rem; overflow-wrap: anywhere;
-        }
-        .route-rail {
-            position: relative; background: var(--surface);
-            border-top: 4px solid var(--ink);
-            padding: .7rem 1rem .85rem;
-        }
-        .route-rail::before {
-            content: ""; position: absolute; left: 2.42rem; top: 2.2rem;
-            bottom: 2.2rem; width: 3px; background: var(--route);
-            box-shadow: 0 0 0 1px var(--route-ink);
-        }
-        .route-endpoint {
-            position: relative; z-index: 1; display: grid;
-            grid-template-columns: 2.65rem minmax(0, 1fr); gap: .72rem;
-            align-items: center; padding: .55rem 0;
-        }
-        .route-endpoint-node {
-            width: 18px; height: 18px; margin-left: .5rem; border-radius: 50%;
-            background: var(--route); border: 2px solid var(--route-ink);
-        }
-        .route-stop {
-            position: relative; z-index: 1;
-            display: grid; grid-template-columns: 2.65rem minmax(0, 1fr) auto;
-            gap: .82rem; align-items: center; background: var(--surface);
-            border-radius: 16px; padding: .85rem 1rem; margin-bottom: 10px;
-            min-width: 0;
-        }
-        .route-stop-number {
-            display: flex; align-items: center; justify-content: center;
-            width: 2.35rem; height: 2.35rem; border-radius: 50%;
-            color: var(--route-ink); background: var(--heat); border: 3px solid white;
-            font-weight: 900; font-size: 1rem;
-        }
-        .route-stop-copy { min-width: 0; }
-        .route-stop-kicker {
-            color: var(--heat-ink); font-size: .63rem; font-weight: 900;
-            letter-spacing: .08em; text-transform: uppercase;
-        }
-        .route-stop-name {
-            color: var(--ink); font-weight: 800; line-height: 1.25;
-            overflow-wrap: anywhere;
-        }
-        .route-stop-task {
-            color: var(--muted); font-size: .78rem; line-height: 1.25;
-            overflow-wrap: anywhere; margin-top: .12rem;
-        }
-        .route-stop-time {
-            color: var(--ink); font-weight: 800; white-space: nowrap;
-            text-align: right;
-        }
-        .route-stop-travel {
-            color: var(--muted); font-size: .72rem; margin-top: .12rem;
-        }
-        .route-return {
-            position: relative; z-index: 1; display: grid;
-            grid-template-columns: 2.65rem minmax(0, 1fr); gap: .72rem;
-            align-items: center; color: var(--muted); padding: .7rem 0;
-            background: var(--surface); overflow-wrap: anywhere;
-        }
-        .route-return-node {
-            width: 18px; height: 18px; margin-left: .5rem; border-radius: 2px;
-            background: var(--surface); border: 3px solid var(--route);
-            box-sizing: border-box; box-shadow: 0 0 0 1px var(--route-ink);
-        }
-        .map-note {
-            color: var(--muted); font-size: .76rem; line-height: 1.4;
-            margin: .15rem 0 .55rem;
-        }
-        div[data-testid="stMetric"] {
-            background: var(--surface); border: 1px solid var(--rule);
-            border-radius: 18px;
-            padding: 1.05rem 1.2rem;
-        }
-        div[data-testid="stExpander"] {
-            border: 1px solid var(--rule); border-radius: 18px;
-            background: var(--surface);
-            overflow: hidden;
-        }
-        button[kind="primary"] {
-            background: var(--route); border-color: var(--route);
-            color: var(--route-ink); border-radius: 2px;
-            min-height: 3rem; font-weight: 800;
-        }
-        button[kind="primary"]:hover {
-            background: var(--caution); border-color: var(--caution);
-            color: var(--route-ink);
-        }
-        div[data-testid="stExpander"] details,
-        div[data-testid="stFileUploaderDropzone"] { border-radius: 2px; }
-        div[data-testid="stButton"] button { border-radius: 2px; }
-        div[data-testid="stLinkButton"] a { border-radius: 2px; }
-        div[data-testid="stSelectbox"] > div > div { border-radius: 2px; }
-        .build-summary {
-            border-top: 4px solid var(--heat); padding: .85rem 0 .65rem;
-            color: var(--muted);
-        }
-        .build-summary strong {
-            display: block; color: var(--ink); font-size: 1rem; margin-bottom: .15rem;
-        }
-        @media (max-width: 700px) {
-            .block-container { padding-left: 1rem; padding-right: 1rem; }
-            .process-arrow { display: none; }
-            .process-strip { gap: .55rem 1rem; }
-            .picker-instruction { display: block; }
-            .picker-instruction strong { display: block; white-space: normal; }
-            .journey-panel { min-height: 0; }
-            .bento { grid-template-columns: 1fr; }
-            .bento-hero, .bento-tile { grid-column: span 1; grid-row: auto; }
-            .timing-row { grid-template-columns: 3.1rem 1fr; }
-            .timing-tag { grid-column: 2; text-align: left; }
-            .route-summary { grid-template-columns: 1fr; }
-            .route-stop { grid-template-columns: 2.65rem minmax(0, 1fr); }
-            .route-stop-time {
-                grid-column: 2; text-align: left; white-space: normal;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(STYLESHEET, unsafe_allow_html=True)
 
 
 def render_hero() -> None:
     """Explain the customer, decision, and evidence before any controls."""
 
     st.markdown(
-        '<div class="eyebrow">Heat-aware field operations</div>',
+        f'<div class="eyebrow">{icon("thermometer", size=14)}'
+        "Heat-aware field operations</div>",
         unsafe_allow_html=True,
     )
     st.title("CertiRoute")
     st.markdown(
-        """
+        f"""
         <div class="hero-heading">
           Start the shift before the heat does.
         </div>
@@ -640,8 +313,10 @@ def render_hero() -> None:
         No coordinates or spreadsheet setup required.
         </div>
         <div class="hero-proof">
-          <span class="heat">Today's real measurements</span>
-          &nbsp;·&nbsp; Calibrated interval &nbsp;·&nbsp; No synthetic fallback
+          <span class="heat">{icon("thermometer", size=15)}
+            Today's real measurements</span>
+          <span>{icon("gauge", size=15)} Calibrated interval</span>
+          <span>{icon("shield", size=15)} No synthetic fallback</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -651,35 +326,27 @@ def render_hero() -> None:
 def render_result_mode_styles() -> None:
     """Collapse onboarding copy once the customer has a finished route."""
 
-    st.markdown(
-        """
-        <style>
-        .hero-heading, .hero-copy, .hero-proof, .process-strip { display: none; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(RESULT_MODE_STYLES, unsafe_allow_html=True)
 
 
 def render_three_steps() -> None:
     """Give first-time visitors a compact three-step mental model."""
 
+    arrow = f'<span class="process-arrow">{icon("arrow-right", size=15)}</span>'
+    steps = (
+        ("map", "Position the map"),
+        ("pin", "Tap base and sites"),
+        ("sunrise", "Get your start time"),
+    )
+    rendered = arrow.join(
+        f'<span class="process-step">'
+        f'<span class="process-number">{number}</span>'
+        f"{icon(name, size=15)}{escape(text)}</span>"
+        for number, (name, text) in enumerate(steps, start=1)
+    )
     st.markdown(
-        """
-        <div class="process-strip" aria-label="How CertiRoute works">
-          <span class="process-step">
-            <span class="process-number">1</span>Position the map
-          </span>
-          <span class="process-arrow">→</span>
-          <span class="process-step">
-            <span class="process-number">2</span>Tap base + sites
-          </span>
-          <span class="process-arrow">→</span>
-          <span class="process-step">
-            <span class="process-number">3</span>Get your start time
-          </span>
-        </div>
-        """,
+        '<div class="process-strip" aria-label="How CertiRoute works">'
+        f"{rendered}</div>",
         unsafe_allow_html=True,
     )
 
@@ -1077,23 +744,27 @@ def render_crew_decision(
         f"""
         <div class="bento">
           <div class="bento-hero decision-card">
-            <div class="decision-label">{decision_label}</div>
+            <div class="decision-label">
+              {icon("route", size=13)}{decision_label}
+            </div>
             <h2>{title}</h2>
             <p>{explanation}</p>
           </div>
           <div class="bento-tile route-fact stop">
-            <div class="route-fact-label">First stop</div>
+            <div class="route-fact-label">{icon("pin", size=13)}First stop</div>
             <div class="route-fact-value">1 · {first_site}</div>
           </div>
           <div class="bento-tile route-fact time">
-            <div class="route-fact-label">Shift route</div>
+            <div class="route-fact-label">{icon("clock", size=13)}Shift route</div>
             <div class="route-fact-value">
               {minute_label(crew_plan.stops[0].start_minute)} →
               {minute_label(crew_plan.route_finish_minute)}
             </div>
           </div>
           <div class="bento-tile route-fact status">
-            <div class="route-fact-label">Jobs on time</div>
+            <div class="route-fact-label">
+              {icon("check", size=13)}Jobs on time
+            </div>
             <div class="route-fact-value">
               {len(crew_plan.stops)} of {len(baseline.stops)}
             </div>
@@ -1991,22 +1662,26 @@ def render_start_decision(plan: SameDayPlan) -> None:
         f"""
         <div class="bento">
           <div class="bento-hero decision-card">
-            <div class="decision-label">{label}</div>
+            <div class="decision-label">{icon("sunrise", size=13)}{label}</div>
             <h2>{title}</h2>
             <p>{explanation}</p>
           </div>
           <div class="bento-tile route-fact time">
-            <div class="route-fact-label">Shift window</div>
-            <div class="route-fact-value">{start} → {finish}</div>
+            <div class="route-fact-label">{icon("clock", size=13)}Shift window</div>
+            <div class="route-fact-value">{start}&nbsp;&ndash;&nbsp;{finish}</div>
           </div>
           <div class="bento-tile route-fact stop">
-            <div class="route-fact-label">Hottest working moment</div>
-            <div class="route-fact-value">{peak:.1f} °C</div>
+            <div class="route-fact-label">
+              {icon("thermometer", size=13)}Hottest working moment
+            </div>
+            <div class="route-fact-value">{peak:.1f} &deg;C</div>
           </div>
           <div class="bento-tile route-fact status">
-            <div class="route-fact-label">Predicted within</div>
+            <div class="route-fact-label">
+              {icon("gauge", size=13)}Predicted within
+            </div>
             <div class="route-fact-value">
-              ± {plan.interval_radius_c:.1f} °C · {plan.coverage:.0%}
+              &plusmn;{plan.interval_radius_c:.1f} &deg;C at {plan.coverage:.0%}
             </div>
           </div>
         </div>
@@ -2430,7 +2105,11 @@ def collect_batch(
         )
 
 
-st.set_page_config(page_title="CertiRoute", page_icon="🌡️", layout="wide")
+st.set_page_config(
+    page_title="CertiRoute",
+    page_icon=str(PROJECT_ROOT / "app" / "assets" / "favicon.png"),
+    layout="wide",
+)
 inject_styles()
 render_hero()
 render_three_steps()
@@ -2555,22 +2234,23 @@ if planning_today:
     if plan_clicked:
         try:
             with st.status("Reading today's heat…", expanded=True) as status:
-                st.write(f"✓ Read {len(domain_jobs)} work sites and the crew base")
+                step_done(f"Read {len(domain_jobs)} work sites and the crew base")
                 preflight_route(
                     domain_jobs,
                     depot=depot,
                     shift_start=shift_start,
                     shift_end=shift_end,
                 )
-                st.write("✓ Confirmed the crew can finish every job in this shift")
+                step_done("Confirmed the crew can finish every job in this shift")
                 reading = read_today_level(
                     domain_jobs,
                     HeatmapSnapshotStore(cache_path()),
                     target_date=selected_date,
                     granularity=area_model.granularity_m,
                 )
-                st.write(
-                    f"✓ Today measures {reading.area_mean_c:.1f} °C across this area"
+                step_done(
+                    f"Today measures {reading.area_mean_c:.1f} °C "
+                    "across this area"
                 )
                 same_day_plan = build_same_day_plan(
                     domain_jobs,
@@ -2586,7 +2266,7 @@ if planning_today:
                     uncertainty_penalty=0.0,
                     heat_weight=HEAT_WEIGHT,
                 )
-                st.write("✓ Compared every start time the crew could work")
+                step_done("Compared every start time the crew could work")
                 status.update(label="Today's plan is ready", state="complete")
         except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
             same_day_plan = None
@@ -2741,14 +2421,14 @@ if build_clicked:
         with st.status(
             "Checking heat and building the route…", expanded=True
         ) as status:
-            st.write(f"✓ Read {len(domain_jobs)} work sites and the crew base")
+            step_done(f"Read {len(domain_jobs)} work sites and the crew base")
             preflight_route(
                 domain_jobs,
                 depot=depot,
                 shift_start=shift_start,
                 shift_end=shift_end,
             )
-            st.write("✓ Confirmed the crew can finish every job in this shift")
+            step_done("Confirmed the crew can finish every job in this shift")
             progress = st.progress(
                 collection_plan.cache_hit_count / collection_plan.request_count,
                 text=("Checking real FortyGuard temperatures for every work hour"),
@@ -2758,7 +2438,7 @@ if build_clicked:
                 1.0,
                 text="Real temperature evidence is ready",
             )
-            st.write("✓ Compared feasible visit orders and kept every job on time")
+            step_done("Compared feasible visit orders and kept every job on time")
             status.update(label="Crew route ready", state="complete")
     except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
         batch = None

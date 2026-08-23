@@ -254,7 +254,7 @@ def test_the_crew_view_states_the_interval_it_planned_against(today_states) -> N
     assert "Predicted within" in text
     # Three held-out day scores support 75% coverage and no more.
     assert "75%" in text
-    assert "1.4 °C" in text
+    assert "1.4 &deg;C" in text
 
 
 def test_every_candidate_start_is_shown_with_the_chosen_one_marked(

@@ -347,9 +347,12 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert "No coordinates or spreadsheet setup required" in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
     assert "color-scheme: light" in text
-    assert "--canvas: #F7F8F6" in text
+    # The chosen palette must survive restyling, and type must be explicit.
+    assert "--canvas: #F7F8FA" in text
+    assert "Instrument Sans" in text
+    assert "JetBrains Mono" in text
     assert "Position the map" in text
-    assert "Tap base + sites" in text
+    assert "Tap base and sites" in text
     assert "Get your start time" in text
     assert "First, click where the crew starts and returns" in text
     assert app.selectbox[0].label == (
