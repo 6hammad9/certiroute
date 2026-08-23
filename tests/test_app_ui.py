@@ -341,14 +341,14 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     text = _all_text(app)
 
     assert app.title[0].value == "CertiRoute"
-    assert "Plan a cooler workday in three simple steps" in text
+    assert "Start the shift before the heat does" in text
     assert "No coordinates or spreadsheet setup required" in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
     assert "color-scheme: light" in text
     assert "--canvas: #F7F8F6" in text
     assert "Position the map" in text
     assert "Tap base + sites" in text
-    assert "Get the route" in text
+    assert "Get your start time" in text
     assert "First, click where the crew starts and returns" in text
     assert app.selectbox[0].label == (
         "Start near a U.S. city — pan anywhere in the U.S."
@@ -470,7 +470,7 @@ def test_crew_route_leads_with_one_plain_language_decision(
 
     assert control.options == ["Crew route", "Planner details"]
     assert control.value == "Crew route"
-    assert "Route result" in text
+    assert "Reviewing a finished day" in text
     assert "Keep the current stop order" in text or "Use this stop order" in text
     assert "First stop" in text
     assert "Jobs on time" in text

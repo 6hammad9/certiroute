@@ -80,9 +80,11 @@ from certiroute.real_conditions import (
 )
 from certiroute.risk import relative_exposure_reduction
 from certiroute.same_day import (
+    LeakageError,
     PlanningCoverageError,
     SameDayPlan,
     build_same_day_plan,
+    score_plan_against_measurements,
 )
 from certiroute.shift_timing import ProfileCoverageError
 
@@ -623,16 +625,17 @@ def render_hero() -> None:
     st.markdown(
         """
         <div class="hero-heading">
-          Plan a cooler workday in three simple steps.
+          Start the shift before the heat does.
         </div>
         <div class="hero-copy">
-        Start near a U.S. city, pan wherever the crew works, and tap the base and
-        work sites. CertiRoute turns real FortyGuard temperature intelligence
-        into one crew-ready order. No coordinates or spreadsheet setup required.
+        Tap your crew base and work sites on the map. CertiRoute reads today's
+        street-level heat from FortyGuard, predicts the hours ahead, and tells
+        you what time to begin &mdash; with the visit order already worked out.
+        No coordinates or spreadsheet setup required.
         </div>
         <div class="hero-proof">
-          <span class="heat">Real FortyGuard data</span>
-          &nbsp;·&nbsp; Map-first setup &nbsp;·&nbsp; No synthetic fallback
+          <span class="heat">Today's real measurements</span>
+          &nbsp;·&nbsp; Calibrated interval &nbsp;·&nbsp; No synthetic fallback
         </div>
         """,
         unsafe_allow_html=True,
@@ -667,7 +670,7 @@ def render_three_steps() -> None:
           </span>
           <span class="process-arrow">→</span>
           <span class="process-step">
-            <span class="process-number">3</span>Get the route
+            <span class="process-number">3</span>Get your start time
           </span>
         </div>
         """,
@@ -1144,8 +1147,10 @@ def render_result(
     shift_start: time,
     shift_end: time,
     is_example: bool,
+    model: DiurnalClimatology | None = None,
+    target_date: date | None = None,
 ) -> None:
-    """Turn a completed batch into separate crew and planner experiences."""
+    """Review a finished day: what was measured, and how the model scored."""
 
     jobs = list(manifest.jobs)
     try:
@@ -1170,7 +1175,11 @@ def render_result(
         recommendation.total_raw_exposure_units,
     )
 
-    st.markdown("## Route result")
+    st.markdown("## Reviewing a finished day")
+    st.caption(
+        "Every temperature below was measured by FortyGuard on this date, so "
+        "the route and the grading can both be checked against evidence."
+    )
     view = st.segmented_control(
         "Result view",
         options=["Crew route", "Planner details"],
@@ -1188,6 +1197,16 @@ def render_result(
         )
         return
 
+    if target_date is not None:
+        render_hindsight(
+            jobs,
+            batch,
+            model,
+            depot=depot,
+            shift_start=shift_start,
+            shift_end=shift_end,
+            target_date=target_date,
+        )
     crew_plan = render_crew_decision(baseline, recommendation, reduction)
     render_run_sheet(crew_plan, depot)
     render_safety_boundary(compact=True)
@@ -1365,10 +1384,10 @@ def render_empty_state(
     st.markdown(
         f"""
         <div class="empty-state">
-          <h3 style="margin-top:0">Your numbered crew route will appear here</h3>
-          <p>CertiRoute will check real street-level temperatures around these
-          {job_count} jobs, choose the best feasible order, and show the crew
-          exactly where to go first.</p>
+          <h3 style="margin-top:0">Your start time and route will appear here</h3>
+          <p>CertiRoute will read today's street-level heat around these
+          {job_count} jobs, compare every start time this shift could use, and
+          show the crew when to begin and where to go first.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2149,6 +2168,148 @@ def render_predicted_conditions(plan: SameDayPlan) -> None:
     )
 
 
+def render_hindsight(
+    jobs: list[Job],
+    batch: RealTemperatureBatch,
+    model: DiurnalClimatology | None,
+    *,
+    depot: GeoPoint,
+    shift_start: time,
+    shift_end: time,
+    target_date: date,
+) -> None:
+    """Score the recommendation this model would have made, against reality.
+
+    This is the check that makes the rest of the product worth trusting: the
+    model predicts the day from a single aggregate, picks a start, and is then
+    graded on the temperatures that were actually measured.
+    """
+
+    st.markdown("### Did the recommendation hold up?")
+    if model is None:
+        st.info(
+            "No trained heat model covers this area, so there is no "
+            "recommendation to grade against this day."
+        )
+        return
+    seen = set(model.training_dates) | set(model.evaluation.holdout_dates)
+    if target_date in seen:
+        st.info(
+            f"{target_date:%d %b %Y} is one of the days this model was built "
+            "from, so grading it would measure memory rather than skill. Pick a "
+            "date outside "
+            f"{min(seen):%d %b}–{max(seen):%d %b} to see an honest check."
+        )
+        return
+
+    candidates = candidate_starts_for(shift_start, shift_end)
+    if not st.button("Grade this day", width="stretch"):
+        st.caption(
+            "One FortyGuard request: this day's whole-day reading. The hourly "
+            "temperatures above are already collected."
+        )
+        return
+
+    try:
+        with st.spinner("Rebuilding the morning's recommendation…"):
+            reading = read_today_level(
+                jobs,
+                HeatmapSnapshotStore(cache_path()),
+                target_date=target_date,
+                granularity=model.granularity_m,
+            )
+            plan = build_same_day_plan(
+                jobs,
+                model,
+                reading,
+                depot=depot,
+                baseline_start=shift_start,
+                candidate_starts=candidates,
+                shift_end=shift_end,
+                average_travel_speed_kph=AVERAGE_TRAVEL_SPEED_KPH,
+                reference_temperature_c=REFERENCE_TEMPERATURE_C,
+                planning_threshold_c=PLANNING_THRESHOLD_C,
+                uncertainty_penalty=0.0,
+                heat_weight=HEAT_WEIGHT,
+            )
+            outcome = score_plan_against_measurements(
+                plan,
+                batch.profiles,
+                depot=depot,
+                candidate_starts=candidates,
+                shift_end=shift_end,
+                average_travel_speed_kph=AVERAGE_TRAVEL_SPEED_KPH,
+                reference_temperature_c=REFERENCE_TEMPERATURE_C,
+                planning_threshold_c=PLANNING_THRESHOLD_C,
+                uncertainty_penalty=0.0,
+                heat_weight=HEAT_WEIGHT,
+            )
+    except (LeakageError, PlanningCoverageError, ProfileCoverageError) as exc:
+        st.info(f"This day cannot be graded: {exc}")
+        return
+    except (
+        CacheCorruptionError,
+        FortyGuardError,
+        HeatmapCoverageError,
+        InfeasibleScheduleError,
+        InsufficientHistoryError,
+        LookupError,
+        ScheduleSearchLimitError,
+        ValidationError,
+        ValueError,
+    ) as exc:
+        st.error(f"This day could not be graded: {exc}")
+        return
+
+    realized = outcome.realized_reduction
+    columns = st.columns(4)
+    columns[0].metric(
+        "It recommended",
+        outcome.recommended_start.strftime("%H:%M"),
+        help="Chosen from the whole-day reading alone, before seeing any hour.",
+    )
+    columns[1].metric(
+        "Best in hindsight",
+        outcome.realized_best_start.strftime("%H:%M"),
+        help="The lowest-exposure start once every measured temperature is known.",
+    )
+    columns[2].metric(
+        "Exposure actually avoided",
+        "n/a" if realized is None else f"{realized:.1%}",
+        help=(
+            "Measured against your usual "
+            f"{outcome.baseline_start.strftime('%H:%M')} start, on the "
+            "temperatures this day really produced."
+        ),
+    )
+    columns[3].metric(
+        "Regret",
+        f"{outcome.regret_units:.1f}",
+        help=(
+            "Degree-hours above the perfect-hindsight start. Zero means the "
+            "recommendation was optimal."
+        ),
+        delta_color="inverse",
+    )
+
+    if outcome.chose_the_best_start:
+        st.success(
+            f"On {target_date:%d %b %Y} the model picked the best available "
+            "start without seeing a single hourly temperature."
+        )
+    elif outcome.helped:
+        st.warning(
+            "The recommendation reduced exposure against the usual start, but "
+            f"{outcome.realized_best_start.strftime('%H:%M')} would have been "
+            f"better by {outcome.regret_units:.1f} degree-hours."
+        )
+    else:
+        st.error(
+            "On this day the recommendation did not beat the usual start. This "
+            "is reported rather than hidden; it is what an honest check is for."
+        )
+
+
 def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
     """Crew view first; the model's workings stay one click away."""
 
@@ -2574,6 +2735,8 @@ if batch is not None:
             shift_start=shift_start,
             shift_end=shift_end,
             is_example=is_example,
+            model=area_model,
+            target_date=selected_date,
         )
 else:
     render_empty_state(

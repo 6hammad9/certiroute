@@ -9,10 +9,12 @@ from certiroute.daily_level import DailyLevelReading
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import DailyLevelShape
 from certiroute.same_day import (
+    LeakageError,
     PlanningCoverageError,
     build_same_day_plan,
     relax_windows_to,
     required_minutes,
+    score_plan_against_measurements,
 )
 
 DEPOT = GeoPoint(latitude=33.4485, longitude=-112.0740)
@@ -287,3 +289,88 @@ def test_a_real_access_window_still_holds_the_shift(jobs) -> None:
     # tie resolves toward the later hour rather than dragging the crew out.
     assert plan.windows.held_job_ids == ("J1", "J2", "J3")
     assert plan.recommended_start == time(8, 0)
+
+
+# --- Scoring a decision against what the day actually did -------------------
+
+
+def measured(jobs, base: float, step: float = 1.6):
+    from certiroute.optimization import ConditionPoint, TemperatureProfile
+
+    return {
+        job.job_id: TemperatureProfile(
+            job_id=job.job_id,
+            points=tuple(
+                ConditionPoint(
+                    minute_of_day=hour * 60,
+                    temperature_c=base + step * (hour - 5),
+                    certainty=1.0,
+                )
+                for hour in HOURS
+            ),
+        )
+        for job in jobs
+    }
+
+
+def test_a_clean_day_scores_the_decision_against_measurements(jobs) -> None:
+    plan = build_same_day_plan(
+        jobs, climatology(), reading(jobs, target_date=date(2026, 9, 1)),
+        depot=DEPOT, baseline_start=time(8, 0), candidate_starts=CANDIDATES,
+    )
+
+    outcome = score_plan_against_measurements(
+        plan, measured(jobs, 26.0), depot=DEPOT, candidate_starts=CANDIDATES
+    )
+
+    assert outcome.helped
+    assert outcome.chose_the_best_start
+    assert outcome.regret_units == pytest.approx(0.0)
+    assert outcome.realized_reduction is not None
+
+
+def test_scoring_reports_regret_when_hindsight_disagrees(jobs) -> None:
+    """An unflattering result is reported, not suppressed."""
+
+    plan = build_same_day_plan(
+        jobs, climatology(), reading(jobs, target_date=date(2026, 9, 1)),
+        depot=DEPOT, baseline_start=time(8, 0), candidate_starts=CANDIDATES,
+    )
+
+    # The real day ran hottest at dawn and cooled off, inverting the model.
+    inverted = measured(jobs, 44.0, step=-1.2)
+    outcome = score_plan_against_measurements(
+        plan, inverted, depot=DEPOT, candidate_starts=CANDIDATES
+    )
+
+    assert not outcome.chose_the_best_start
+    assert outcome.regret_units > 0
+    assert not outcome.helped
+
+
+def test_a_training_day_cannot_score_its_own_model(jobs) -> None:
+    model = climatology()
+    plan = build_same_day_plan(
+        jobs, model, reading(jobs, target_date=model.training_dates[0]),
+        depot=DEPOT, candidate_starts=CANDIDATES,
+    )
+
+    with pytest.raises(LeakageError, match="trained on"):
+        score_plan_against_measurements(
+            plan, measured(jobs, 26.0), depot=DEPOT, candidate_starts=CANDIDATES
+        )
+
+
+def test_a_calibration_day_cannot_score_its_own_model(jobs) -> None:
+    """The interval width was set on these days, so they are not clean either."""
+
+    model = climatology()
+    plan = build_same_day_plan(
+        jobs, model, reading(jobs, target_date=model.evaluation.holdout_dates[0]),
+        depot=DEPOT, candidate_starts=CANDIDATES,
+    )
+
+    with pytest.raises(LeakageError, match="calibrated its interval on"):
+        score_plan_against_measurements(
+            plan, measured(jobs, 26.0), depot=DEPOT, candidate_starts=CANDIDATES
+        )

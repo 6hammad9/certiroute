@@ -137,6 +137,58 @@ def recommend_shift_start(
     )
 
 
+def score_starts_against_realization(
+    jobs: Sequence[Job],
+    realized_profiles: Mapping[str, TemperatureProfile],
+    *,
+    recommended_start: time,
+    baseline_start: time,
+    depot: GeoPoint,
+    candidate_starts: Sequence[time] = DEFAULT_CANDIDATE_STARTS,
+    shift_end: time = time(17, 0),
+    **scheduler_options: object,
+) -> RecommendationOutcome:
+    """Replay every candidate start on a day's measured temperatures.
+
+    Whatever produced the recommendation is never allowed to see these
+    profiles; they only score a decision that was already made.
+    """
+
+    realized = compare_shift_starts(
+        list(jobs),
+        dict(realized_profiles),
+        depot=depot,
+        baseline_start=baseline_start,
+        candidate_starts=candidate_starts,
+        shift_end=shift_end,
+        **scheduler_options,  # type: ignore[arg-type]
+    )
+    by_start = {
+        option.shift_start: option.exposure_units
+        for option in realized.options
+        if option.feasible and option.exposure_units is not None
+    }
+    if recommended_start not in by_start:
+        raise ValueError(
+            "the recommended start is infeasible on the realised day, so it "
+            "cannot be scored"
+        )
+    if baseline_start not in by_start:
+        raise ValueError("the baseline start is infeasible on the realised day")
+
+    best_start = min(by_start, key=lambda start: (by_start[start], -(
+        start.hour * 60 + start.minute
+    )))
+    return RecommendationOutcome(
+        recommended_start=recommended_start,
+        baseline_start=baseline_start,
+        realized_recommended_units=by_start[recommended_start],
+        realized_baseline_units=by_start[baseline_start],
+        realized_best_start=best_start,
+        realized_best_units=by_start[best_start],
+    )
+
+
 def score_against_realization(
     recommendation: ShiftRecommendation,
     jobs: Sequence[Job],
@@ -147,44 +199,17 @@ def score_against_realization(
     shift_end: time = time(17, 0),
     **scheduler_options: object,
 ) -> RecommendationOutcome:
-    """Replay every candidate start on the day's measured temperatures.
+    """Score an anchor-based recommendation against what the day did."""
 
-    The recommendation is never allowed to see these profiles; they are only
-    used to score a decision that was already made.
-    """
-
-    realized = compare_shift_starts(
-        list(jobs),
-        dict(realized_profiles),
-        depot=depot,
-        baseline_start=recommendation.baseline_start,
-        candidate_starts=candidate_starts,
-        shift_end=shift_end,
-        **scheduler_options,  # type: ignore[arg-type]
-    )
-    by_start = {
-        option.shift_start: option.exposure_units
-        for option in realized.options
-        if option.feasible and option.exposure_units is not None
-    }
-    if recommendation.recommended_start not in by_start:
-        raise ValueError(
-            "the recommended start is infeasible on the realised day, so it "
-            "cannot be scored"
-        )
-    if recommendation.baseline_start not in by_start:
-        raise ValueError("the baseline start is infeasible on the realised day")
-
-    best_start = min(by_start, key=lambda start: (by_start[start], -(
-        start.hour * 60 + start.minute
-    )))
-    return RecommendationOutcome(
+    return score_starts_against_realization(
+        jobs,
+        realized_profiles,
         recommended_start=recommendation.recommended_start,
         baseline_start=recommendation.baseline_start,
-        realized_recommended_units=by_start[recommendation.recommended_start],
-        realized_baseline_units=by_start[recommendation.baseline_start],
-        realized_best_start=best_start,
-        realized_best_units=by_start[best_start],
+        depot=depot,
+        candidate_starts=candidate_starts,
+        shift_end=shift_end,
+        **scheduler_options,
     )
 
 
@@ -193,4 +218,5 @@ __all__ = [
     "ShiftRecommendation",
     "recommend_shift_start",
     "score_against_realization",
+    "score_starts_against_realization",
 ]

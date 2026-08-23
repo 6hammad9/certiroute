@@ -34,6 +34,10 @@ from certiroute.optimization import (
 from certiroute.reliability.calibration import (
     finite_sample_absolute_residual_quantile,
 )
+from certiroute.shift_planning import (
+    RecommendationOutcome,
+    score_starts_against_realization,
+)
 from certiroute.shift_timing import (
     DEFAULT_CANDIDATE_STARTS,
     ShiftTimingComparison,
@@ -296,11 +300,59 @@ def build_same_day_plan(
     )
 
 
+class LeakageError(ValueError):
+    """A day cannot score a model that already learned from it."""
+
+
+def score_plan_against_measurements(
+    plan: SameDayPlan,
+    realized_profiles: Mapping[str, TemperatureProfile],
+    *,
+    depot: GeoPoint,
+    candidate_starts: Sequence[time] = DEFAULT_CANDIDATE_STARTS,
+    shift_end: time = time(17, 0),
+    **scheduler_options: object,
+) -> RecommendationOutcome:
+    """Check a start-time decision against the temperatures the day produced.
+
+    This is the only honest way to answer whether the recommendation works, so
+    it refuses on any day the model trained on. Scoring a training day would
+    measure memory, not skill, and would produce exactly the flattering number
+    that makes a system untrustworthy.
+    """
+
+    seen = set(plan.climatology.training_dates) | set(
+        plan.climatology.evaluation.holdout_dates
+    )
+    if plan.target_date in seen:
+        role = (
+            "trained on"
+            if plan.target_date in set(plan.climatology.training_dates)
+            else "calibrated its interval on"
+        )
+        raise LeakageError(
+            f"{plan.target_date.isoformat()} is a day this model {role}, so it "
+            "cannot be used to score the model"
+        )
+    return score_starts_against_realization(
+        list(plan.windows.jobs),
+        realized_profiles,
+        recommended_start=plan.recommended_start,
+        baseline_start=plan.baseline_start,
+        depot=depot,
+        candidate_starts=candidate_starts,
+        shift_end=shift_end,
+        **scheduler_options,
+    )
+
+
 __all__ = [
+    "LeakageError",
     "PlanningCoverageError",
     "SameDayPlan",
     "WindowRelaxation",
     "build_same_day_plan",
     "relax_windows_to",
     "required_minutes",
+    "score_plan_against_measurements",
 ]
