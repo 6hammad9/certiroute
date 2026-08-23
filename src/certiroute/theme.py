@@ -96,7 +96,20 @@ def icon(name: str, *, size: int = 18, extra_class: str = "") -> str:
     )
 
 
+# Some Streamlit versions strip @import from injected style blocks, so the
+# faces are also requested with a link element. Both are harmless together, and
+# every stack still names a system fallback so the app never waits on a font.
+FONT_LINKS = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2'
+    "?family=Instrument+Sans:wght@400;500;600;700"
+    "&family=Inter:wght@400;500;600;700"
+    '&family=JetBrains+Mono:wght@400;500;600&display=swap">'
+)
+
 STYLESHEET = f"""
+{FONT_LINKS}
 <style>
 {FONT_IMPORT}
 
@@ -501,4 +514,10 @@ RESULT_MODE_STYLES = """
 </style>
 """
 
-__all__ = ["FONT_IMPORT", "RESULT_MODE_STYLES", "STYLESHEET", "icon"]
+__all__ = [
+    "FONT_IMPORT",
+    "FONT_LINKS",
+    "RESULT_MODE_STYLES",
+    "STYLESHEET",
+    "icon",
+]
