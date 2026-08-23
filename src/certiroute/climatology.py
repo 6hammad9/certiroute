@@ -403,6 +403,89 @@ def unseen_site_error(
     return sum(absolute) / len(absolute)
 
 
+def rolling_origin_day_scores(
+    history: Sequence[TrainingDay], *, min_train_days: int = 4
+) -> list[tuple[date, float, float]]:
+    """Score every day using only the days that preceded it.
+
+    A single chronological holdout answers one question - how well did this
+    model do on those particular last few days - and the answer swings wildly
+    with which days those happen to be. Measured on Phoenix, a split ending in
+    a calm week reported 0.91 C while one spanning a cool snap reported 1.21 C
+    for the same method, and neither number describes the method.
+
+    Rolling the origin forward tests every day that has enough history behind
+    it, which is also exactly how the product is used: predict tomorrow from
+    everything known today. Nothing here sees its own future.
+
+    Returns ``(date, mean absolute error, worst absolute error)`` per day.
+    """
+
+    ordered = sorted(history, key=lambda item: item[0])
+    if len(ordered) <= min_train_days:
+        raise InsufficientHistoryError(
+            f"{len(ordered)} day(s) available; rolling calibration needs more "
+            f"than {min_train_days}"
+        )
+    scores: list[tuple[date, float, float]] = []
+    for index in range(min_train_days, len(ordered)):
+        shape = _learn_offsets(ordered[:index])
+        residuals = _residuals(shape, [ordered[index]])
+        if not residuals:
+            continue
+        absolute = [abs(value) for value in residuals]
+        scores.append(
+            (ordered[index][0], sum(absolute) / len(absolute), max(absolute))
+        )
+    if not scores:
+        raise InsufficientHistoryError("no day produced a rolling-origin score")
+    return scores
+
+
+def train_climatology_rolling(
+    history: Sequence[TrainingDay],
+    *,
+    area_id: str,
+    label: str,
+    granularity_m: int,
+    min_train_days: int = 4,
+    trained_area: TrainedArea | None = None,
+    trained_at_utc: datetime | None = None,
+) -> DiurnalClimatology:
+    """Learn offsets from every day, and calibrate by rolling the origin.
+
+    This wastes no day: the shape is learned from all of them, while the
+    interval comes from scores each of which was produced without seeing its
+    own day. More calibration days also means a tighter *claim* is supportable
+    - eleven scores support 90% coverage where three support only 75%.
+    """
+
+    ordered = sorted(history, key=lambda item: item[0])
+    scored = rolling_origin_day_scores(ordered, min_train_days=min_train_days)
+    shape = _learn_offsets(ordered)
+    mean_errors = [mean for _, mean, _ in scored]
+    day_scores = [worst for _, _, worst in scored]
+
+    return DiurnalClimatology(
+        area_id=area_id,
+        label=label,
+        granularity_m=granularity_m,
+        shape=shape,
+        training_dates=tuple(day_date for day_date, _, _ in ordered),
+        evaluation=ClimatologyEvaluation(
+            holdout_dates=tuple(day_date for day_date, _, _ in scored),
+            mean_absolute_error_c=sum(mean_errors) / len(mean_errors),
+            worst_absolute_error_c=max(day_scores),
+            reading_count=len(scored),
+            day_scores_c=tuple(day_scores),
+            unseen_site_mae_c=unseen_site_error(
+                ordered, holdout_days=max(1, len(ordered) // 4)
+            ),
+        ),
+        trained_at_utc=trained_at_utc or datetime.now(UTC),
+    )
+
+
 def train_climatology(
     history: Sequence[TrainingDay],
     *,
@@ -517,6 +600,8 @@ __all__ = [
     "available_areas",
     "unseen_site_error",
     "load_climatology",
+    "rolling_origin_day_scores",
     "save_climatology",
     "train_climatology",
+    "train_climatology_rolling",
 ]

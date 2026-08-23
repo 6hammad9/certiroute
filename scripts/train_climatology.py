@@ -21,7 +21,7 @@ import pandas as pd
 from certiroute.climatology import (
     TrainedArea,
     save_climatology,
-    train_climatology,
+    train_climatology_rolling,
 )
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.config import get_settings
@@ -81,10 +81,10 @@ def main() -> None:
     parser.add_argument("--end-hour", type=int, default=17)
     parser.add_argument("--granularity", type=int, default=60, choices=(60, 80, 100))
     parser.add_argument(
-        "--holdout-days",
+        "--min-train-days",
         type=int,
-        default=3,
-        help="Most recent days reserved for scoring and interval calibration.",
+        default=4,
+        help="Days of history required before a day can be scored.",
     )
     parser.add_argument(
         "--live",
@@ -123,10 +123,10 @@ def main() -> None:
         complete.append((target, batch.profiles))
         print(f"  {target}  hourly profiles rebuilt from cache")
 
-    if len(complete) < args.holdout_days + 2:
+    if len(complete) <= args.min_train_days + 1:
         raise SystemExit(
-            f"\n{len(complete)} complete day(s) available; training needs at "
-            f"least {args.holdout_days + 2}. Backfill more days first."
+            f"\n{len(complete)} complete day(s) available; training needs more "
+            f"than {args.min_train_days + 1}. Backfill more days first."
         )
 
     settings = get_settings()
@@ -173,12 +173,12 @@ def main() -> None:
             client.close()
 
     try:
-        model = train_climatology(
+        model = train_climatology_rolling(
             history,
             area_id=args.area,
             label=label,
             granularity_m=args.granularity,
-            holdout_days=args.holdout_days,
+            min_train_days=args.min_train_days,
             trained_area=TrainedArea.covering(
                 (job.location.latitude, job.location.longitude) for job in jobs
             ),
