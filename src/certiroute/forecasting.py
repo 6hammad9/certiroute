@@ -197,6 +197,35 @@ def shape_residuals(
     return residuals
 
 
+def day_blocked_residual_scores(
+    shape: DiurnalShape,
+    held_out: Sequence[Mapping[str, TemperatureProfile]],
+    *,
+    exclude_anchor: bool = True,
+) -> list[float]:
+    """One conformity score per held-out day: its largest absolute error.
+
+    Errors within a single day are strongly correlated - a day simply runs hot
+    or cool - so pooling every site-hour pretends to far more independent
+    evidence than exists. Treating the day as the exchangeable unit fixes the
+    effective sample size at the day count, and the resulting radius covers a
+    whole day's curve simultaneously rather than one hour pointwise.
+    """
+
+    scores: list[float] = []
+    for day in held_out:
+        residuals = shape_residuals(
+            shape, [day], exclude_anchor=exclude_anchor
+        )
+        if residuals:
+            scores.append(max(abs(value) for value in residuals))
+    if not scores:
+        raise InsufficientHistoryError(
+            "no held-out day produced a residual score"
+        )
+    return scores
+
+
 def calibrate_forecast(
     shape: DiurnalShape,
     anchor_temperature_c: float,
@@ -241,6 +270,7 @@ __all__ = [
     "DiurnalShape",
     "InsufficientHistoryError",
     "calibrate_forecast",
+    "day_blocked_residual_scores",
     "empirical_coverage",
     "learn_diurnal_shape",
     "predict_from_anchor",
