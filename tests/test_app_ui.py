@@ -189,6 +189,22 @@ def _scenario(app: AppTest) -> MapScenarioState:
     return MapScenarioState.from_dict(value)
 
 
+def _review_finished_day(app: AppTest, target: date = REPLAY_DATE) -> AppTest:
+    """Switch from planning today to reviewing a day with measured evidence.
+
+    The app opens on today because that is what a dispatcher needs. These
+    contract tests cover the review path, which is the one backed by cached
+    hourly snapshots rather than a live reading.
+    """
+
+    widget = next(
+        item for item in app.date_input if str(item.key).startswith("workday_date_")
+    )
+    widget.set_value(target).run(timeout=60)
+    assert not app.exception
+    return app
+
+
 def _import_jobs(app: AppTest, upload: tuple[str, bytes, str]) -> AppTest:
     app.file_uploader(key="job_manifest_upload").upload(*upload).run(timeout=60)
     assert not app.exception
@@ -202,6 +218,7 @@ def _load_example_and_build(app: AppTest) -> AppTest:
 
     _button(app, "Load the Phoenix walkthrough").click().run(timeout=60)
     assert not app.exception
+    _review_finished_day(app)
     _button(app, "Create my heat-aware route").click().run(timeout=60)
     assert not app.exception
     return app
@@ -272,6 +289,7 @@ def rendered_states(tmp_path_factory: pytest.TempPathFactory) -> RenderedStates:
 
     infeasible_import = _import_jobs(_run_app(driver), INFEASIBLE_UPLOAD)
     _click_map(infeasible_import, driver, latitude=33.44855, longitude=-112.07391)
+    _review_finished_day(infeasible_import)
     _button(infeasible_import, "Create my heat-aware route").click().run(timeout=60)
     assert not infeasible_import.exception
 
@@ -366,7 +384,8 @@ def test_repeated_component_payload_does_not_duplicate_a_work_site(
     assert "Add 1 more orange work site" in text
     assert "Ready — 2 work sites selected" not in text
     assert not any(
-        button.label == "Create my heat-aware route" for button in app.button
+        button.label in {"Plan today's shift", "Create my heat-aware route"}
+        for button in app.button
     )
     assert rendered_states.network_calls == []
 
@@ -385,15 +404,15 @@ def test_map_clicks_create_a_ready_route_setup_with_plain_defaults(
     assert "Work site 1" in text
     assert "Work site 2" in text
     assert text.count("45 min on site") >= 2
-    assert "Workday" in text
-    assert "Past-day replay" in text
-    assert _button(app, "Create my heat-aware route").disabled is False
+    # The app opens ready to plan the day the crew is actually working.
+    assert "Planning today" in text
+    assert _button(app, "Plan today's shift").disabled is False
     assert {widget.label for widget in app.number_input} == {
         "Minutes at job 1",
         "Minutes at job 2",
     }
     assert {widget.label for widget in app.time_input} == {
-        "Crew starts",
+        "Crew normally starts",
         "Crew finishes",
     }
     assert "latitude" not in text.lower()
@@ -415,14 +434,15 @@ def test_csv_import_is_optional_and_only_asks_for_one_map_click(
     assert "Your 2 imported work sites are already orange" in waiting_text
     assert "One map click places the mint crew base" in waiting_text
     assert not any(
-        button.label == "Create my heat-aware route" for button in waiting.button
+        button.label in {"Plan today's shift", "Create my heat-aware route"}
+        for button in waiting.button
     )
 
     ready_state = _scenario(ready)
     assert ready_state.depot is not None
     assert ready_state.job_count == 2
     assert "Ready — 2 work sites selected" in ready_text
-    assert _button(ready, "Create my heat-aware route").disabled is False
+    assert _button(ready, "Plan today's shift").disabled is False
     assert not ready.text_input
     assert not ready.number_input
     assert "Depot latitude" not in ready_text

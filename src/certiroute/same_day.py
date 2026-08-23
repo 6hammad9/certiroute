@@ -60,6 +60,7 @@ class SameDayPlan:
     climatology: DiurnalClimatology
     efficient_plan: SchedulePlan
     heat_aware_plan: SchedulePlan
+    windows: WindowRelaxation
 
     @property
     def recommended_start(self) -> time:
@@ -125,6 +126,62 @@ def _shift_conservative(
         )
         for job_id, profile in profiles.items()
     }
+
+
+@dataclass(frozen=True)
+class WindowRelaxation:
+    """Which job windows moved with the shift, and which are real constraints."""
+
+    jobs: tuple[Job, ...]
+    moved_job_ids: tuple[str, ...]
+    held_job_ids: tuple[str, ...]
+
+    @property
+    def earliest_held_start(self) -> time | None:
+        """The site constraint that binds an earlier shift, if any."""
+
+        held = [
+            job.earliest_start
+            for job in self.jobs
+            if job.job_id in set(self.held_job_ids) and job.earliest_start is not None
+        ]
+        return min(held) if held else None
+
+
+def relax_windows_to(
+    jobs: Sequence[Job], *, baseline_start: time, earliest_start: time
+) -> WindowRelaxation:
+    """Let job windows follow the shift when they were only pinned to it.
+
+    A job whose window opens no later than the crew's usual start was never
+    constrained by the site - it inherited the shift. Moving the shift earlier
+    has to move those windows too, or every earlier start is silently
+    infeasible and the recommendation quietly collapses back to the status quo.
+
+    A window that opens *after* the usual start is a genuine site constraint -
+    a gate that unlocks at nine, a tenant who must be present - and is left
+    exactly as it is.
+    """
+
+    moved: list[str] = []
+    held: list[str] = []
+    relaxed: list[Job] = []
+    for job in jobs:
+        current = job.earliest_start
+        if current is not None and current > baseline_start:
+            held.append(job.job_id)
+            relaxed.append(job)
+            continue
+        if current is None or current <= earliest_start:
+            relaxed.append(job)
+            continue
+        moved.append(job.job_id)
+        relaxed.append(job.model_copy(update={"earliest_start": earliest_start}))
+    return WindowRelaxation(
+        jobs=tuple(relaxed),
+        moved_job_ids=tuple(moved),
+        held_job_ids=tuple(held),
+    )
 
 
 def required_minutes(
@@ -197,8 +254,17 @@ def build_same_day_plan(
     radius = quantile.absolute_residual_quantile_c
     conservative = _shift_conservative(expected, radius)
 
+    # Windows that merely inherited the usual shift have to follow it, or an
+    # earlier start is infeasible for reasons that have nothing to do with heat.
+    windows = relax_windows_to(
+        jobs,
+        baseline_start=baseline_start,
+        earliest_start=min([*candidate_starts, baseline_start]),
+    )
+    schedulable = list(windows.jobs)
+
     comparison = compare_shift_starts(
-        list(jobs),
+        schedulable,
         conservative,
         depot=depot,
         baseline_start=baseline_start,
@@ -207,7 +273,7 @@ def build_same_day_plan(
         **scheduler_options,  # type: ignore[arg-type]
     )
     plans = compare_schedules(
-        list(jobs),
+        schedulable,
         conservative,
         depot=depot,
         shift_start=comparison.recommended.shift_start,
@@ -226,12 +292,15 @@ def build_same_day_plan(
         climatology=climatology,
         efficient_plan=plans[ScheduleStrategy.EFFICIENCY],
         heat_aware_plan=plans[ScheduleStrategy.HEAT_AWARE],
+        windows=windows,
     )
 
 
 __all__ = [
     "PlanningCoverageError",
     "SameDayPlan",
+    "WindowRelaxation",
     "build_same_day_plan",
+    "relax_windows_to",
     "required_minutes",
 ]

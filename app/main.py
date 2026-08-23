@@ -22,15 +22,24 @@ import streamlit as st
 from pydantic import ValidationError
 
 import certiroute.map_picker as map_picker
+from certiroute.climatology import (
+    ClimatologyUnavailableError,
+    DiurnalClimatology,
+    load_climatology,
+)
 from certiroute.collection import (
     CacheCorruptionError,
     HeatmapSnapshotStore,
     heatmap_request_fingerprint,
 )
 from certiroute.config import get_settings
+from certiroute.daily_level import DailyLevelReading, collect_daily_level
 from certiroute.domain import GeoPoint, Job
+from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardError
+from certiroute.fortyguard.geometry import bounding_polygon
+from certiroute.fortyguard.heatmap_profiles import HeatmapCoverageError
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
     MIN_MANIFEST_JOBS,
@@ -70,10 +79,17 @@ from certiroute.real_conditions import (
     plan_clustered_profile_collection,
 )
 from certiroute.risk import relative_exposure_reduction
+from certiroute.same_day import (
+    PlanningCoverageError,
+    SameDayPlan,
+    build_same_day_plan,
+)
+from certiroute.shift_timing import ProfileCoverageError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_JOBS_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
 DEFAULT_CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
+CLIMATOLOGY_ROOT = PROJECT_ROOT / "data" / "climatology"
 
 EXAMPLE_DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
 DEFAULT_REPLAY_DATE = date(2026, 7, 15)
@@ -154,6 +170,13 @@ def cache_path() -> Path:
 
     configured = os.getenv("CERTIROUTE_HEATMAP_CACHE_PATH")
     return Path(configured) if configured else DEFAULT_CACHE_PATH
+
+
+def climatology_root() -> Path:
+    """Return an injectable model root so tests and deployments stay isolated."""
+
+    configured = os.getenv("CERTIROUTE_CLIMATOLOGY_PATH")
+    return Path(configured) if configured else CLIMATOLOGY_ROOT
 
 
 def minutes_of_day(value: time) -> int:
@@ -425,6 +448,34 @@ def inject_styles() -> None:
         .bento-tile.time { border-top: 4px solid var(--gold); }
         .bento-tile.status { border-top: 4px solid var(--caution); }
         .bento-tile .route-fact-label { margin-bottom: .3rem; }
+        .timing-bars {
+            background: var(--surface); border: 1px solid var(--rule);
+            border-radius: 18px; padding: 1.1rem 1.25rem; margin: .2rem 0 1.5rem;
+            display: flex; flex-direction: column; gap: .55rem;
+        }
+        .timing-row {
+            display: grid; grid-template-columns: 3.4rem 1fr 6.5rem;
+            align-items: center; gap: .8rem;
+        }
+        .timing-label {
+            color: var(--muted); font-size: .85rem; font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .timing-track {
+            background: var(--canvas); border-radius: 999px; height: 14px;
+            overflow: hidden;
+        }
+        .timing-bar {
+            background: var(--heat); height: 100%; border-radius: 999px;
+            min-width: 6px;
+        }
+        .timing-tag {
+            color: var(--muted); font-size: .66rem; font-weight: 850;
+            letter-spacing: .07em; text-transform: uppercase; text-align: right;
+        }
+        .timing-row.picked .timing-label { color: var(--ink); }
+        .timing-row.picked .timing-bar { background: var(--route); }
+        .timing-row.picked .timing-tag { color: var(--route-ink); }
         .route-summary {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 14px; margin: 0 0 1.35rem;
@@ -1717,8 +1768,8 @@ def render_workday_settings(
 ) -> tuple[date, time, time]:
     """Use useful defaults while keeping the historical mode explicit."""
 
-    yesterday = date.today() - timedelta(days=1)
-    default_date = min(DEFAULT_REPLAY_DATE, yesterday) if is_example else yesterday
+    today = date.today()
+    default_date = today
     if manifest_hint is None:
         default_start = DEFAULT_SHIFT_START
         default_end = DEFAULT_SHIFT_END
@@ -1730,24 +1781,28 @@ def render_workday_settings(
             str(manifest_hint.frame["latest_finish"].max())
         )
 
-    with st.expander("Change replay day or shift (optional)"):
+    with st.expander("Change the day or shift (optional)"):
         st.caption(
-            "This version replays a completed day so every result can be checked "
-            "against stable temperature evidence."
+            "Today is planned from this morning's measured heat. Pick an earlier "
+            "date to review a finished day against what actually happened."
         )
         selected_date = st.date_input(
-            "Replay day",
+            "Workday",
             value=default_date,
             min_value=date(2021, 1, 1),
-            max_value=yesterday,
-            key=f"replay_date_{scenario_token}",
+            max_value=today,
+            key=f"workday_date_{scenario_token}",
         )
         start_column, end_column = st.columns(2)
         with start_column:
             shift_start = st.time_input(
-                "Crew starts",
+                "Crew normally starts",
                 value=default_start,
                 step=timedelta(minutes=15),
+                help=(
+                    "The shift you would run without heat planning. CertiRoute "
+                    "compares its recommendation against this."
+                ),
                 key=f"shift_start_{scenario_token}",
             )
         with end_column:
@@ -1758,10 +1813,11 @@ def render_workday_settings(
                 key=f"shift_end_{scenario_token}",
             )
 
+    is_today = selected_date >= today
+    mode_label = "Planning today" if is_today else "Reviewing a finished day"
     st.markdown(
-        '<div class="workday-chip"><span><strong>Workday</strong> · '
-        "Past-day replay</span>"
-        f"<span>{selected_date.strftime('%d %b %Y')} · "
+        f'<div class="workday-chip"><span><strong>{mode_label}</strong></span>'
+        f"<span>{selected_date.strftime('%d %b %Y')} · usual shift "
         f"{shift_start.strftime('%H:%M')}–{shift_end.strftime('%H:%M')}</span></div>",
         unsafe_allow_html=True,
     )
@@ -1809,6 +1865,317 @@ def build_map_manifest(
                     key=f"job_duration_{scenario_token}_{index}",
                 )
     return validate_job_manifest(frame)
+
+
+def trained_model(area_id: str) -> DiurnalClimatology | None:
+    """Load the committed heat model for an area, or None when untrained."""
+
+    try:
+        return load_climatology(area_id, root=climatology_root())
+    except (ClimatologyUnavailableError, ValueError):
+        return None
+
+
+def read_today_level(
+    jobs: list[Job],
+    store: HeatmapSnapshotStore,
+    *,
+    target_date: date,
+    granularity: int,
+) -> DailyLevelReading:
+    """Fetch the one whole-day aggregate that anchors today's prediction."""
+
+    polygon = bounding_polygon(job.location for job in jobs)
+    settings = get_settings()
+    with FortyGuardClient(
+        api_key=settings.fortyguard_api_key,
+        base_url=settings.fortyguard_api_base_url,
+        timeout_seconds=settings.fortyguard_timeout_seconds,
+    ) as client:
+        return collect_daily_level(
+            jobs,
+            polygon,
+            store,
+            target_date=target_date,
+            granularity=granularity,
+            client=client,
+            poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
+            max_attempts=settings.fortyguard_max_poll_attempts,
+        )
+
+
+def candidate_starts_for(shift_start: time, shift_end: time) -> tuple[time, ...]:
+    """Offer earlier starts than the crew's usual one, plus that one itself.
+
+    Only whole hours the trained model can actually speak to are offered, and
+    the shift keeps its length so the comparison is like for like.
+    """
+
+    latest = minutes_of_day(shift_start)
+    duration = minutes_of_day(shift_end) - latest
+    earliest = max(5 * 60, latest - 3 * 60)
+    starts = [
+        minute
+        for minute in range(earliest, latest + 1, 60)
+        if minute + duration <= minutes_of_day(shift_end)
+        or minute == latest
+    ]
+    if latest not in starts:
+        starts.append(latest)
+    return tuple(time(minute // 60, minute % 60) for minute in sorted(set(starts)))
+
+
+def render_start_decision(plan: SameDayPlan) -> None:
+    """State the one decision this product exists to make."""
+
+    start = plan.recommended_start.strftime("%H:%M")
+    baseline = plan.baseline_start.strftime("%H:%M")
+    reduction = plan.exposure_reduction
+    first_site = escape(site_and_task(plan.crew_plan.stops[0].job_name)[0])
+
+    if plan.changes_the_start and reduction is not None and reduction >= 0.005:
+        hours, minutes = divmod(abs(plan.minutes_earlier), 60)
+        amount = f"{hours}h {minutes:02d}m" if hours else f"{minutes} min"
+        direction = "earlier" if plan.minutes_earlier > 0 else "later"
+        label = "Move the shift"
+        title = f"Start at {start}"
+        explanation = (
+            f"Beginning {amount} {direction} than your usual {baseline} cuts "
+            f"modelled heat exposure by <strong>{reduction:.0%}</strong> for the "
+            f"same work. First stop is <strong>{first_site}</strong>."
+        )
+    else:
+        label = "Keep the shift"
+        title = f"Start at {start} as usual"
+        explanation = (
+            "No earlier start meaningfully reduces exposure on today's predicted "
+            f"heat, so there is no reason to move the crew. First stop is "
+            f"<strong>{first_site}</strong>."
+        )
+
+    finish = minute_label(plan.crew_plan.route_finish_minute)
+    peak = max(
+        stop.temperature_c for stop in plan.crew_plan.stops
+    )
+    st.markdown(
+        f"""
+        <div class="bento">
+          <div class="bento-hero decision-card">
+            <div class="decision-label">{label}</div>
+            <h2>{title}</h2>
+            <p>{explanation}</p>
+          </div>
+          <div class="bento-tile route-fact time">
+            <div class="route-fact-label">Shift window</div>
+            <div class="route-fact-value">{start} → {finish}</div>
+          </div>
+          <div class="bento-tile route-fact stop">
+            <div class="route-fact-label">Hottest working moment</div>
+            <div class="route-fact-value">{peak:.1f} °C</div>
+          </div>
+          <div class="bento-tile route-fact status">
+            <div class="route-fact-label">Predicted within</div>
+            <div class="route-fact-value">
+              ± {plan.interval_radius_c:.1f} °C · {plan.coverage:.0%}
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_start_options(plan: SameDayPlan) -> None:
+    """Show every start time considered, so the choice is legible."""
+
+    feasible = [
+        option
+        for option in plan.comparison.options
+        if option.feasible and option.exposure_units is not None
+    ]
+    if len(feasible) < 2:
+        return
+    worst = max(option.exposure_units for option in feasible)
+    if worst <= 0:
+        return
+
+    rows: list[str] = []
+    for option in feasible:
+        share = option.exposure_units / worst
+        is_pick = option.shift_start == plan.recommended_start
+        is_usual = option.shift_start == plan.baseline_start
+        tag = "Recommended" if is_pick else ("Your usual" if is_usual else "")
+        rows.append(
+            f'<div class="timing-row{" picked" if is_pick else ""}">'
+            f'<div class="timing-label">{option.shift_start.strftime("%H:%M")}</div>'
+            '<div class="timing-track">'
+            f'<div class="timing-bar" style="width:{max(share, 0.04):.1%}"></div>'
+            "</div>"
+            f'<div class="timing-tag">{tag}</div>'
+            "</div>"
+        )
+    st.markdown(
+        "### Why this start\n"
+        "Same jobs, same shift length, different starting hour. Shorter is cooler."
+    )
+    st.markdown(
+        '<div class="timing-bars">' + "".join(rows) + "</div>",
+        unsafe_allow_html=True,
+    )
+    held = plan.windows.held_job_ids
+    if held:
+        blocking = plan.windows.earliest_held_start
+        st.caption(
+            f"{len(held)} site(s) cannot be visited before "
+            f"{blocking.strftime('%H:%M') if blocking else 'their access window'} "
+            "because of their own access windows, so those hours were not "
+            "available to move: " + ", ".join(escape(job_id) for job_id in held) + "."
+        )
+
+
+def render_model_provenance(plan: SameDayPlan) -> None:
+    """Say exactly what evidence stands behind the prediction."""
+
+    model = plan.climatology
+    evaluation = model.evaluation
+    reading = plan.level_reading
+    unseen = (
+        "not measured"
+        if evaluation.unseen_site_mae_c is None
+        else f"{evaluation.unseen_site_mae_c:.2f} °C"
+    )
+    st.markdown("#### What this prediction is built on")
+    columns = st.columns(4)
+    columns[0].metric(
+        "Today's measured level",
+        f"{reading.area_mean_c:.1f} °C",
+        help=(
+            "FortyGuard's whole-day aggregate for this area, read "
+            f"{reading.collected_at_utc:%d %b %H:%M} UTC. This is the only "
+            "same-day signal the API returns; hourly data is historical only."
+        ),
+    )
+    columns[1].metric(
+        "Held-out error",
+        f"{evaluation.mean_absolute_error_c:.2f} °C",
+        help=(
+            "Mean absolute error on "
+            f"{len(evaluation.holdout_dates)} day(s) the model never trained on. "
+            f"Worst single reading: {evaluation.worst_absolute_error_c:.2f} °C."
+        ),
+    )
+    columns[2].metric(
+        "Error at unseen sites",
+        unseen,
+        help=(
+            "Each site was removed from training in turn and predicted from the "
+            "others. This is what justifies applying one area model to work "
+            "sites you place yourself."
+        ),
+    )
+    columns[3].metric(
+        "Trained on",
+        f"{len(model.training_dates)} days",
+        help=(
+            "Hour offsets learned from "
+            f"{model.training_dates[0]:%d %b} to {model.training_dates[-1]:%d %b} "
+            f"at {model.granularity_m} m resolution."
+        ),
+    )
+    st.caption(
+        f"Interval: ± {plan.interval_radius_c:.1f} °C at {plan.coverage:.0%} "
+        "coverage, from a split-conformal quantile over "
+        f"{len(evaluation.day_scores_c)} held-out day(s). Whole days are the "
+        "unit, not individual readings, because a day runs hot or cool as a "
+        "whole. Fewer days means a wider honest interval, never a tighter "
+        "claim. The plan is built on the top of this interval, not its middle."
+    )
+
+
+def render_ordering_finding(plan: SameDayPlan) -> None:
+    """Report the reordering result honestly, including when it is nothing."""
+
+    st.markdown("#### Does the visit order matter today?")
+    reduction = relative_exposure_reduction(
+        plan.efficient_plan.total_raw_exposure_units,
+        plan.heat_aware_plan.total_raw_exposure_units,
+    )
+    if plan.reorder_changes_sequence and reduction and reduction >= 0.005:
+        st.success(
+            f"Yes — reordering the stops avoids a further {reduction:.1%} of "
+            "modelled exposure at this start time."
+        )
+    else:
+        st.info(
+            "No. At this start time the heat-aware search found no sequence "
+            "worth changing. That matches what backtesting showed across "
+            "Phoenix, Houston and Miami: site-to-site spread (0.32–2.32 °C) is "
+            "far smaller than the swing across the day (5.2–9.3 °C), so *when* "
+            "the crew works dominates *what order* they work in. CertiRoute "
+            "keeps the efficient order and moves the shift instead."
+        )
+
+
+def render_predicted_conditions(plan: SameDayPlan) -> None:
+    """Expose the exact predicted numbers behind the schedule."""
+
+    st.markdown("#### Predicted conditions at each stop")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Stop": stop.sequence,
+                    "Work order": stop.job_id,
+                    "Site and task": stop.job_name,
+                    "Start": minute_label(stop.start_minute),
+                    "Finish": minute_label(stop.finish_minute),
+                    "Planned-against temperature": f"{stop.temperature_c:.1f} °C",
+                }
+                for stop in plan.crew_plan.stops
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Stop": st.column_config.NumberColumn(width="small"),
+            "Work order": st.column_config.TextColumn(width="small"),
+            "Site and task": st.column_config.TextColumn(width="large"),
+        },
+    )
+    st.caption(
+        "These are upper-bound temperatures: the prediction plus the calibrated "
+        f"± {plan.interval_radius_c:.1f} °C. A day that runs hotter than "
+        "expected still lands inside the assumption this schedule was built on."
+    )
+
+
+def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
+    """Crew view first; the model's workings stay one click away."""
+
+    st.markdown("## Today's plan")
+    view = st.segmented_control(
+        "Result view",
+        options=["Crew route", "Planner details"],
+        default="Crew route",
+        key="view_mode",
+        label_visibility="collapsed",
+    )
+    if view == "Planner details":
+        st.markdown("### Planner details")
+        st.caption(
+            "For dispatchers and reviewers: what the prediction rests on, how "
+            "wide it is, and what the scheduler did with it."
+        )
+        render_model_provenance(plan)
+        render_ordering_finding(plan)
+        render_predicted_conditions(plan)
+        render_safety_boundary(compact=False)
+        return
+
+    render_start_decision(plan)
+    render_start_options(plan)
+    render_run_sheet(plan.crew_plan, depot)
+    render_safety_boundary(compact=True)
 
 
 def preflight_route(
@@ -1929,6 +2296,148 @@ depot = GeoPoint(
     latitude=map_state.depot.latitude,
     longitude=map_state.depot.longitude,
 )
+planning_today = selected_date >= date.today()
+area_model = trained_model(map_state.operating_area_id)
+
+if planning_today:
+    st.markdown("## Plan today's shift")
+    if area_model is None:
+        st.warning(
+            f"CertiRoute has no trained heat model for "
+            f"**{escape(map_state.operating_area.label)}** yet, so it cannot "
+            "predict today there. Trained areas can be planned live; anywhere "
+            "else, pick a past date above to review a finished day against "
+            "measured temperatures."
+        )
+        render_safety_boundary(compact=True)
+        st.stop()
+
+    candidate_starts = candidate_starts_for(shift_start, shift_end)
+    st.markdown(
+        f"""
+        <div class="build-summary">
+          <strong>{len(domain_jobs)} work sites · {escape(area_model.label)}</strong>
+          CertiRoute reads today's measured heat, predicts the hours ahead, and
+          chooses the coolest start between
+          {candidate_starts[0].strftime("%H:%M")} and
+          {shift_start.strftime("%H:%M")} that still fits every job.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    key_available = api_key_available()
+    plan_clicked = st.button(
+        "Plan today's shift",
+        type="primary",
+        width="stretch",
+        disabled=not key_available,
+    )
+    st.caption(
+        "One FortyGuard request is sent when you press this: today's whole-day "
+        "reading for this area. The hour-by-hour shape is already trained and "
+        "committed. Nothing is invented when data is missing."
+    )
+    if not key_available:
+        st.error(
+            "FortyGuard connection required. Add `FORTYGUARD_API_KEY` to `.env` "
+            "and reload. No substitute temperature data will be generated."
+        )
+
+    today_key = (
+        map_state.operating_area_id,
+        manifest.fingerprint,
+        depot.latitude,
+        depot.longitude,
+        shift_start.isoformat(),
+        shift_end.isoformat(),
+        selected_date.isoformat(),
+    )
+    if st.session_state.get("certiroute_today_key") != today_key:
+        st.session_state.pop("certiroute_today_plan", None)
+        st.session_state.pop("view_mode", None)
+    same_day_plan = st.session_state.get("certiroute_today_plan")
+    if not isinstance(same_day_plan, SameDayPlan):
+        same_day_plan = None
+
+    if plan_clicked:
+        try:
+            with st.status("Reading today's heat…", expanded=True) as status:
+                st.write(f"✓ Read {len(domain_jobs)} work sites and the crew base")
+                preflight_route(
+                    domain_jobs,
+                    depot=depot,
+                    shift_start=shift_start,
+                    shift_end=shift_end,
+                )
+                st.write("✓ Confirmed the crew can finish every job in this shift")
+                reading = read_today_level(
+                    domain_jobs,
+                    HeatmapSnapshotStore(cache_path()),
+                    target_date=selected_date,
+                    granularity=area_model.granularity_m,
+                )
+                st.write(
+                    f"✓ Today measures {reading.area_mean_c:.1f} °C across this area"
+                )
+                same_day_plan = build_same_day_plan(
+                    domain_jobs,
+                    area_model,
+                    reading,
+                    depot=depot,
+                    baseline_start=shift_start,
+                    candidate_starts=candidate_starts,
+                    shift_end=shift_end,
+                    average_travel_speed_kph=AVERAGE_TRAVEL_SPEED_KPH,
+                    reference_temperature_c=REFERENCE_TEMPERATURE_C,
+                    planning_threshold_c=PLANNING_THRESHOLD_C,
+                    uncertainty_penalty=0.0,
+                    heat_weight=HEAT_WEIGHT,
+                )
+                st.write("✓ Compared every start time the crew could work")
+                status.update(label="Today's plan is ready", state="complete")
+        except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
+            same_day_plan = None
+            st.error(
+                "No complete depot-to-depot route fits these job windows and "
+                "shift. Shorten a visit, lengthen the shift, or remove a distant "
+                f"job, then try again. Details: {exc}"
+            )
+        except (PlanningCoverageError, ProfileCoverageError) as exc:
+            same_day_plan = None
+            st.error(
+                f"This shift reaches beyond what the trained model covers: {exc}"
+            )
+        except HeatmapCoverageError as exc:
+            same_day_plan = None
+            st.error(
+                "FortyGuard returned no temperature tile covering one of these "
+                f"sites. Move that point slightly and try again. Details: {exc}"
+            )
+        except InsufficientHistoryError as exc:
+            same_day_plan = None
+            st.error(f"The trained model cannot support this plan: {exc}")
+        except (
+            CacheCorruptionError,
+            FortyGuardError,
+            LookupError,
+            ValidationError,
+            ValueError,
+        ) as exc:
+            same_day_plan = None
+            st.error(f"Today's heat reading could not be completed: {exc}")
+
+    if same_day_plan is not None:
+        st.session_state["certiroute_today_key"] = today_key
+        st.session_state["certiroute_today_plan"] = same_day_plan
+        with route_result_slot:
+            render_result_mode_styles()
+            render_same_day_result(same_day_plan, depot)
+    else:
+        render_empty_state(job_count=len(domain_jobs))
+        st.markdown("---")
+        render_safety_boundary(compact=True)
+    st.stop()
+
 sample_times = hourly_sample_times(shift_start, shift_end)
 try:
     profile_requests = build_clustered_profile_requests(

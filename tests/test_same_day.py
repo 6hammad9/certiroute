@@ -11,6 +11,7 @@ from certiroute.forecasting import DailyLevelShape
 from certiroute.same_day import (
     PlanningCoverageError,
     build_same_day_plan,
+    relax_windows_to,
     required_minutes,
 )
 
@@ -202,3 +203,87 @@ def test_a_flat_day_leaves_the_start_alone(jobs) -> None:
 
     assert plan.recommended_start == time(8, 0)
     assert not plan.changes_the_start
+
+
+# --- Job windows that only inherited the shift ------------------------------
+#
+# A window pinned to the crew's usual start is not a site constraint. Leaving
+# it fixed makes every earlier start infeasible, and the recommendation then
+# collapses back to the status quo for a reason that has nothing to do with
+# heat. These tests pin that distinction.
+
+
+def test_windows_pinned_to_the_usual_start_move_with_the_shift(jobs) -> None:
+    pinned = [job.model_copy(update={"earliest_start": time(8, 0)}) for job in jobs]
+
+    relaxed = relax_windows_to(
+        pinned, baseline_start=time(8, 0), earliest_start=time(5, 0)
+    )
+
+    assert relaxed.moved_job_ids == ("J1", "J2", "J3")
+    assert relaxed.held_job_ids == ()
+    assert all(job.earliest_start == time(5, 0) for job in relaxed.jobs)
+
+
+def test_a_genuine_site_constraint_is_left_alone(jobs) -> None:
+    mixed = [
+        jobs[0].model_copy(update={"earliest_start": time(8, 0)}),
+        jobs[1].model_copy(update={"earliest_start": time(10, 0)}),
+        jobs[2].model_copy(update={"earliest_start": None}),
+    ]
+
+    relaxed = relax_windows_to(
+        mixed, baseline_start=time(8, 0), earliest_start=time(5, 0)
+    )
+
+    assert relaxed.moved_job_ids == ("J1",)
+    assert relaxed.held_job_ids == ("J2",)
+    assert relaxed.earliest_held_start == time(10, 0)
+    by_id = {job.job_id: job for job in relaxed.jobs}
+    assert by_id["J1"].earliest_start == time(5, 0)
+    assert by_id["J2"].earliest_start == time(10, 0)
+    assert by_id["J3"].earliest_start is None
+
+
+def test_no_held_window_reports_no_blocking_time(jobs) -> None:
+    relaxed = relax_windows_to(
+        jobs, baseline_start=time(8, 0), earliest_start=time(5, 0)
+    )
+
+    assert relaxed.earliest_held_start is None
+
+
+def test_an_inherited_window_no_longer_blocks_the_early_start(jobs) -> None:
+    """The end-to-end behaviour the relaxation exists to protect."""
+
+    pinned = [job.model_copy(update={"earliest_start": time(8, 0)}) for job in jobs]
+
+    plan = build_same_day_plan(
+        pinned,
+        climatology(),
+        reading(pinned),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+    )
+
+    assert plan.recommended_start == time(5, 0)
+    assert plan.windows.moved_job_ids == ("J1", "J2", "J3")
+
+
+def test_a_real_access_window_still_holds_the_shift(jobs) -> None:
+    late = [job.model_copy(update={"earliest_start": time(9, 0)}) for job in jobs]
+
+    plan = build_same_day_plan(
+        late,
+        climatology(),
+        reading(late),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+    )
+
+    # Nothing can be worked before 09:00, so no earlier start helps and the
+    # tie resolves toward the later hour rather than dragging the crew out.
+    assert plan.windows.held_job_ids == ("J1", "J2", "J3")
+    assert plan.recommended_start == time(8, 0)
