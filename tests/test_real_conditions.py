@@ -343,3 +343,48 @@ def test_profile_request_builder_rejects_duplicate_jobs_before_api_planning() ->
 
     with pytest.raises(ValueError, match="job IDs must be unique"):
         build_profile_requests([job, job], target_date=date(2025, 7, 15))
+
+
+class EmptyResultClient:
+    """FortyGuard returns a completed response with no tiles for some dates."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def create_heatmap(self, request, *, poll_interval_seconds=2.0, max_attempts=60):
+        del poll_interval_seconds, max_attempts
+        self.calls += 1
+        return "activity-empty", {
+            "map_data": {"type": "FeatureCollection", "features": []}
+        }
+
+
+def test_a_result_with_no_tiles_is_never_cached(tmp_path) -> None:
+    """An empty completed response must not poison the date permanently.
+
+    The store is append-only, so caching a zero-tile answer would make every
+    later read a cache hit on nothing, with no way to refetch. Failing loudly
+    keeps the gap visible.
+    """
+
+    from certiroute.fortyguard.errors import FortyGuardProtocolError
+
+    jobs = [
+        _job("A", longitude=-112.08, latitude=33.44),
+        _job("B", longitude=-112.06, latitude=33.46),
+    ]
+    store = HeatmapSnapshotStore(tmp_path)
+    requests = build_profile_requests(
+        jobs, target_date=date(2026, 8, 22), sample_times=(time(8, 0),)
+    )
+    client = EmptyResultClient()
+
+    with pytest.raises(FortyGuardProtocolError, match="no temperature tiles"):
+        collect_real_temperature_batch(
+            jobs, requests, store, client=client, max_new_tasks=1
+        )
+
+    assert client.calls == 1
+    assert _main_snapshot_files(tmp_path) == ()
+    # The date stays collectable rather than being permanently answered.
+    assert plan_profile_collection(requests, store).new_task_count == 1

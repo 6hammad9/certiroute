@@ -21,6 +21,7 @@ from certiroute.collection import (
     heatmap_request_fingerprint,
 )
 from certiroute.domain import GeoPoint, Job
+from certiroute.fortyguard.errors import FortyGuardProtocolError
 from certiroute.fortyguard.geometry import (
     DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
     bounding_polygon,
@@ -598,6 +599,7 @@ def _collect_snapshots_from_plan(
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
         )
+        _reject_empty_result(request, result)
         collected_at = _utc_now(get_now())
         snapshots[minute] = store.publish(
             request,
@@ -608,6 +610,35 @@ def _collect_snapshots_from_plan(
         )
 
     return dict(sorted(snapshots.items())), cache_hits
+
+
+def _reject_empty_result(
+    request: HeatmapRequest, result: Mapping[str, Any]
+) -> None:
+    """Refuse to archive a completed response that carries no tiles.
+
+    FortyGuard returns a well-formed, "completed" result with zero features
+    for dates whose hourly data is not published yet - the immediately
+    preceding day behaves this way. Caching that as evidence poisons the date
+    permanently, because the store is append-only and every later read is a
+    cache hit on an empty answer. Failing here keeps the gap visible and
+    re-fetchable.
+    """
+
+    features = result.get("map_data", {})
+    if isinstance(features, Mapping):
+        features = features.get("features")
+    if isinstance(features, Sequence) and not isinstance(features, str | bytes):
+        if features:
+            return
+    else:
+        return
+    moment = request.date_time
+    raise FortyGuardProtocolError(
+        f"FortyGuard returned no temperature tiles for "
+        f"{moment.start_date.isoformat()} {moment.start_time:%H:%M}. Hourly "
+        "data for this date is not available yet; nothing was cached."
+    )
 
 
 def _build_clustered_batch(
