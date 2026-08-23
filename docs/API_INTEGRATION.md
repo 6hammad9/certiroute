@@ -140,21 +140,43 @@ Evidence that type 3 ignores the hour: for the same past date, 06:00, 14:00
 and 20:00 all returned a mean of exactly 37.9728 C, while filter type 1 gave
 34.28 C at 06:00 and 41.82 C at 14:00.
 
+### Hourly history lags by more than one day
+
+Observed on 2026-08-23: every hour of 2026-08-22 returned zero tiles, while
+2026-08-21 returned full data for all thirteen requested hours. The empty
+window is therefore *at least* the current day and the one before it, not the
+current day alone.
+
+This matters more than it first appears, because the empty response is
+**well-formed and reports success**. It arrives as `completed` with
+`{"map_data": {"features": []}}` and no error field, so a naive collector
+archives it as evidence. CertiRoute's snapshot store is append-only by design,
+which means a cached empty answer is permanent: every later read is a cache hit
+on nothing and the date can never be collected again. Thirteen such records
+were written before this was caught. Empty results are now rejected in
+`real_conditions._reject_empty_result` before they reach the store, and
+`tests/test_real_conditions.py` holds the behaviour.
+
+Practical consequence: a review or grading run should target dates at least two
+days back, and any date can legitimately be uncollectable rather than merely
+uncached.
+
 ### What this means
 
 FortyGuard advertises 12-hour forecasting in its Temperature Dashboard, but
 **no hourly forecast is reachable through this heatmap API**. Consequences:
 
 - Hourly forecast-versus-realization residuals cannot be collected, so
-  forecast-skill calibration is blocked by the API surface, not by calendar
-  time. Multi-lead prediction intervals are not currently possible.
-- Same-day planning can only use a daily aggregate, not an hourly curve.
-- Historical replay - what the product does today - is fully supported and is
-  the only mode with true hourly resolution.
+  vendor forecast-skill calibration is blocked by the API surface, not by
+  calendar time. Multi-lead prediction intervals are not currently possible.
+- Same-day planning can only be anchored on the daily aggregate. This is what
+  CertiRoute does: it learns the hourly *shape* offline from historical days
+  and applies it to today's aggregate. See `src/certiroute/climatology.py`.
+- Historical replay is fully supported and is the only mode with true hourly
+  resolution, so it is what grading runs against.
 
-Any claim about predicting future temperature must be qualified accordingly,
-or must come from a model we build on historical data rather than from the
-vendor.
+Any claim about predicting future temperature must come from a model built on
+historical data, never from the vendor, and must be qualified accordingly.
 
 ## Known documentation ambiguities
 

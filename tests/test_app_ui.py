@@ -25,7 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 APP_PATH = PROJECT_ROOT / "app" / "main.py"
 SAMPLE_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
 REPLAY_DATE = date(2026, 7, 15)
-SAMPLE_TIMES = tuple(time(hour) for hour in range(8, 18))
+# Reviewing a day collects back to the earliest candidate start, because
+# grading has to see the hours it is asked to judge.
+SAMPLE_TIMES = tuple(time(hour) for hour in range(5, 18))
 
 # The last site heats rapidly in this deterministic API-shaped fixture. This
 # gives the real-data UI a meaningful, reproducible scheduling trade-off.
@@ -650,12 +652,14 @@ def test_planner_view_exposes_auditable_api_evidence(
     source_records = _dataframe_with_column(app, "FortyGuard activity ID")
 
     assert "FortyGuard Temperature API" in text
-    assert "10 heatmaps across 1 area" in text
+    assert "13 heatmaps across 1 area" in text
     assert "60 m" in text
     assert "No synthetic or substitute temperature profile" in text
     assert len(temperatures) == 6
-    assert list(temperatures.columns[1:]) == [f"{hour:02d}:00" for hour in range(8, 18)]
-    assert len(source_records) == 10
+    assert list(temperatures.columns[1:]) == [
+        f"{hour:02d}:00" for hour in range(5, 18)
+    ]
+    assert len(source_records) == 13
     assert (source_records["Heat-data area"] == 1).all()
     assert (source_records["Retrieved"] == "Saved API response").all()
     assert (

@@ -94,7 +94,6 @@ DEFAULT_CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapsho
 CLIMATOLOGY_ROOT = PROJECT_ROOT / "data" / "climatology"
 
 EXAMPLE_DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
-DEFAULT_REPLAY_DATE = date(2026, 7, 15)
 EXAMPLE_SHIFT_START = time(8)
 EXAMPLE_SHIFT_END = time(17)
 GRANULARITY_METRES = 60
@@ -602,6 +601,8 @@ def inject_styles() -> None:
             .journey-panel { min-height: 0; }
             .bento { grid-template-columns: 1fr; }
             .bento-hero, .bento-tile { grid-column: span 1; grid-row: auto; }
+            .timing-row { grid-template-columns: 3.1rem 1fr; }
+            .timing-tag { grid-column: 2; text-align: left; }
             .route-summary { grid-template-columns: 1fr; }
             .route-stop { grid-template-columns: 2.65rem minmax(0, 1fr); }
             .route-stop-time {
@@ -2599,7 +2600,11 @@ if planning_today:
         render_safety_boundary(compact=True)
     st.stop()
 
-sample_times = hourly_sample_times(shift_start, shift_end)
+# Reviewing a day exists to grade earlier starts against it, so the measured
+# hours have to reach back to the earliest candidate. Collecting only the
+# entered shift would leave the grader unable to see the hours it must judge.
+review_candidates = candidate_starts_for(shift_start, shift_end)
+sample_times = hourly_sample_times(min(review_candidates), shift_end)
 try:
     profile_requests = build_clustered_profile_requests(
         domain_jobs,
