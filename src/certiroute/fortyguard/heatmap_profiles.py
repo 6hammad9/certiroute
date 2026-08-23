@@ -323,6 +323,22 @@ def _is_sequence(value: Any) -> bool:
     )
 
 
+def heatmap_has_tiles(result: Mapping[str, Any]) -> bool:
+    """Whether a completed heatmap result actually carries any tiles.
+
+    FortyGuard answers with a well-formed, successful response containing zero
+    features for dates it has not published yet. Callers that archive results
+    must check this first: an empty answer stored as evidence is worse than no
+    answer, because an append-only cache makes it permanent.
+    """
+
+    map_data = result.get("map_data")
+    if not isinstance(map_data, Mapping):
+        return False
+    features = map_data.get("features")
+    return _is_sequence(features) and bool(features)
+
+
 __all__ = [
     "HeatmapCoverageError",
     "HeatmapTile",
@@ -330,5 +346,6 @@ __all__ = [
     "build_temperature_profiles",
     "extract_heatmap_tiles",
     "geometry_covers_point",
+    "heatmap_has_tiles",
     "map_job_temperatures",
 ]

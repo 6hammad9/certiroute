@@ -34,7 +34,11 @@ from certiroute.collection import (
     heatmap_request_fingerprint,
 )
 from certiroute.config import get_settings
-from certiroute.daily_level import DailyLevelReading, collect_daily_level
+from certiroute.daily_level import (
+    DailyLevelReading,
+    DailyLevelUnavailableError,
+    collect_daily_level,
+)
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
@@ -2569,6 +2573,13 @@ if planning_today:
                 "No complete depot-to-depot route fits these job windows and "
                 "shift. Shorten a visit, lengthen the shift, or remove a distant "
                 f"job, then try again. Details: {exc}"
+            )
+        except DailyLevelUnavailableError as exc:
+            same_day_plan = None
+            st.warning(
+                f"FortyGuard has not published today's reading for this area "
+                f"yet, so there is nothing measured to plan from. {exc} Try "
+                "again later in the morning, or review a finished day below."
             )
         except OutsideTrainedAreaError as exc:
             same_day_plan = None

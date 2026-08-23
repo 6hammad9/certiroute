@@ -157,9 +157,23 @@ were written before this was caught. Empty results are now rejected in
 `real_conditions._reject_empty_result` before they reach the store, and
 `tests/test_real_conditions.py` holds the behaviour.
 
+### The whole-day aggregate appears during the day, not at midnight
+
+Filter type 3 for the current date is only populated once FortyGuard has
+something to aggregate. Observed on 2026-08-23 at 18:07 UTC: 39.22 C returned
+normally. Observed on 2026-08-24 at 00:07 local (07:07 UTC, seven minutes into
+the local day): zero tiles, again as a successful response.
+
+So the same-day anchor - the only same-day signal that exists - has a daily
+window of availability. CertiRoute raises `DailyLevelUnavailableError` rather
+than caching the empty answer, and the app tells the dispatcher to try later
+in the morning instead of showing a protocol error. This is a real operating
+constraint, not a defect: there is genuinely nothing measured to plan from
+before the day has produced any.
+
 Practical consequence: a review or grading run should target dates at least two
 days back, and any date can legitimately be uncollectable rather than merely
-uncached.
+uncached. Same-day planning should be attempted during working hours.
 
 ### What this means
 

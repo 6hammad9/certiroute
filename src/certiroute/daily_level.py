@@ -20,7 +20,10 @@ from datetime import UTC, date, datetime, timedelta
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.domain import Job
 from certiroute.fortyguard.client import FortyGuardClient
-from certiroute.fortyguard.heatmap_profiles import map_job_temperatures
+from certiroute.fortyguard.heatmap_profiles import (
+    heatmap_has_tiles,
+    map_job_temperatures,
+)
 from certiroute.fortyguard.schemas import (
     DailyAggregateDateTime,
     HeatmapRequest,
@@ -30,6 +33,10 @@ from certiroute.fortyguard.schemas import (
 # Today's aggregate keeps moving as the day completes, so a cached copy is
 # only reused briefly. A finished day is immutable and never expires.
 DEFAULT_LIVE_LEVEL_TTL = timedelta(minutes=30)
+
+
+class DailyLevelUnavailableError(LookupError):
+    """FortyGuard has not published a whole-day reading for this date."""
 
 
 @dataclass(frozen=True)
@@ -123,6 +130,14 @@ def collect_daily_level(
             max_attempts=max_attempts,
         )
     )
+    if not heatmap_has_tiles(raw_result):
+        # Early in a day the aggregate is not published yet: the response is
+        # successful and empty. Caching it would answer the date with nothing
+        # for as long as the record survives, so it is refused here.
+        raise DailyLevelUnavailableError(
+            f"FortyGuard has not published a whole-day reading for "
+            f"{target_date.isoformat()} yet. Nothing was cached."
+        )
     stored = store.publish(
         request,
         raw_result=raw_result,
@@ -145,6 +160,7 @@ def collect_daily_level(
 __all__ = [
     "DEFAULT_LIVE_LEVEL_TTL",
     "DailyLevelReading",
+    "DailyLevelUnavailableError",
     "build_daily_level_request",
     "collect_daily_level",
 ]

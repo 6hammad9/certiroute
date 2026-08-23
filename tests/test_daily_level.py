@@ -6,6 +6,7 @@ import pytest
 
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.daily_level import (
+    DailyLevelUnavailableError,
     build_daily_level_request,
     collect_daily_level,
 )
@@ -179,3 +180,42 @@ def test_no_jobs_is_refused(tmp_path) -> None:
         collect_daily_level(
             [], POLYGON, store, target_date=TODAY, client=FakeClient(), now_utc=NOW
         )
+
+
+class EmptyClient:
+    """FortyGuard answers successfully with no tiles before a day is published."""
+
+    def __init__(self) -> None:
+        self.submitted = 0
+
+    def submit_heatmap(self, request):
+        self.submitted += 1
+        return "activity-empty"
+
+    def wait_for_activity(self, activity_id, **_):
+        return {"map_data": {"type": "FeatureCollection", "features": []}}
+
+
+def test_an_unpublished_day_is_refused_and_never_cached(tmp_path) -> None:
+    """Early in a day the aggregate does not exist yet, and says so as success.
+
+    Caching that answer would make the date permanently unreadable for as long
+    as the record survives, so it must not reach the store.
+    """
+
+    store = HeatmapSnapshotStore(tmp_path)
+    client = EmptyClient()
+
+    with pytest.raises(
+        DailyLevelUnavailableError, match="has not published a whole-day reading"
+    ):
+        collect_daily_level(
+            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
+            client=client, now_utc=NOW,
+        )
+
+    assert client.submitted == 1
+    # Nothing was written, so a later read can still succeed.
+    assert not [
+        path for path in tmp_path.rglob("*.json") if ".request_index" not in path.parts
+    ]
