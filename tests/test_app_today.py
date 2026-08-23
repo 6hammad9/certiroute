@@ -264,8 +264,11 @@ def test_every_candidate_start_is_shown_with_the_chosen_one_marked(
 
     for label in ("05:00", "06:00", "07:00", "08:00"):
         assert f'<div class="timing-label">{label}</div>' in text
-    assert "Recommended" in text
-    assert "Your usual" in text
+    # Each option is labelled with the heat it avoids against the usual start,
+    # which is the quantity the decision turns on.
+    assert "cooler" in text
+    assert "your usual" in text
+    assert 'class="timing-row picked"' in text
 
 
 def test_the_crew_view_keeps_model_detail_out_of_the_way(today_states) -> None:

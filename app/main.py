@@ -1960,7 +1960,12 @@ def render_start_decision(plan: SameDayPlan) -> None:
 
     if plan.changes_the_start and reduction is not None and reduction >= 0.005:
         hours, minutes = divmod(abs(plan.minutes_earlier), 60)
-        amount = f"{hours}h {minutes:02d}m" if hours else f"{minutes} min"
+        if hours and minutes:
+            amount = f"{hours}h {minutes}m"
+        elif hours:
+            amount = "an hour" if hours == 1 else f"{hours} hours"
+        else:
+            amount = f"{minutes} minutes"
         direction = "earlier" if plan.minutes_earlier > 0 else "later"
         label = "Move the shift"
         title = f"Start at {start}"
@@ -2020,28 +2025,44 @@ def render_start_options(plan: SameDayPlan) -> None:
     ]
     if len(feasible) < 2:
         return
-    worst = max(option.exposure_units for option in feasible)
-    if worst <= 0:
+    by_start = {option.shift_start: option.exposure_units for option in feasible}
+    usual = by_start.get(plan.baseline_start)
+    worst = max(by_start.values())
+    if not usual or worst <= 0:
         return
+
+    # Exposure never approaches zero across these options, so a zero-based bar
+    # would make every start look alike. The bar shows heat avoided against the
+    # crew's usual start, which is the quantity the decision actually turns on,
+    # and the usual start is drawn as the empty baseline it is.
+    savings = {start: max(usual - units, 0.0) for start, units in by_start.items()}
+    best_saving = max(savings.values())
 
     rows: list[str] = []
     for option in feasible:
-        share = option.exposure_units / worst
+        saving = savings[option.shift_start]
+        share = 0.0 if best_saving <= 0 else saving / best_saving
         is_pick = option.shift_start == plan.recommended_start
         is_usual = option.shift_start == plan.baseline_start
-        tag = "Recommended" if is_pick else ("Your usual" if is_usual else "")
+        if is_usual:
+            value = "your usual"
+        elif saving <= 0:
+            value = "no gain"
+        else:
+            value = f"{saving / usual:.0%} cooler"
         rows.append(
             f'<div class="timing-row{" picked" if is_pick else ""}">'
             f'<div class="timing-label">{option.shift_start.strftime("%H:%M")}</div>'
             '<div class="timing-track">'
-            f'<div class="timing-bar" style="width:{max(share, 0.04):.1%}"></div>'
+            f'<div class="timing-bar" style="width:{max(share, 0.015):.1%}"></div>'
             "</div>"
-            f'<div class="timing-tag">{tag}</div>'
+            f'<div class="timing-tag">{escape(value)}</div>'
             "</div>"
         )
     st.markdown(
         "### Why this start\n"
-        "Same jobs, same shift length, different starting hour. Shorter is cooler."
+        "Same jobs, same shift length, different starting hour. Longer bars mean "
+        "more heat avoided against your usual start."
     )
     st.markdown(
         '<div class="timing-bars">' + "".join(rows) + "</div>",
