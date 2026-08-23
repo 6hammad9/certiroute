@@ -219,3 +219,29 @@ def test_an_unpublished_day_is_refused_and_never_cached(tmp_path) -> None:
     assert not [
         path for path in tmp_path.rglob("*.json") if ".request_index" not in path.parts
     ]
+
+
+def test_a_tile_less_cached_record_is_ignored_not_trusted(tmp_path) -> None:
+    """A poisoned record must not answer the date for as long as it survives."""
+
+    from certiroute.collection import SnapshotTemporalScope
+
+    store = HeatmapSnapshotStore(tmp_path)
+    store.publish(
+        build_daily_level_request(POLYGON, target_date=TODAY, granularity=60),
+        raw_result={"map_data": {"type": "FeatureCollection", "features": []}},
+        activity_id="poisoned",
+        temporal_scope=SnapshotTemporalScope.CURRENT_OR_FORECAST,
+        collected_at_utc=NOW,
+    )
+    client = FakeClient(37.5)
+
+    reading = collect_daily_level(
+        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
+        client=client, now_utc=NOW,
+    )
+
+    # The empty record was skipped and a real reading collected in its place.
+    assert not reading.cache_hit
+    assert reading.level_by_job["A"] == pytest.approx(37.5)
+    assert len(client.submitted) == 1

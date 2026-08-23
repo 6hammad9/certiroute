@@ -388,3 +388,30 @@ def test_a_result_with_no_tiles_is_never_cached(tmp_path) -> None:
     assert _main_snapshot_files(tmp_path) == ()
     # The date stays collectable rather than being permanently answered.
     assert plan_profile_collection(requests, store).new_task_count == 1
+
+
+def test_a_tile_less_cached_snapshot_is_not_a_cache_hit(tmp_path) -> None:
+    """Records written before empty results were rejected must not answer."""
+
+    from certiroute.collection import SnapshotTemporalScope
+
+    jobs = [
+        _job("A", longitude=-112.08, latitude=33.44),
+        _job("B", longitude=-112.06, latitude=33.46),
+    ]
+    store = HeatmapSnapshotStore(tmp_path)
+    requests = build_profile_requests(
+        jobs, target_date=date(2026, 8, 10), sample_times=(time(8, 0),)
+    )
+    store.publish(
+        requests[8 * 60],
+        raw_result={"map_data": {"type": "FeatureCollection", "features": []}},
+        activity_id="poisoned",
+        temporal_scope=SnapshotTemporalScope.HISTORICAL,
+        collected_at_utc=datetime(2026, 8, 11, tzinfo=UTC),
+    )
+
+    plan = plan_profile_collection(requests, store)
+
+    assert plan.new_task_count == 1
+    assert plan.cache_hit_count == 0

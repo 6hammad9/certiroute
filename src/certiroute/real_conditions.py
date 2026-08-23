@@ -31,6 +31,7 @@ from certiroute.fortyguard.geometry import (
 from certiroute.fortyguard.heatmap_profiles import (
     build_temperature_profiles,
     geometry_covers_point,
+    heatmap_has_tiles,
 )
 from certiroute.fortyguard.schemas import HeatmapRequest, SingleHourDateTime
 from certiroute.optimization import TemperatureProfile
@@ -716,16 +717,24 @@ def _select_reusable_snapshot(
     live_ttl: timedelta,
 ) -> HeatmapSnapshot | None:
     scope = _temporal_scope(request, now_utc=now_utc)
+    # A tile-less record - written before empty results were rejected, or by
+    # another tool - is not a usable answer. Skipping it lets the date be
+    # collected again instead of failing for as long as the record survives.
+    usable = [
+        snapshot
+        for snapshot in candidates
+        if heatmap_has_tiles(snapshot.raw_result)
+    ]
     if scope is SnapshotTemporalScope.HISTORICAL:
         historical = [
             snapshot
-            for snapshot in candidates
+            for snapshot in usable
             if snapshot.temporal_scope is SnapshotTemporalScope.HISTORICAL
         ]
         return historical[-1] if historical else None
     if not isinstance(live_ttl, timedelta) or live_ttl <= timedelta(0):
         raise ValueError("ttl must be an explicit positive timedelta")
-    for snapshot in reversed(candidates):
+    for snapshot in reversed(usable):
         if snapshot.temporal_scope is not SnapshotTemporalScope.CURRENT_OR_FORECAST:
             continue
         age = now_utc - snapshot.collected_at_utc

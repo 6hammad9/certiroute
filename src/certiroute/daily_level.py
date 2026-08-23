@@ -107,6 +107,11 @@ def collect_daily_level(
         if is_finished_day
         else store.lookup_current_or_forecast(request, ttl=live_ttl, now_utc=now)
     )
+    # A record written before empty results were rejected, or by another tool,
+    # must not be trusted just because it exists. Treating it as absent lets
+    # the date recover instead of failing for as long as the record survives.
+    if cached is not None and not heatmap_has_tiles(cached.raw_result):
+        cached = None
     if cached is not None:
         return DailyLevelReading(
             target_date=target_date,
