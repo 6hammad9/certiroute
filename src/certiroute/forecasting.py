@@ -102,6 +102,97 @@ class CalibratedForecast:
         )
 
 
+@dataclass(frozen=True)
+class DailyLevelShape:
+    """Hour offsets measured against a whole-day level, not against an hour.
+
+    FortyGuard returns no hourly value for the current date, but it does return
+    a whole-day aggregate for it. Anchoring on that aggregate is therefore the
+    only way to condition a forecast on same-day information at all, which is
+    what separates a planning tool from a replay of the past.
+
+    Measured on real Phoenix days the offsets are highly stable - 08:00 sat
+    1.56 and 1.55 C below the aggregate on consecutive days - which is why this
+    anchor works despite being a single scalar for the whole day.
+    """
+
+    offsets_by_minute: dict[int, float]
+    sample_counts: dict[int, int]
+    day_count: int
+
+    @property
+    def covered_minutes(self) -> tuple[int, ...]:
+        return tuple(sorted(self.offsets_by_minute))
+
+    def offset_at(self, minute_of_day: int) -> float:
+        try:
+            return self.offsets_by_minute[minute_of_day]
+        except KeyError as exc:
+            raise InsufficientHistoryError(
+                f"no learned offset for minute {minute_of_day}"
+            ) from exc
+
+    def predict(self, daily_level_c: float) -> dict[int, float]:
+        """Apply the learned offsets to a day's aggregate level."""
+
+        if not self.offsets_by_minute:
+            raise InsufficientHistoryError("shape covers no minutes")
+        return {
+            minute: daily_level_c + offset
+            for minute, offset in sorted(self.offsets_by_minute.items())
+        }
+
+
+def learn_daily_level_shape(
+    history: Sequence[tuple[float, Mapping[str, TemperatureProfile]]],
+) -> DailyLevelShape:
+    """Learn each hour's offset from its day's aggregate level.
+
+    ``history`` pairs a day's whole-day aggregate with that day's measured
+    hourly profiles.
+    """
+
+    if not history:
+        raise InsufficientHistoryError("at least one historical day is required")
+
+    totals: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    used_days = 0
+    for level, day in history:
+        contributed = False
+        for profile in day.values():
+            for minute, value in _readings(profile).items():
+                totals[minute] = totals.get(minute, 0.0) + (value - level)
+                counts[minute] = counts.get(minute, 0) + 1
+                contributed = True
+        if contributed:
+            used_days += 1
+
+    if not totals:
+        raise InsufficientHistoryError("no historical profile contained readings")
+    return DailyLevelShape(
+        offsets_by_minute={m: totals[m] / counts[m] for m in totals},
+        sample_counts=dict(counts),
+        day_count=used_days,
+    )
+
+
+def daily_level_residuals(
+    shape: DailyLevelShape,
+    held_out: Sequence[tuple[float, Mapping[str, TemperatureProfile]]],
+) -> list[float]:
+    """Signed errors on days the offsets were not learned from."""
+
+    residuals: list[float] = []
+    for level, day in held_out:
+        predicted = shape.predict(level)
+        for profile in day.values():
+            for minute, actual in _readings(profile).items():
+                if minute in predicted:
+                    residuals.append(predicted[minute] - actual)
+    return residuals
+
+
 def _readings(profile: TemperatureProfile) -> dict[int, float]:
     return {point.minute_of_day: point.temperature_c for point in profile.points}
 
@@ -267,11 +358,14 @@ def empirical_coverage(
 __all__ = [
     "NEUTRAL_CERTAINTY",
     "CalibratedForecast",
+    "DailyLevelShape",
     "DiurnalShape",
     "InsufficientHistoryError",
     "calibrate_forecast",
+    "daily_level_residuals",
     "day_blocked_residual_scores",
     "empirical_coverage",
+    "learn_daily_level_shape",
     "learn_diurnal_shape",
     "predict_from_anchor",
     "shape_residuals",

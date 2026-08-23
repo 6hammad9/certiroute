@@ -5,7 +5,9 @@ import pytest
 from certiroute.forecasting import (
     InsufficientHistoryError,
     calibrate_forecast,
+    daily_level_residuals,
     empirical_coverage,
+    learn_daily_level_shape,
     learn_diurnal_shape,
     predict_from_anchor,
     shape_residuals,
@@ -133,3 +135,61 @@ def test_coverage_helper_validates_its_inputs() -> None:
         empirical_coverage([], 1.0)
     with pytest.raises(ValueError, match="cannot be negative"):
         empirical_coverage([0.5], -1.0)
+
+
+# --- Same-day anchoring on the whole-day aggregate -------------------------
+#
+# filter_type=1 returns nothing for the current date, so an hourly anchor is
+# unavailable today. The whole-day aggregate is the only same-day signal the
+# API exposes, and these tests pin the behaviour that depends on it.
+
+
+def test_daily_level_offsets_are_learned_against_each_day_aggregate() -> None:
+    history = [
+        (35.0, day({8 * 60: 33.0, 14 * 60: 39.0})),
+        (37.0, day({8 * 60: 35.0, 14 * 60: 41.0})),
+    ]
+
+    shape = learn_daily_level_shape(history)
+
+    # Both days sit 2 C below the aggregate at 08:00 and 4 C above at 14:00,
+    # even though their absolute levels differ by 2 C.
+    assert shape.offset_at(8 * 60) == pytest.approx(-2.0)
+    assert shape.offset_at(14 * 60) == pytest.approx(4.0)
+    assert shape.day_count == 2
+
+
+def test_prediction_applies_offsets_to_todays_aggregate() -> None:
+    shape = learn_daily_level_shape(
+        [(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))]
+    )
+
+    predicted = shape.predict(40.0)
+
+    assert predicted[8 * 60] == pytest.approx(38.0)
+    assert predicted[14 * 60] == pytest.approx(44.0)
+
+
+def test_daily_level_residuals_measure_held_out_error() -> None:
+    shape = learn_daily_level_shape(
+        [(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))]
+    )
+    # Held-out day runs 1 C hotter than the offsets predict at every hour.
+    held_out = [(36.0, day({8 * 60: 35.0, 14 * 60: 41.0}))]
+
+    residuals = daily_level_residuals(shape, held_out)
+
+    assert len(residuals) == 4
+    assert all(value == pytest.approx(-1.0) for value in residuals)
+
+
+def test_empty_daily_level_history_is_refused() -> None:
+    with pytest.raises(InsufficientHistoryError, match="at least one"):
+        learn_daily_level_shape([])
+
+
+def test_unlearned_minute_is_refused_rather_than_guessed() -> None:
+    shape = learn_daily_level_shape([(35.0, day({8 * 60: 33.0}))])
+
+    with pytest.raises(InsufficientHistoryError, match="no learned offset"):
+        shape.offset_at(14 * 60)
