@@ -16,13 +16,40 @@ a crew works dominates *what order* they work in by roughly an order of
 magnitude. CertiRoute still computes the heat-aware order, and still reports it
 - including when it changes nothing, which is most of the time.
 
+## Does it work?
+
+Each area model is graded on days after its training window closed, by
+rebuilding the recommendation it would have made that morning from the
+whole-day reading alone - never seeing an hourly value - and replaying every
+candidate start on the temperatures the day actually produced.
+
+| Area | Clean days graded | Picked the best start | Exposure avoided |
+| --- | --- | --- | --- |
+| Phoenix | 4 | 4 / 4 | 19.7-37.1% |
+| Houston | 2 | 2 / 2 | 47.7-58.6% |
+
+Zero regret on all six: no other start time would have been cooler. Houston's
+larger savings are not a better model but a steeper afternoon, which is why
+each area is measured rather than assumed.
+
+Prediction error, measured by rolling the origin forward over 16 consecutive
+Phoenix days, is **0.79 C mean absolute error**. That figure includes the
+11-14 Aug cool snap, when the daily level fell 34.9 -> 30.7 C and error rose to
+2.2 C; on ordinary days it is 0.24-0.60 C. The model tracks a regime it has
+seen and lags one that changes under it, and the interval is calibrated on a
+window that includes the disturbance rather than one that avoids it.
+
+Committed evidence: `data/evidence/recommendation_grades_*.json`.
+
 The working product and research brief is in
 [`docs/PROJECT_IDEA.md`](docs/PROJECT_IDEA.md).
 
 ## Stack
 
 - Python 3.11–3.13 (Python 3.12 is used for local development)
-- Streamlit for the hackathon dashboard
+- Streamlit for the operator interface, with a hand-built visual system in
+  `src/certiroute/theme.py` (Instrument Sans / Inter / JetBrains Mono, inline
+  SVG icons, no emoji)
 - `httpx` for the FortyGuard API integration
 - Pure-Python beam-search scheduling (heavier solvers such as OR-Tools are
   deferred until scenario-based optimization requires them)
@@ -45,6 +72,7 @@ src/certiroute/
   forecasting.py             Diurnal shape learning and conformal calibration
   shift_timing.py            Exposure across candidate shift start times
   shift_planning.py          Recommend a start, then score it against reality
+  theme.py                   Type, colour, spacing, and the inline icon set
   map_scenario.py            Guided map-selection state and default jobs
   map_picker.py              Clickable Folium map adapter
   job_manifest.py            Work-order validation and scenario fingerprinting
@@ -121,14 +149,25 @@ level from past days measured 2.27 C mean absolute error with one day missed by
 
 ### What the interval means
 
-Every plan carries a radius: a split-conformal quantile over held-out days.
+Every plan carries a radius: a split-conformal quantile over scored days.
 Whole days are the exchangeable unit, not individual readings, because a day
 runs hot or cool as a whole; pooling site-hours would pretend to far more
-independent evidence than exists. Fewer held-out days therefore produce a
-*wider* honest interval, never a tighter claim, and the app states the coverage
-its calibration set can actually support. Schedules are built against the top of
+independent evidence than exists.
+
+Scores come from **rolling the origin forward** - each day is predicted using
+only the days before it, which is also exactly how the product is used. A
+single chronological holdout was tried first and rejected: it reported 0.91 C
+for a split ending in a calm week and 1.21 C for one spanning a cool snap, for
+the same method. Neither number described the method, and calibrating on the
+calm window would have made the interval narrowest precisely when it needed to
+be widest.
+
+More scored days also support a tighter *claim*: sixteen scores support 90%
+coverage where three support only 75%. Schedules are built against the top of
 the interval, not its middle, so a hotter-than-predicted day still lands inside
-the assumption the start time was chosen under.
+the assumption the start time was chosen under. A uniform widening barely
+reorders the candidates, so a cautious interval costs little decision quality -
+Phoenix scored 4/4 optimal under a +/- 4.4 C radius.
 
 ### Training an area model
 
