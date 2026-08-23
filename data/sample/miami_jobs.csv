@@ -1,0 +1,7 @@
+job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish
+MIA-201,Brickell Key — demo switchgear inspection,25.73854,-80.16457,55,5,08:00,17:00
+MIA-202,Downtown Miami — demo utility inspection,25.75538,-80.18896,65,3,08:00,17:00
+MIA-203,Overtown — demo irrigation controller service,25.76509,-80.19069,65,4,08:00,17:00
+MIA-204,Edgewater — demo sensor gateway service,25.77088,-80.16553,80,5,08:00,17:00
+MIA-205,Wynwood — demo HVAC inspection,25.77415,-80.17149,70,3,08:00,17:00
+MIA-206,Allapattah — demo communications cabinet service,25.77697,-80.1948,75,2,08:00,17:00

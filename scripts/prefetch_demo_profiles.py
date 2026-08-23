@@ -29,10 +29,10 @@ SAMPLE_JOBS_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
 CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
 
 
-def load_jobs() -> list[Job]:
-    """Load the committed demo jobs as domain models."""
+def load_jobs(path: Path = SAMPLE_JOBS_PATH) -> list[Job]:
+    """Load a committed demo job set as domain models."""
 
-    frame = pd.read_csv(SAMPLE_JOBS_PATH)
+    frame = pd.read_csv(path)
     return [
         Job(
             job_id=row.job_id,
@@ -54,6 +54,11 @@ def main() -> None:
         default="2025-07-15",
         help="Historical target date (YYYY-MM-DD). Must be before today.",
     )
+    parser.add_argument(
+        "--jobs",
+        default=str(SAMPLE_JOBS_PATH),
+        help="CSV of work sites whose bounding box defines the AOI.",
+    )
     parser.add_argument("--start-hour", type=int, default=8)
     parser.add_argument("--end-hour", type=int, default=17)
     parser.add_argument("--granularity", type=int, default=100, choices=(60, 80, 100))
@@ -68,7 +73,7 @@ def main() -> None:
     sample_times = tuple(
         time(hour) for hour in range(args.start_hour, args.end_hour + 1)
     )
-    jobs = load_jobs()
+    jobs = load_jobs(Path(args.jobs))
     requests = build_profile_requests(
         jobs,
         target_date=target_date,

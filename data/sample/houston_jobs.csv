@@ -1,0 +1,7 @@
+job_id,name,latitude,longitude,duration_minutes,priority,earliest_start,latest_finish
+HOU-201,Downtown Houston — demo switchgear inspection,29.7587,-95.3677,55,5,08:00,17:00
+HOU-202,Midtown Houston — demo utility inspection,29.752,-95.357,65,3,08:00,17:00
+HOU-203,Museum District — demo irrigation controller service,29.7463,-95.347,65,4,08:00,17:00
+HOU-204,Hermann Park — demo sensor gateway service,29.7385,-95.3375,80,5,08:00,17:00
+HOU-205,Texas Medical Center — demo HVAC inspection,29.7305,-95.3265,70,3,08:00,17:00
+HOU-206,Rice Village — demo communications cabinet service,29.7225,-95.3155,75,2,08:00,17:00

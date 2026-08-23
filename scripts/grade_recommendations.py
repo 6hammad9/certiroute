@@ -41,9 +41,13 @@ from certiroute.same_day import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
 ARTIFACT_ROOT = PROJECT_ROOT / "data" / "climatology"
-EVIDENCE_PATH = PROJECT_ROOT / "data" / "evidence" / "recommendation_grades.json"
+EVIDENCE_ROOT = PROJECT_ROOT / "data" / "evidence"
 
-AREA_JOB_SETS = {"phoenix": "data/sample/phoenix_jobs.csv"}
+AREA_JOB_SETS = {
+    "phoenix": "data/sample/phoenix_jobs.csv",
+    "houston": "data/sample/houston_jobs.csv",
+    "miami": "data/sample/miami_jobs.csv",
+}
 
 SCHEDULER = {
     "average_travel_speed_kph": 25.0,
@@ -219,8 +223,9 @@ def main() -> None:
           f"{max(outcome.regret_units for outcome in results):.1f} degree-hours")
 
     # Committed so the claim can be audited without rerunning the API.
-    EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    EVIDENCE_PATH.write_text(
+    evidence_path = EVIDENCE_ROOT / f"recommendation_grades_{args.area}.json"
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
@@ -266,7 +271,7 @@ def main() -> None:
         + "\n",
         encoding="utf-8",
     )
-    print(f"\nWrote {EVIDENCE_PATH.relative_to(PROJECT_ROOT)}")
+    print(f"\nWrote {evidence_path.relative_to(PROJECT_ROOT)}")
 
 
 if __name__ == "__main__":

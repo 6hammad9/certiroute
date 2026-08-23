@@ -44,6 +44,8 @@ ARTIFACT_ROOT = PROJECT_ROOT / "data" / "climatology"
 # set whose bounding box defines the trained AOI.
 AREA_JOB_SETS = {
     "phoenix": ("Phoenix, Arizona", "data/sample/phoenix_jobs.csv"),
+    "houston": ("Houston, Texas", "data/sample/houston_jobs.csv"),
+    "miami": ("Miami, Florida", "data/sample/miami_jobs.csv"),
 }
 
 
