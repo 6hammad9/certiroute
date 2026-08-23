@@ -7,15 +7,57 @@ distribution-aware modeling in Yousef and Li (2025), but it does not reproduce
 their algorithms. Those methods require model internals and reference
 distributions that the FortyGuard API does not expose.
 
-The current demo certainty values are scenario inputs used to exercise the
-scheduler. They are not calibrated probabilities. Production UI must call them
-reliability proxies until held-out coverage measurements support a stronger
-claim.
+The per-reading `certainty` field is a documented no-penalty sentinel of 1.0,
+not a probability, and the product never presents it as one. Uncertainty
+reaches the user through one number only: the calibrated interval radius.
+
+That radius **is** now measured rather than asserted. Because CertiRoute builds
+its own hourly prediction (the vendor exposes none), its residuals are
+legitimately observable, which is what makes split-conformal calibration
+possible at all. See "Calibration as it now stands" below.
 
 Research lineage:
 
 - [Prospect certainty for data-driven models](https://doi.org/10.1038/s41598-025-89679-6)
 - [Chance Constrained Back-Mapping for Data-Driven Models](https://doi.org/10.36227/techrxiv.173893272.23694326/v1)
+
+## Calibration as it now stands
+
+The quantity calibrated is the error of *our* prediction of a day's hourly
+curve, anchored on FortyGuard's whole-day aggregate for that day.
+
+- **Conformity score:** one per held-out day - that day's largest absolute
+  error across all sites and hours. Days are the exchangeable unit because a
+  day runs hot or cool as a whole; pooling site-hours would claim far more
+  independent evidence than exists and produce an interval that is too tight.
+- **Coverage claimed:** only what the held-out day count can support, since a
+  split-conformal radius needs `ceil((n+1)(1-alpha)) <= n`. Three held-out days
+  support 75% and no more, and the app says 75%.
+- **Direction of use:** schedules are built against the top of the interval,
+  not its middle, so a hotter-than-predicted day still falls inside the
+  assumption the start time was chosen under.
+
+Measured on eleven contiguous Phoenix days at 60 m (train 09-16 Aug, calibrate
+17-19 Aug):
+
+| Quantity | Value |
+| --- | --- |
+| Held-out mean absolute error | 0.91 C |
+| Worst held-out reading | 1.58 C |
+| Error at sites left out of training | 0.91 C |
+| Interval | +/- 1.58 C at 75% coverage |
+
+The unseen-site figure matters more than it looks: the product applies one area
+model to whatever points a dispatcher drops on the map, and this is the number
+that says whether that is honest. It is identical to the day-holdout error,
+which is the evidence that the diurnal shape is a regional property rather than
+a per-site one.
+
+### What is deliberately not calibrated
+
+Day-ahead level prediction. Predicting tomorrow's level from past days measured
+2.27 C mean absolute error with one day missed by 4.62 C. That is too loose to
+put a crew's morning on, so the product does not offer it at any confidence.
 
 ## What is implemented now
 
