@@ -91,13 +91,17 @@ def corpus_jobs() -> dict[str, list[Job]]:
             _job("Houston", 5, 29.7305, -95.3265, duration_minutes=70, priority=3),
             _job("Houston", 6, 29.7225, -95.3155, duration_minutes=75, priority=2),
         ],
+        # FortyGuard tile coverage has holes: a first pass over downtown Miami
+        # returned 1078 tiles yet covered only one of six hand-picked points,
+        # including one that sat inside the tile bounding box. These six are
+        # centroids of tiles the API actually returned, so coverage is assured.
         "Miami": [
-            _job("Miami", 1, 25.7752, -80.1959, duration_minutes=55, priority=5),
-            _job("Miami", 2, 25.7686, -80.1900, duration_minutes=65, priority=3),
-            _job("Miami", 3, 25.7617, -80.1840, duration_minutes=65, priority=4),
-            _job("Miami", 4, 25.7545, -80.1780, duration_minutes=80, priority=5),
-            _job("Miami", 5, 25.7475, -80.1720, duration_minutes=70, priority=3),
-            _job("Miami", 6, 25.7405, -80.1660, duration_minutes=75, priority=2),
+            _job("Miami", 1, 25.73854, -80.16457, duration_minutes=55, priority=5),
+            _job("Miami", 2, 25.75538, -80.18896, duration_minutes=65, priority=3),
+            _job("Miami", 3, 25.76509, -80.19069, duration_minutes=65, priority=4),
+            _job("Miami", 4, 25.77088, -80.16553, duration_minutes=80, priority=5),
+            _job("Miami", 5, 25.77415, -80.17149, duration_minutes=70, priority=3),
+            _job("Miami", 6, 25.77697, -80.19480, duration_minutes=75, priority=2),
         ],
     }
 

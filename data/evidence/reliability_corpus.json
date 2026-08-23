@@ -1,0 +1,2500 @@
+{
+  "cases": [
+    {
+      "geography": "Phoenix",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-1",
+          "latest_finish": "17:00",
+          "latitude": 33.44855,
+          "longitude": -112.07391,
+          "name": "Phoenix evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-2",
+          "latest_finish": "17:00",
+          "latitude": 33.4453,
+          "longitude": -112.0667,
+          "name": "Phoenix evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-3",
+          "latest_finish": "17:00",
+          "latitude": 33.44965,
+          "longitude": -112.0476,
+          "name": "Phoenix evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-4",
+          "latest_finish": "17:00",
+          "latitude": 33.4352,
+          "longitude": -112.0103,
+          "name": "Phoenix evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-5",
+          "latest_finish": "17:00",
+          "latitude": 33.4459,
+          "longitude": -111.9856,
+          "name": "Phoenix evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-6",
+          "latest_finish": "17:00",
+          "latitude": 33.4508,
+          "longitude": -111.9565,
+          "name": "Phoenix evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "PHOENIX-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 37.2378
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.9707
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.6302
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.6347
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 41.0455
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.501
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.5487
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.8556
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.9025
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.583
+          }
+        ],
+        "PHOENIX-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 37.1186
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.8957
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.5463
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.6116
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.947
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.3881
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.5128
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.8977
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.8633
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.5524
+          }
+        ],
+        "PHOENIX-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 37.1313
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.9126
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.5599
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.6146
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.9507
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.395
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.5078
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.9062
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.8854
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.556
+          }
+        ],
+        "PHOENIX-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.8813
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.7448
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.3539
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.5399
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.8692
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.2275
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.5205
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.8119
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.6615
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.4815
+          }
+        ],
+        "PHOENIX-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.7192
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.5781
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.2296
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.4854
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.7518
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.1371
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.5062
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.7117
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.5446
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.4309
+          }
+        ],
+        "PHOENIX-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.3775
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.3393
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.1298
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.299
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.6095
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.9392
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.2887
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.4487
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.4689
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.2894
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "calibration",
+      "source_records": [
+        {
+          "activity_id": "d9e2fc5b-2f7a-4836-8ad9-2fa638b35171",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:46:44.963560Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "e880ff7721fd25f63d9b90855d908882d967d58e0ef1c707242182041d54e224"
+        },
+        {
+          "activity_id": "e117cad8-1065-4cd8-a4c6-9e035444bbcc",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:47:22.603851Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "5bcd6dc57cffa1b85fb4b561a9f7c10e00521dd3e9bd454e2e3a6654a37250e6"
+        },
+        {
+          "activity_id": "e947e0fa-9553-435f-a8dc-a5f1b08fcddc",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:47:57.425982Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "ead837270c43cd48f7b569f3fe80143685c86f44e80ea4dee7e25c589890129b"
+        },
+        {
+          "activity_id": "1bd1dc63-7f98-4546-a4b5-36abf89272a1",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:48:38.428611Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "417d4d08570b447d76204769d747e57ba57e8fc4950177665575567ad8629e9b"
+        },
+        {
+          "activity_id": "935e0dad-8991-4d7d-8442-d69458d36f45",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:49:09.308884Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "ffb4384eddd384f1712984b0b59df728fd357399cbf930375630c967b53010b8"
+        },
+        {
+          "activity_id": "41de1117-d57c-49b6-aa43-45f26e186b70",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:49:47.391491Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "6745b327b0d2fff6ad488bf87a3ec07f40c3d331b2d3215b5852e531391dfad8"
+        },
+        {
+          "activity_id": "1014743c-0eb2-4479-85a0-3074923bfa41",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:50:19.360144Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "3fe17785345fda3400413ae0bb734abe0f26f30b81c362236c24c8583043b2cf"
+        },
+        {
+          "activity_id": "260820ee-64ac-4000-91f0-b0626b7b29e5",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:50:50.409762Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "205d79494cd530d77ed53bdb5e57ea1a0411c56563f3b9cc7ed099fb9db939ce"
+        },
+        {
+          "activity_id": "059d555b-11f4-4739-b5e7-208a4d82f362",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:51:32.182891Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "f16b5452a772e78e01b7e0df81e34a61f4b2d1b353e15ea2bdfb7f41c8aac6be"
+        },
+        {
+          "activity_id": "e615175a-6e4f-4589-bf5a-86c49abc318b",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:52:11.634737Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "40d0928a3002c0a607630395c41b809c46dc413a213222faa8b2eec89bbdd38b"
+        }
+      ],
+      "target_date": "2026-08-18"
+    },
+    {
+      "geography": "Phoenix",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-1",
+          "latest_finish": "17:00",
+          "latitude": 33.44855,
+          "longitude": -112.07391,
+          "name": "Phoenix evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-2",
+          "latest_finish": "17:00",
+          "latitude": 33.4453,
+          "longitude": -112.0667,
+          "name": "Phoenix evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-3",
+          "latest_finish": "17:00",
+          "latitude": 33.44965,
+          "longitude": -112.0476,
+          "name": "Phoenix evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-4",
+          "latest_finish": "17:00",
+          "latitude": 33.4352,
+          "longitude": -112.0103,
+          "name": "Phoenix evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-5",
+          "latest_finish": "17:00",
+          "latitude": 33.4459,
+          "longitude": -111.9856,
+          "name": "Phoenix evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-6",
+          "latest_finish": "17:00",
+          "latitude": 33.4508,
+          "longitude": -111.9565,
+          "name": "Phoenix evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "PHOENIX-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.0686
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.5489
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.8622
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.586
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.2568
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.5916
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.7971
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.8701
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.8801
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.766
+          }
+        ],
+        "PHOENIX-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.0979
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.5399
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.8222
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.5796
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.2313
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.5616
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.7906
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.8702
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.88
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.7606
+          }
+        ],
+        "PHOENIX-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.0861
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.5358
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.826
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.5809
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.2346
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.5616
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.7933
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.8743
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.8808
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.7644
+          }
+        ],
+        "PHOENIX-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.2236
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.6486
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.8209
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.6106
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.2333
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.5998
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.7829
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.8582
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.8915
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.7245
+          }
+        ],
+        "PHOENIX-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.0765
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.49
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.691
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.4641
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.1223
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.4897
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.7273
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.8077
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.8359
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.6691
+          }
+        ],
+        "PHOENIX-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 35.9898
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.3607
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.5407
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.2898
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 39.9598
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 40.3701
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 40.6199
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.6999
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.7593
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.5496
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "calibration",
+      "source_records": [
+        {
+          "activity_id": "fbc81bb5-9ed5-4a2e-a306-25a5b75bf37d",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:52:23.997416Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "ea5468079de243dd595a478a4e80f7dcd1f2c3d96c553d14736f14e39f5477d7"
+        },
+        {
+          "activity_id": "ff9c0568-a880-45fd-b09d-ecd9b477f82f",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:52:51.811876Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "14ed6c546bd98a522f28a671777ee209437f942da58b85b0aac39566e912d787"
+        },
+        {
+          "activity_id": "22d72e0d-7c99-416d-9279-09854e0e223e",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:53:31.326509Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "e244404e0a133dced046e32ebacd2cff1ddbde2b395efb88d54e198dd01957c2"
+        },
+        {
+          "activity_id": "22878632-45a6-4b18-9390-b9e3c5053cc1",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:54:11.568416Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "3aea25a44fae037669938fe49c445464881e04f1be53e1ad98239b4bee004dc6"
+        },
+        {
+          "activity_id": "bd094e1c-9186-4dcf-9965-8699692c1a02",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:54:43.599681Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "b3122ec776171637273a4bef11b51b9177f1eaf038a893418c969b0c19a41242"
+        },
+        {
+          "activity_id": "0470ff62-fbf8-4b4d-b101-38e2d38a007e",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:55:25.284044Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "f07ff624bd777e92b799d0b540f096452762e7e2456e93fa0d2b5cae525c9e59"
+        },
+        {
+          "activity_id": "d8eb5c0e-93fa-4dfe-920c-60f7a494251b",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:56:17.547452Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "3269ccdb826a524979c0fdda501964ba31fd7ce7a1f49e806b6921231ef02606"
+        },
+        {
+          "activity_id": "a0690b94-f3b3-45aa-906d-35aff5138d68",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:56:58.075604Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "f9b1482d2f32f59b2d509f7f6f1e6820aa0643c2bba1081ef9e7564df840414a"
+        },
+        {
+          "activity_id": "966bf273-3e80-4c82-bd6e-0c504870bae7",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:57:33.684603Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "4b6e4480c8616de1b6418cf415a38308ecc3bb7592095294576ed5a14fe5d1cb"
+        },
+        {
+          "activity_id": "a0f8c292-2002-4445-a250-16e05febfc9d",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:58:05.172927Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "2dac2d08a13c7bdcd97245be347183e58b555ca7f412b1794a12d4eddb111d81"
+        }
+      ],
+      "target_date": "2026-08-19"
+    },
+    {
+      "geography": "Phoenix",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-1",
+          "latest_finish": "17:00",
+          "latitude": 33.44855,
+          "longitude": -112.07391,
+          "name": "Phoenix evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-2",
+          "latest_finish": "17:00",
+          "latitude": 33.4453,
+          "longitude": -112.0667,
+          "name": "Phoenix evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-3",
+          "latest_finish": "17:00",
+          "latitude": 33.44965,
+          "longitude": -112.0476,
+          "name": "Phoenix evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-4",
+          "latest_finish": "17:00",
+          "latitude": 33.4352,
+          "longitude": -112.0103,
+          "name": "Phoenix evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-5",
+          "latest_finish": "17:00",
+          "latitude": 33.4459,
+          "longitude": -111.9856,
+          "name": "Phoenix evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-6",
+          "latest_finish": "17:00",
+          "latitude": 33.4508,
+          "longitude": -111.9565,
+          "name": "Phoenix evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "PHOENIX-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 31.6868
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 34.9086
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 36.551
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 37.0746
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 39.4613
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 39.3183
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 39.9283
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.0753
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.2914
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.0975
+          }
+        ],
+        "PHOENIX-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 31.7076
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 34.7244
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 36.5025
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 37.0701
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 39.386
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 39.2558
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 39.8651
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.0896
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.2435
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.0252
+          }
+        ],
+        "PHOENIX-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 31.6889
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 34.7159
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 36.4787
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 37.0576
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 39.4112
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 39.2549
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 39.876
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 40.1041
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.2502
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 40.029
+          }
+        ],
+        "PHOENIX-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 32.057
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 34.3874
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 36.6191
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 37.1321
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 39.0003
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 39.1376
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 39.7063
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 39.8936
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.1445
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 39.9777
+          }
+        ],
+        "PHOENIX-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 32.1233
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 34.265
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 36.5151
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 37.2193
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 38.6455
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 39.1287
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 39.5547
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 39.7577
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 40.0952
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 39.8853
+          }
+        ],
+        "PHOENIX-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 32.0096
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.5859
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 34.4026
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 36.3436
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 37.8439
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 38.1523
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 38.8043
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 39.398
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 39.8893
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 39.6794
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "calibration",
+      "source_records": [
+        {
+          "activity_id": "1aee70e6-effb-460c-9374-e564c58e915e",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:50:58.374784Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "c52d7fffa1d62320ee1a76020412b6381e7caf382d1706e4f0babea4d973e6f8"
+        },
+        {
+          "activity_id": "81e3595a-84b5-4f45-995d-d14e662f593b",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:51:34.378683Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "d5823e7d6ae8199177112b549acd3f9fe0cd160433b41485f94bf6c2aff2c458"
+        },
+        {
+          "activity_id": "5df324b0-94dd-4c00-8143-b5c3e2b25793",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:52:13.502663Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "0a7c22cf8dfc9a1d6eac26724d7fcb353ce1c7cadfd5f68f2345bae57dcd457e"
+        },
+        {
+          "activity_id": "20f66fd5-5ad7-4607-b82a-65241b0b88b1",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:52:55.412439Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "35a2d04bd42f1faf96abe7ec170044ce7193c27503ec2e18c04a08ca2fb50ecb"
+        },
+        {
+          "activity_id": "65764de1-3e7e-4ba8-8cc4-4747462f5a45",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:53:28.129981Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "9455f8e4047b502bc13f18902d5c667cd74d1de905f9ed053df548f64bd7b12c"
+        },
+        {
+          "activity_id": "8bb687ee-eb52-4517-94a1-c558b5d3b71c",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:54:10.934436Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "4a979b431a08b9bce767a2669ab20accb82bc194dcbf5c0858af38e4f6de3115"
+        },
+        {
+          "activity_id": "e7f0ec95-d2e5-4502-b26d-0103f4dee8ce",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:54:49.403880Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "5797463853df46bf89434e04b4a9b4f4aae86ef254b91dae581240e2a631449a"
+        },
+        {
+          "activity_id": "6c5f249e-d76e-469b-9d11-b1b9276af568",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:55:18.211739Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "d1d493ec6c9b2800f7cfe730173309282957b5ddc5d04d94352209647d598027"
+        },
+        {
+          "activity_id": "89d04203-fb0a-4b93-9b02-e66e3bc75496",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:56:33.949714Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "b67ac1c8a0fcb8bde5d93b5b23af0e7fb7c11d1f64cf400c239f9828a72dbaba"
+        },
+        {
+          "activity_id": "f3f5711d-a435-4261-99c7-d60728354562",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-21T17:57:24.641896Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "ea5eef26570c5c93a9110287cb1f55e9fb8860eb85be3f3694323f4c78ae3afc"
+        }
+      ],
+      "target_date": "2026-08-20"
+    },
+    {
+      "geography": "Phoenix",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-1",
+          "latest_finish": "17:00",
+          "latitude": 33.44855,
+          "longitude": -112.07391,
+          "name": "Phoenix evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-2",
+          "latest_finish": "17:00",
+          "latitude": 33.4453,
+          "longitude": -112.0667,
+          "name": "Phoenix evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-3",
+          "latest_finish": "17:00",
+          "latitude": 33.44965,
+          "longitude": -112.0476,
+          "name": "Phoenix evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-4",
+          "latest_finish": "17:00",
+          "latitude": 33.4352,
+          "longitude": -112.0103,
+          "name": "Phoenix evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-5",
+          "latest_finish": "17:00",
+          "latitude": 33.4459,
+          "longitude": -111.9856,
+          "name": "Phoenix evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "PHOENIX-6",
+          "latest_finish": "17:00",
+          "latitude": 33.4508,
+          "longitude": -111.9565,
+          "name": "Phoenix evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "PHOENIX-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.5697
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.204
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.4468
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.3166
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 41.0601
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.579
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.8282
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.9583
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.771
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.5101
+          }
+        ],
+        "PHOENIX-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.6718
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.1627
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.3658
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.2921
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 41.0602
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.5802
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.8115
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.9506
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.7514
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.5101
+          }
+        ],
+        "PHOENIX-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.6825
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 38.1795
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.3732
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.2979
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 41.0641
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.5831
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.8126
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.9529
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.7493
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.5131
+          }
+        ],
+        "PHOENIX-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.7932
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.9898
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.2172
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.2242
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 41.0224
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.5474
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.804
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.9451
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.7662
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.4761
+          }
+        ],
+        "PHOENIX-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 36.0535
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.7595
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 39.0847
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 40.1344
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.9455
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.4997
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.7689
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.8399
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.7344
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.428
+          }
+        ],
+        "PHOENIX-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 35.1531
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 37.2568
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 38.7676
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 39.9391
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 40.7389
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 41.3694
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 41.6396
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 41.7189
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 41.6796
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 41.3297
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "held_out_date",
+      "source_records": [
+        {
+          "activity_id": "eadf2a33-c38d-4098-9ae5-0bcaa5aa6e82",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:53:34.562371Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "b203845afe8f964ee49bf5864f2b5c6dca3d902dc366f81bc65dd1e781808d26"
+        },
+        {
+          "activity_id": "d0c800da-db3b-409e-9634-9f6957ebabf6",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:54:25.462852Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "7083935903d9ddd673f652dca74fe054086d149c6d6a7cbebd4d4358feac1c34"
+        },
+        {
+          "activity_id": "23263124-3248-42ae-ba91-873a8f9cd497",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:55:07.301669Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "db9a21f535e23099621ff763731cda2b5f2093837b1a7cd8aa9a8cd864c0938b"
+        },
+        {
+          "activity_id": "082844b3-bf56-45e5-9938-1d0424c20620",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:56:02.125547Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "fb9010fe5a0f2fb80462565d2981343a9053333fd4b437633687dda48cfff9b2"
+        },
+        {
+          "activity_id": "eb471036-d64d-40db-8d40-ddfe1ceb1525",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:56:44.292137Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "10bd98e44422c0b86cb84884d98857dd94a8bd89ff1004e82113af7169c424d1"
+        },
+        {
+          "activity_id": "15093135-c3b7-430d-a716-b1f6d4f8bc19",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:57:25.361244Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "3128dafefb2cf8d7df9d83923fab6c98c36e8970bcaf9fffc3987dc4d3d24396"
+        },
+        {
+          "activity_id": "65b40ee6-c55c-4ecf-a406-643be26aed88",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-22T18:58:06.002023Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "98efdfb7fafa5fc75918182981a3641f9fb0499366838b49510ba87081dc6a8c"
+        },
+        {
+          "activity_id": "be9071f6-6cfd-44f1-824c-e8a27ca1761d",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:35:12.786533Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "bd153d441fabc8faaf73e37d00ac370f84e91b5fd8217a219eb8c1b7a1e0960b"
+        },
+        {
+          "activity_id": "399328a1-3f49-41b6-a123-ce8b05cb6ab3",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:36:19.627073Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "e4f0523e991bc8aeb4a001a55d18442616a66a81ad0806f7a9080657f9d6b7ed"
+        },
+        {
+          "activity_id": "d33ea13e-f6fc-49fe-a2bc-531fe06631b2",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:36:48.309378Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "dadda320fba293284418a7e95b0ee49da8fa0a8a04bce0917e0ac5bfcda83b0a"
+        }
+      ],
+      "target_date": "2026-08-21"
+    },
+    {
+      "geography": "Houston",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-1",
+          "latest_finish": "17:00",
+          "latitude": 29.7587,
+          "longitude": -95.3677,
+          "name": "Houston evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-2",
+          "latest_finish": "17:00",
+          "latitude": 29.752,
+          "longitude": -95.357,
+          "name": "Houston evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-3",
+          "latest_finish": "17:00",
+          "latitude": 29.7463,
+          "longitude": -95.347,
+          "name": "Houston evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-4",
+          "latest_finish": "17:00",
+          "latitude": 29.7385,
+          "longitude": -95.3375,
+          "name": "Houston evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-5",
+          "latest_finish": "17:00",
+          "latitude": 29.7305,
+          "longitude": -95.3265,
+          "name": "Houston evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "HOUSTON-6",
+          "latest_finish": "17:00",
+          "latitude": 29.7225,
+          "longitude": -95.3155,
+          "name": "Houston evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "HOUSTON-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 29.4615
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 30.8336
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.6825
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.4459
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 34.3143
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 35.0119
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 35.7174
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 36.3387
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 36.6875
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 36.912
+          }
+        ],
+        "HOUSTON-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.1532
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.9912
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 33.8918
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 34.895
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 36.1055
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 36.9166
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 37.6301
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 38.2327
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 38.4796
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 38.4689
+          }
+        ],
+        "HOUSTON-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.1041
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.8957
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 33.7824
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 34.7566
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 35.9109
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 36.7071
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 37.4453
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 38.0971
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 38.3997
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 38.4016
+          }
+        ],
+        "HOUSTON-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.0902
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.8795
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 33.7814
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 34.7514
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 35.9615
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 36.7602
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 37.4681
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 38.107
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 38.3943
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 38.3937
+          }
+        ],
+        "HOUSTON-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.1877
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.1211
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 33.8104
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 35.0507
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 36.0562
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 36.8379
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 37.6436
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 38.2525
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 38.5358
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 38.5288
+          }
+        ],
+        "HOUSTON-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.0999
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.2111
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 33.5283
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 35.3398
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 36.5626
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 37.2554
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 37.9042
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 38.4614
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 38.7078
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 38.6639
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "held_out_geography",
+      "source_records": [
+        {
+          "activity_id": "b42692ee-f139-4f1e-9526-74dc9bc5840e",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:37:32.651214Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "7eaa30efaeecc9745f8322e2e717746b92b85b3add2fe4945a9afd7dbe3f398d"
+        },
+        {
+          "activity_id": "caa80db3-31fa-4e4c-8bec-334c69db4486",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:38:02.592450Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "fe677867a1dcc85eff27e7979e607ae83b11e2fa1047881e02aeed8ab174a60b"
+        },
+        {
+          "activity_id": "ed3a7dcf-512e-4fc5-97e4-db976f31bb2a",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:38:30.435529Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "5864a60d6d7e0144d4c9e286ea83870a5a5c3e6a58d0f8d3471f5cc1415f0901"
+        },
+        {
+          "activity_id": "478bc908-f568-423b-94f9-5b5cdb5ffd12",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:38:57.690167Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "7572fb5bbf831228c840bdb0b76f2abb1b48e40c241ac2ff0ac13212b48ad207"
+        },
+        {
+          "activity_id": "ec6af07f-0f0f-43f2-86e2-6e4af860b569",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:39:24.944062Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "0b8b75e6691caa81dcdd1167a87923e0a422f1b2a05c8226d0234e1ea95f8a09"
+        },
+        {
+          "activity_id": "e0550357-f0a5-4b33-a6cb-e786e236ecb6",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:39:52.447827Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "f92b1a255889393a1e23690846124175dd580588c057c953788e292dd5c45704"
+        },
+        {
+          "activity_id": "e4d7896b-fb12-425e-95fc-f9d718089755",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:40:21.433779Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "56e483f81a64caa30c4cf13df398b31024482fe2f812604e2bf223c69aef2c68"
+        },
+        {
+          "activity_id": "acbfbaee-9d51-4c27-9975-b604e42fe182",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:41:11.040315Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "d5aa4acb6ed2860afbd5ea282f2c912066356d29df2e1abd75382588f1f24514"
+        },
+        {
+          "activity_id": "12320da6-2ab9-4340-be68-f27c81a499d6",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:42:08.572184Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "daf9a31becf9812e61de87db0a7aee33440168e7c395271e2e4a88aedc24bb18"
+        },
+        {
+          "activity_id": "61dbb5bc-4edc-4163-9d3c-bed33bb4bde5",
+          "aoi_index": 0,
+          "cache_hit": true,
+          "collected_at_utc": "2026-08-23T15:42:40.769813Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "2d51b8e736905825c2ab95ea7a80a9ec2641f47bb2b43c19355c1969f3afdd3e"
+        }
+      ],
+      "target_date": "2026-08-21"
+    },
+    {
+      "geography": "Miami",
+      "granularity_m": 60,
+      "jobs": [
+        {
+          "duration_minutes": 55,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-1",
+          "latest_finish": "17:00",
+          "latitude": 25.73854,
+          "longitude": -80.16457,
+          "name": "Miami evaluation site 1",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-2",
+          "latest_finish": "17:00",
+          "latitude": 25.75538,
+          "longitude": -80.18896,
+          "name": "Miami evaluation site 2",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 65,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-3",
+          "latest_finish": "17:00",
+          "latitude": 25.76509,
+          "longitude": -80.19069,
+          "name": "Miami evaluation site 3",
+          "priority": 4
+        },
+        {
+          "duration_minutes": 80,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-4",
+          "latest_finish": "17:00",
+          "latitude": 25.77088,
+          "longitude": -80.16553,
+          "name": "Miami evaluation site 4",
+          "priority": 5
+        },
+        {
+          "duration_minutes": 70,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-5",
+          "latest_finish": "17:00",
+          "latitude": 25.77415,
+          "longitude": -80.17149,
+          "name": "Miami evaluation site 5",
+          "priority": 3
+        },
+        {
+          "duration_minutes": 75,
+          "earliest_start": "08:00",
+          "job_id": "MIAMI-6",
+          "latest_finish": "17:00",
+          "latitude": 25.77697,
+          "longitude": -80.1948,
+          "name": "Miami evaluation site 6",
+          "priority": 2
+        }
+      ],
+      "profiles": {
+        "MIAMI-1": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.6976
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.9847
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.4619
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.5556
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 33.9401
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 33.8842
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.0886
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 33.2416
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 32.7644
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 31.8796
+          }
+        ],
+        "MIAMI-2": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 31.4487
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.335
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.2074
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 32.7884
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 32.8458
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 32.91
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.0977
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 32.7623
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 32.4439
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 32.0746
+          }
+        ],
+        "MIAMI-3": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 29.4682
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.4921
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.2153
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.2495
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 33.8337
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 34.1359
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.2616
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 33.3463
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 32.7754
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 32.3129
+          }
+        ],
+        "MIAMI-4": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.2238
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.1762
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.7339
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.8807
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 34.6089
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 34.3626
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.3446
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 33.6698
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 33.2821
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 32.5328
+          }
+        ],
+        "MIAMI-5": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 30.245
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 32.1718
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.7131
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.8424
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 34.5517
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 34.3208
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.338
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 33.6419
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 33.2541
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 32.5206
+          }
+        ],
+        "MIAMI-6": [
+          {
+            "minute_of_day": 480,
+            "temperature_c": 29.4052
+          },
+          {
+            "minute_of_day": 540,
+            "temperature_c": 31.4977
+          },
+          {
+            "minute_of_day": 600,
+            "temperature_c": 32.2604
+          },
+          {
+            "minute_of_day": 660,
+            "temperature_c": 33.3319
+          },
+          {
+            "minute_of_day": 720,
+            "temperature_c": 33.9637
+          },
+          {
+            "minute_of_day": 780,
+            "temperature_c": 34.2338
+          },
+          {
+            "minute_of_day": 840,
+            "temperature_c": 33.2802
+          },
+          {
+            "minute_of_day": 900,
+            "temperature_c": 33.412
+          },
+          {
+            "minute_of_day": 960,
+            "temperature_c": 32.8414
+          },
+          {
+            "minute_of_day": 1020,
+            "temperature_c": 32.3504
+          }
+        ]
+      },
+      "request_time_assumption": "The API request wall clock is aligned to the entered crew-shift clock for this historical replay; FortyGuard's heatmap request timezone is not documented.",
+      "role": "held_out_geography",
+      "source_records": [
+        {
+          "activity_id": "19b340f2-255a-48c6-909b-7f4f0cd04f7a",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T15:59:55.084596Z",
+          "job_ids": [],
+          "minute_of_day": 480,
+          "snapshot_id": "b068b74af9283f5ae4257423de4ff3264985ab3ca83b24d9c7de2aa0fa28f3b7"
+        },
+        {
+          "activity_id": "a5f91398-5aad-4c83-9fee-9abdb45a2f87",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:00:33.341320Z",
+          "job_ids": [],
+          "minute_of_day": 540,
+          "snapshot_id": "0934418944adb1488cd034f7c7c817cee68f02f833926d7f4a3c88b375b0b21d"
+        },
+        {
+          "activity_id": "c5698871-4e40-4627-b74d-2361fd54f2be",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:00:59.083077Z",
+          "job_ids": [],
+          "minute_of_day": 600,
+          "snapshot_id": "a42cc8bbf47b776db9d9ecc0f17914b2df53aa66f3c9921d69c8c9fee64f40b1"
+        },
+        {
+          "activity_id": "53213bc0-7cc4-41dd-aeff-3629cbffb189",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:01:25.155189Z",
+          "job_ids": [],
+          "minute_of_day": 660,
+          "snapshot_id": "b6d64b8644e51b8facc64b018f24ce1faafcce00313cb62fa0219d943e538b12"
+        },
+        {
+          "activity_id": "631a065b-c045-4116-ae24-ddb18ae4f5ce",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:01:51.536688Z",
+          "job_ids": [],
+          "minute_of_day": 720,
+          "snapshot_id": "bbf14f7cb08642dd4248ef45a64b916beb35a6952db942e3b17c61bb8223ac37"
+        },
+        {
+          "activity_id": "3edb0004-52e4-4c5e-911f-4b2de2a5adcc",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:02:21.709913Z",
+          "job_ids": [],
+          "minute_of_day": 780,
+          "snapshot_id": "290ae18378b772d5e60cc9395d44ca416a305951416b973206e5d0a03a7c99fc"
+        },
+        {
+          "activity_id": "f56d6c8c-3ce1-408d-ab20-1d9aeff3176e",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:02:51.916694Z",
+          "job_ids": [],
+          "minute_of_day": 840,
+          "snapshot_id": "e704f14221f25d8b4caecc0a912d9d9cdd6d275fc77deb4ff4ec9cebb283e0fb"
+        },
+        {
+          "activity_id": "16055618-74c6-447b-9a88-163cb05e30f1",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:03:17.721064Z",
+          "job_ids": [],
+          "minute_of_day": 900,
+          "snapshot_id": "0b811e0969ab0ec4f12e5b6558519efc13ff29753d8ae5604f6ba092dfdbcc4b"
+        },
+        {
+          "activity_id": "193ed2c9-cda2-40ec-9110-07e87de4c943",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:03:45.215397Z",
+          "job_ids": [],
+          "minute_of_day": 960,
+          "snapshot_id": "1ae9ea8176f243149b997e403e6a94d9d048889f0eb1d5273529ee330cfaece1"
+        },
+        {
+          "activity_id": "b992ef54-3c02-4b6d-9942-299070dd9bba",
+          "aoi_index": 0,
+          "cache_hit": false,
+          "collected_at_utc": "2026-08-23T16:04:16.721731Z",
+          "job_ids": [],
+          "minute_of_day": 1020,
+          "snapshot_id": "9dbfb26201f24af8b004a456be9a479b72c9148b46c87055892035db15a25eeb"
+        }
+      ],
+      "target_date": "2026-08-21"
+    }
+  ],
+  "forecast_baseline": "Retrospective 08:00 persistence; this is not an archived FortyGuard forecast and is used only to validate the decision pipeline.",
+  "generated_at_utc": "2026-08-23T16:04:18.555037Z",
+  "independent_ground_truth": false,
+  "realization_label": "later historical FortyGuard value",
+  "schema_version": 1,
+  "source": "FortyGuard Temperature API historical single-hour heatmaps"
+}
