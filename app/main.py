@@ -1054,22 +1054,22 @@ def render_crew_decision(
             if extra_travel <= 0
             else f"with {extra_travel} added estimated travel minutes"
         )
-        decision_label = "Heat-aware route"
-        title = "Use this stop order"
+        decision_label = "Heat-aware order"
+        title = "The order that ran coolest"
         explanation = (
-            f"This order reduces modeled heat exposure by {reduction:.1%} "
-            f"{travel_copy} and keeps every job on time. Start at "
+            f"On this day's measured temperatures, this order avoided "
+            f"{reduction:.1%} of modelled heat exposure {travel_copy} while "
+            "keeping every job on time. It begins at "
             f"<strong>{first_site}</strong> at "
             f"<strong>{minute_label(crew_plan.stops[0].start_minute)}</strong>."
         )
     else:
-        decision_label = "Balanced route"
-        title = "Use this stop order"
+        decision_label = "Efficient order"
+        title = "Reordering would not have helped"
         explanation = (
-            "This route balances estimated travel, priorities, and time windows. "
-            "The heat-aware search found no meaningful exposure reduction that "
-            "justified a different sequence. Start at "
-            f"<strong>{first_site}</strong> at "
+            "On this day's measured temperatures the heat-aware search found no "
+            "sequence worth changing, so the efficient order stands. It begins "
+            f"at <strong>{first_site}</strong> at "
             f"<strong>{minute_label(crew_plan.stops[0].start_minute)}</strong>."
         )
 

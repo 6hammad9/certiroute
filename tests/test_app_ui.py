@@ -473,7 +473,10 @@ def test_crew_route_leads_with_one_plain_language_decision(
     assert control.options == ["Crew route", "Planner details"]
     assert control.value == "Crew route"
     assert "Reviewing a finished day" in text
-    assert "Keep the current stop order" in text or "Use this stop order" in text
+    assert (
+        "Reordering would not have helped" in text
+        or "The order that ran coolest" in text
+    )
     assert "First stop" in text
     assert "Jobs on time" in text
     assert "Follow this route" in text
