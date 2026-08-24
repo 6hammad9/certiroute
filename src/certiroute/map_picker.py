@@ -9,6 +9,7 @@ Python.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Final
 
 import folium
@@ -19,6 +20,20 @@ from certiroute.map_scenario import MapPoint, OperatingAreaPreset
 DEPOT_COLOR: Final = "#70FFD2"
 JOB_COLOR: Final = "#FF9137"
 MARKER_TEXT_COLOR: Final = "#0B1524"
+COVERAGE_COLOR: Final = "#0A7D5E"
+
+
+@dataclass(frozen=True)
+class CoverageArea:
+    """Where a trained heat model may legitimately be applied."""
+
+    centre: MapPoint
+    radius_km: float
+    label: str
+
+    def __post_init__(self) -> None:
+        if self.radius_km <= 0:
+            raise ValueError("Coverage radius must be greater than zero.")
 
 
 def build_map_picker(
@@ -26,6 +41,7 @@ def build_map_picker(
     *,
     depot: MapPoint | None,
     job_sites: Sequence[MapPoint],
+    coverage: CoverageArea | None = None,
 ) -> tuple[folium.Map, folium.FeatureGroup]:
     """Build a stable base map and a replaceable selection overlay.
 
@@ -47,6 +63,27 @@ def build_map_picker(
         overlay=True,
         control=False,
     )
+
+    if coverage is not None:
+        # Drawing the limit is the honest alternative to letting someone place
+        # work outside it and only then be refused. The boundary is a property
+        # of the trained model, not a licence area, so it is shown as a soft
+        # edge rather than a hard wall.
+        folium.Circle(
+            location=[coverage.centre.latitude, coverage.centre.longitude],
+            radius=coverage.radius_km * 1000,
+            color=COVERAGE_COLOR,
+            weight=1.5,
+            opacity=0.55,
+            dash_array="6 6",
+            fill=True,
+            fill_color=DEPOT_COLOR,
+            fill_opacity=0.07,
+            tooltip=(
+                f"{coverage.label}: heat model covers "
+                f"{coverage.radius_km:.0f} km from here"
+            ),
+        ).add_to(selections)
 
     if depot is not None:
         folium.Marker(
@@ -78,6 +115,7 @@ def render_map_picker(
     *,
     depot: MapPoint | None,
     job_sites: Sequence[MapPoint],
+    coverage: CoverageArea | None = None,
     generation: int = 0,
     height: int = 500,
 ) -> Mapping[str, Any]:
@@ -97,6 +135,7 @@ def render_map_picker(
         operating_area,
         depot=depot,
         job_sites=job_sites,
+        coverage=coverage,
     )
     result = st_folium(
         base_map,
@@ -131,6 +170,8 @@ def _job_marker_html(sequence: int) -> str:
 
 
 __all__ = [
+    "COVERAGE_COLOR",
+    "CoverageArea",
     "DEPOT_COLOR",
     "JOB_COLOR",
     "MARKER_TEXT_COLOR",

@@ -75,8 +75,13 @@
     "960": 120
   },
   "schema_version": 1,
-  "trained_area": null,
-  "trained_at_utc": "2026-08-23T20:21:30.391809+00:00",
+  "trained_area": {
+    "max_latitude": 33.4508,
+    "max_longitude": -111.9565,
+    "min_latitude": 33.4352,
+    "min_longitude": -112.07391
+  },
+  "trained_at_utc": "2026-08-24T09:39:24.107103+00:00",
   "training_dates": [
     "2026-07-29",
     "2026-07-30",

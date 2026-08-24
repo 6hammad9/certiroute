@@ -6,6 +6,7 @@ import pytest
 
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.daily_level import (
+    DailyLevelPendingError,
     DailyLevelUnavailableError,
     build_daily_level_request,
     collect_daily_level,
@@ -245,3 +246,51 @@ def test_a_tile_less_cached_record_is_ignored_not_trusted(tmp_path) -> None:
     assert not reading.cache_hit
     assert reading.level_by_job["A"] == pytest.approx(37.5)
     assert len(client.submitted) == 1
+
+
+class SlowClient:
+    """A task that is still processing when the polling budget runs out."""
+
+    def __init__(self) -> None:
+        self.submitted = 0
+        self.polled: list[str] = []
+
+    def submit_heatmap(self, request):
+        self.submitted += 1
+        return "activity-slow"
+
+    def wait_for_activity(self, activity_id, **_):
+        from certiroute.fortyguard.errors import FortyGuardTaskTimeout
+
+        self.polled.append(activity_id)
+        raise FortyGuardTaskTimeout("did not complete after 60 checks")
+
+
+def test_a_still_computing_reading_carries_its_activity_forward(tmp_path) -> None:
+    store = HeatmapSnapshotStore(tmp_path)
+    client = SlowClient()
+
+    with pytest.raises(DailyLevelPendingError, match="still computing") as caught:
+        collect_daily_level(
+            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
+            client=client, now_utc=NOW,
+        )
+
+    assert caught.value.activity_id == "activity-slow"
+    assert client.submitted == 1
+
+
+def test_resuming_rejoins_the_task_instead_of_paying_for_another(tmp_path) -> None:
+    """A second submission would cost a credit and abandon the first task."""
+
+    store = HeatmapSnapshotStore(tmp_path)
+    client = SlowClient()
+
+    with pytest.raises(DailyLevelPendingError):
+        collect_daily_level(
+            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
+            client=client, now_utc=NOW, resume_activity_id="activity-earlier",
+        )
+
+    assert client.submitted == 0
+    assert client.polled == ["activity-earlier"]

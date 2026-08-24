@@ -54,6 +54,7 @@ class MapDriver:
         *,
         depot: object,
         job_sites: object,
+        coverage: object = None,
         generation: int = 0,
         height: int = 500,
         **_kwargs: object,
@@ -63,6 +64,7 @@ class MapDriver:
                 "operating_area": operating_area,
                 "depot": depot,
                 "job_sites": tuple(job_sites),  # type: ignore[arg-type]
+                "coverage": coverage,
                 "generation": generation,
                 "height": height,
             }
@@ -356,9 +358,11 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert "--canvas: #F7F8FA" in text
     assert "Instrument Sans" in text
     assert "JetBrains Mono" in text
-    assert "Position the map" in text
-    assert "Tap base and sites" in text
-    assert "Get your start time" in text
+    # The guide reports progress, so on a first run every step is still ahead.
+    assert "Place the crew base" in text
+    assert "Add work sites" in text
+    assert "Plan the shift" in text
+    assert 'class="process-step active"' in text
     assert "First, click where the crew starts and returns" in text
     assert app.selectbox[0].label == (
         "Start near a U.S. city — pan anywhere in the U.S."
@@ -702,3 +706,45 @@ def test_planner_view_keeps_methods_and_safety_detail_secondary(
     ]
     assert not app.get("link_button")
     assert rendered_states.network_calls == []
+
+
+# --- The guide, and the limit it points at ----------------------------------
+
+
+def test_the_guide_marks_finished_steps_and_points_at_the_next(
+    rendered_states: RenderedStates,
+) -> None:
+    """A static strip says what the product does, never what to do now."""
+
+    first_run = _all_text(rendered_states.empty)
+    with_sites = _all_text(rendered_states.map_ready)
+
+    # Nothing done yet: placing the base is the active step.
+    assert first_run.count('class="process-step done"') == 0
+    assert 'class="process-step active"' in first_run
+
+    # Base placed and sites added: the first two steps are finished.
+    assert with_sites.count('class="process-step done"') == 2
+    assert 'class="process-step active"' in with_sites
+
+
+def test_every_guide_step_carries_a_hover_explanation(
+    rendered_states: RenderedStates,
+) -> None:
+    text = _all_text(rendered_states.empty)
+
+    assert 'title="Click once on the map.' in text
+    assert "title=\"Click each place the crew must visit" in text
+    assert 'title="CertiRoute reads today&#x27;s heat' in text
+
+
+def test_the_map_is_told_where_the_trained_model_applies(
+    rendered_states: RenderedStates,
+) -> None:
+    """The boundary is drawn rather than enforced only after setup."""
+
+    coverage = rendered_states.map_driver.calls[-1]["coverage"]
+
+    assert coverage is not None
+    assert coverage.radius_km == pytest.approx(60.0)
+    assert "Phoenix" in coverage.label

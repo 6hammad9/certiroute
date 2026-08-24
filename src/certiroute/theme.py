@@ -246,14 +246,27 @@ h1.hero-heading {{
 }}
 .process-step {{
   display: inline-flex; align-items: center; gap: .5rem;
-  font-size: .8rem; font-weight: 500; color: var(--ink-2);
+  font-size: .8rem; font-weight: 500; color: var(--faint);
+  cursor: help;
 }}
 .process-number {{
   display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem;
-  border-radius: 50%; background: var(--surface); border: 1px solid var(--rule-firm);
+  border-radius: 50%; background: var(--surface);
+  border: 1px solid var(--rule-firm);
   font-family: var(--font-mono); font-size: .7rem; font-weight: 500;
-  color: var(--muted);
+  color: var(--faint);
 }}
+/* Finished, in progress, and still ahead must be tellable apart at a glance. */
+.process-step.done {{ color: var(--muted); }}
+.process-step.done .process-number {{
+  background: var(--route); border-color: var(--route); color: var(--route-ink);
+}}
+.process-step.active {{ color: var(--ink); font-weight: 600; }}
+.process-step.active .process-number {{
+  background: var(--ink); border-color: var(--ink); color: #FFFFFF;
+}}
+.process-step.active .icon {{ color: var(--heat); }}
+.process-step.pending {{ opacity: .65; }}
 .process-arrow {{ color: var(--rule-firm); display: inline-flex; }}
 
 /* --- Surfaces --------------------------------------------------------- */

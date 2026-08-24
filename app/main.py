@@ -19,10 +19,12 @@ from urllib.parse import urlencode
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+import streamlit.components.v1 as components
 from pydantic import ValidationError
 
 import certiroute.map_picker as map_picker
 from certiroute.climatology import (
+    DEFAULT_TRAINED_RADIUS_KM,
     ClimatologyUnavailableError,
     DiurnalClimatology,
     OutsideTrainedAreaError,
@@ -35,6 +37,7 @@ from certiroute.collection import (
 )
 from certiroute.config import get_settings
 from certiroute.daily_level import (
+    DailyLevelPendingError,
     DailyLevelReading,
     DailyLevelUnavailableError,
     collect_daily_level,
@@ -333,24 +336,61 @@ def render_result_mode_styles() -> None:
     st.markdown(RESULT_MODE_STYLES, unsafe_allow_html=True)
 
 
-def render_three_steps() -> None:
-    """Give first-time visitors a compact three-step mental model."""
+def render_three_steps(state: MapScenarioState, *, planned: bool) -> None:
+    """A guide that tracks real progress rather than describing the ideal path.
+
+    A static three-step strip tells a first-time user what the product does but
+    never what to do *now*. Each step here reports whether it is finished, in
+    progress, or still ahead, and carries a hover note explaining it, so the
+    guide keeps working after the first minute.
+    """
+
+    depot_done = state.depot is not None
+    sites_done = state.job_count >= MIN_MANIFEST_JOBS
+    steps = (
+        (
+            "map",
+            "Place the crew base",
+            depot_done,
+            "Click once on the map. This is where the shift starts and ends.",
+        ),
+        (
+            "pin",
+            "Add work sites",
+            sites_done,
+            f"Click each place the crew must visit - at least "
+            f"{MIN_MANIFEST_JOBS}, up to {MAX_MANIFEST_JOBS}.",
+        ),
+        (
+            "sunrise",
+            "Plan the shift",
+            planned,
+            "CertiRoute reads today's heat and picks the coolest start time "
+            "that still fits every job.",
+        ),
+    )
+    active_index = next(
+        (index for index, step in enumerate(steps) if not step[2]), len(steps)
+    )
 
     arrow = f'<span class="process-arrow">{icon("arrow-right", size=15)}</span>'
-    steps = (
-        ("map", "Position the map"),
-        ("pin", "Tap base and sites"),
-        ("sunrise", "Get your start time"),
-    )
-    rendered = arrow.join(
-        f'<span class="process-step">'
-        f'<span class="process-number">{number}</span>'
-        f"{icon(name, size=15)}{escape(text)}</span>"
-        for number, (name, text) in enumerate(steps, start=1)
-    )
+    rendered: list[str] = []
+    for index, (name, text, done, hint) in enumerate(steps):
+        if done:
+            status, mark = "done", icon("check", size=13)
+        elif index == active_index:
+            status, mark = "active", str(index + 1)
+        else:
+            status, mark = "pending", str(index + 1)
+        rendered.append(
+            f'<span class="process-step {status}" title="{escape(hint)}">'
+            f'<span class="process-number">{mark}</span>'
+            f"{icon(name, size=15)}{escape(text)}</span>"
+        )
     st.markdown(
-        '<div class="process-strip" aria-label="How CertiRoute works">'
-        f"{rendered}</div>",
+        '<div class="process-strip" aria-label="Setup progress">'
+        + arrow.join(rendered)
+        + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -1397,6 +1437,7 @@ def render_map_setup() -> MapScenarioState:
             state.operating_area,
             depot=state.depot,
             job_sites=state.job_sites,
+            coverage=coverage_for(state.operating_area_id),
             generation=generation,
             height=470,
         )
@@ -1567,6 +1608,46 @@ def build_map_manifest(
     return validate_job_manifest(frame)
 
 
+def scroll_to(anchor_id: str) -> None:
+    """Bring a freshly rendered section into view.
+
+    The plan appears near the top of the page while the button that produces
+    it sits far below, so without this a dispatcher presses Plan and watches
+    nothing visibly happen. Called only on the run that produced a new plan,
+    never on ordinary reruns, so it cannot fight the user's own scrolling.
+    """
+
+    components.html(
+        "<script>"
+        "const doc = window.parent.document;"
+        f'const target = doc.getElementById("{anchor_id}");'
+        'if (target) {'
+        'target.scrollIntoView({behavior: "smooth", block: "start"});'
+        "}"
+        "</script>",
+        height=0,
+    )
+
+
+def coverage_for(area_id: str) -> map_picker.CoverageArea | None:
+    """The circle a trained model may be applied inside, if one exists.
+
+    Showing the boundary is the honest alternative to letting a dispatcher
+    place work outside it and only then be refused after the effort of
+    setting up a route.
+    """
+
+    model = trained_model(area_id)
+    if model is None or model.trained_area is None:
+        return None
+    latitude, longitude = model.trained_area.centre
+    return map_picker.CoverageArea(
+        centre=MapPoint(latitude, longitude),
+        radius_km=DEFAULT_TRAINED_RADIUS_KM,
+        label=model.label,
+    )
+
+
 def trained_model(area_id: str) -> DiurnalClimatology | None:
     """Load the committed heat model for an area, or None when untrained."""
 
@@ -1576,6 +1657,9 @@ def trained_model(area_id: str) -> DiurnalClimatology | None:
         return None
 
 
+PENDING_LEVEL_KEY = "certiroute_pending_level_activity"
+
+
 def read_today_level(
     jobs: list[Job],
     store: HeatmapSnapshotStore,
@@ -1583,16 +1667,27 @@ def read_today_level(
     target_date: date,
     granularity: int,
 ) -> DailyLevelReading:
-    """Fetch the one whole-day aggregate that anchors today's prediction."""
+    """Fetch the one whole-day aggregate that anchors today's prediction.
+
+    A reading that outran its polling budget is resumed rather than resubmitted,
+    so pressing the button again rejoins the task already running instead of
+    spending a second credit and abandoning the first.
+    """
 
     polygon = bounding_polygon(job.location for job in jobs)
+    pending = st.session_state.get(PENDING_LEVEL_KEY)
+    resume = (
+        pending.get("activity_id")
+        if isinstance(pending, dict) and pending.get("date") == target_date.isoformat()
+        else None
+    )
     settings = get_settings()
     with FortyGuardClient(
         api_key=settings.fortyguard_api_key,
         base_url=settings.fortyguard_api_base_url,
         timeout_seconds=settings.fortyguard_timeout_seconds,
     ) as client:
-        return collect_daily_level(
+        reading = collect_daily_level(
             jobs,
             polygon,
             store,
@@ -1601,7 +1696,10 @@ def read_today_level(
             client=client,
             poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
             max_attempts=settings.fortyguard_max_poll_attempts,
+            resume_activity_id=resume,
         )
+        st.session_state.pop(PENDING_LEVEL_KEY, None)
+        return reading
 
 
 def candidate_starts_for(shift_start: time, shift_end: time) -> tuple[time, ...]:
@@ -2024,6 +2122,9 @@ def render_hindsight(
 def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
     """Crew view first; the model's workings stay one click away."""
 
+    st.markdown(
+        '<div id="certiroute-plan"></div>', unsafe_allow_html=True
+    )
     st.markdown("## Today's plan")
     view = st.segmented_control(
         "Result view",
@@ -2116,7 +2217,12 @@ st.set_page_config(
 )
 inject_styles()
 render_hero()
-render_three_steps()
+render_three_steps(
+    load_map_scenario(),
+    planned=isinstance(
+        st.session_state.get("certiroute_today_plan"), SameDayPlan
+    ),
+)
 route_result_slot = st.container()
 
 st.markdown("## Build a route from the map")
@@ -2279,6 +2385,20 @@ if planning_today:
                 "shift. Shorten a visit, lengthen the shift, or remove a distant "
                 f"job, then try again. Details: {exc}"
             )
+        except DailyLevelPendingError as exc:
+            same_day_plan = None
+            # The task is still running on FortyGuard's side, so remember it and
+            # rejoin rather than paying for a second one.
+            st.session_state[PENDING_LEVEL_KEY] = {
+                "date": selected_date.isoformat(),
+                "activity_id": exc.activity_id,
+            }
+            st.warning(
+                f"{exc} Large areas can take several minutes. Press "
+                "**Plan today's shift** again to pick the same reading back up "
+                "— it keeps computing in the background and no second "
+                "request is sent."
+            )
         except DailyLevelUnavailableError as exc:
             same_day_plan = None
             st.warning(
@@ -2326,6 +2446,8 @@ if planning_today:
         with route_result_slot:
             render_result_mode_styles()
             render_same_day_result(same_day_plan, depot)
+        if plan_clicked:
+            scroll_to("certiroute-plan")
     else:
         render_empty_state(job_count=len(domain_jobs))
         st.markdown("---")

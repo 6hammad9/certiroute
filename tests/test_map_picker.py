@@ -130,3 +130,72 @@ def test_invalid_component_lifecycle_values_are_rejected(generation, height) -> 
             generation=generation,
             height=height,
         )
+
+
+# --- Showing where a trained model may be applied ---------------------------
+
+
+def phoenix_coverage(radius_km: float = 60.0) -> map_picker.CoverageArea:
+    return map_picker.CoverageArea(
+        centre=MapPoint(33.4430, -112.0152),
+        radius_km=radius_km,
+        label="Phoenix, Arizona",
+    )
+
+
+def test_coverage_draws_a_circle_the_user_can_see() -> None:
+    """Showing the limit beats refusing work only after it is set up."""
+
+    _, selections = map_picker.build_map_picker(
+        phoenix_area(),
+        depot=None,
+        job_sites=(),
+        coverage=phoenix_coverage(),
+    )
+    circles = [
+        child
+        for child in selections._children.values()
+        if child.__class__.__name__ == "Circle"
+    ]
+
+    assert len(circles) == 1
+    # Folium takes metres; the model's limit is expressed in kilometres.
+    assert circles[0].options["radius"] == pytest.approx(60_000)
+    assert circles[0].location == [pytest.approx(33.4430), pytest.approx(-112.0152)]
+
+
+def test_no_coverage_draws_no_circle() -> None:
+    """An untrained area must not imply a boundary it does not have."""
+
+    _, selections = map_picker.build_map_picker(
+        phoenix_area(), depot=None, job_sites=(), coverage=None
+    )
+
+    assert not [
+        child
+        for child in selections._children.values()
+        if child.__class__.__name__ == "Circle"
+    ]
+
+
+def test_the_circle_names_the_area_and_its_radius() -> None:
+    _, selections = map_picker.build_map_picker(
+        phoenix_area(), depot=None, job_sites=(), coverage=phoenix_coverage()
+    )
+    circle = next(
+        child
+        for child in selections._children.values()
+        if child.__class__.__name__ == "Circle"
+    )
+
+    tooltip = str(next(iter(circle._children.values())).text)
+    assert "Phoenix, Arizona" in tooltip
+    assert "60 km" in tooltip
+
+
+@pytest.mark.parametrize("radius", [0.0, -1.0])
+def test_a_meaningless_radius_is_refused(radius: float) -> None:
+    with pytest.raises(ValueError, match="greater than zero"):
+        map_picker.CoverageArea(
+            centre=MapPoint(33.44, -112.07), radius_km=radius, label="X"
+        )

@@ -11,8 +11,10 @@ from certiroute.climatology import (
     TrainedArea,
     available_areas,
     load_climatology,
+    rolling_origin_day_scores,
     save_climatology,
     train_climatology,
+    train_climatology_rolling,
     unseen_site_error,
 )
 from certiroute.forecasting import InsufficientHistoryError
@@ -323,3 +325,34 @@ def test_the_trained_area_survives_a_round_trip(tmp_path) -> None:
     loaded = load_climatology("phoenix", root=tmp_path)
 
     assert loaded.trained_area == PHOENIX_AREA
+
+
+def test_rolling_training_records_the_ground_it_learned_from() -> None:
+    """Without this the app cannot draw the boundary it later enforces."""
+
+    model = train_climatology_rolling(
+        history(levels=tuple(30.0 + index for index in range(8))),
+        area_id="phoenix",
+        label="Phoenix",
+        granularity_m=60,
+        min_train_days=3,
+        trained_area=PHOENIX_AREA,
+    )
+
+    assert model.trained_area == PHOENIX_AREA
+
+
+def test_rolling_scores_never_see_their_own_day() -> None:
+    """Each day is predicted from the days before it, as the product is used."""
+
+    days = history(levels=tuple(30.0 + index for index in range(8)))
+    scores = rolling_origin_day_scores(days, min_train_days=3)
+
+    # Days 0-2 train the first score, so scoring starts at the fourth day.
+    assert [day for day, _, _ in scores] == [day for day, _, _ in days[3:]]
+    assert all(worst >= mean for _, mean, worst in scores)
+
+
+def test_rolling_training_needs_more_days_than_it_trains_on() -> None:
+    with pytest.raises(InsufficientHistoryError, match="rolling calibration needs"):
+        rolling_origin_day_scores(history(levels=(30.0, 31.0)), min_train_days=3)

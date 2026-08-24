@@ -20,6 +20,7 @@ from datetime import UTC, date, datetime, timedelta
 from certiroute.collection import HeatmapSnapshotStore
 from certiroute.domain import Job
 from certiroute.fortyguard.client import FortyGuardClient
+from certiroute.fortyguard.errors import FortyGuardTaskTimeout
 from certiroute.fortyguard.heatmap_profiles import (
     heatmap_has_tiles,
     map_job_temperatures,
@@ -37,6 +38,21 @@ DEFAULT_LIVE_LEVEL_TTL = timedelta(minutes=30)
 
 class DailyLevelUnavailableError(LookupError):
     """FortyGuard has not published a whole-day reading for this date."""
+
+
+class DailyLevelPendingError(LookupError):
+    """The reading is still being computed, and can be resumed.
+
+    A whole-day aggregate is a heavier computation than a single hour and can
+    outlast a reasonable interactive wait. That is not a failure: the activity
+    is still running on FortyGuard's side. Carrying its identifier lets the
+    next attempt rejoin the work already in progress instead of submitting a
+    second task and abandoning the first.
+    """
+
+    def __init__(self, message: str, *, activity_id: str) -> None:
+        super().__init__(message)
+        self.activity_id = activity_id
 
 
 @dataclass(frozen=True)
@@ -84,6 +100,7 @@ def collect_daily_level(
     poll_interval_seconds: float = 5.0,
     max_attempts: int = 60,
     live_ttl: timedelta = DEFAULT_LIVE_LEVEL_TTL,
+    resume_activity_id: str | None = None,
     now_utc: datetime | None = None,
 ) -> DailyLevelReading:
     """Return each site's whole-day level, from cache when one is usable.
@@ -127,14 +144,23 @@ def collect_daily_level(
             "client was supplied to fetch one"
         )
 
-    activity_id = client.submit_heatmap(request)
-    raw_result = dict(
-        client.wait_for_activity(
-            activity_id,
-            poll_interval_seconds=poll_interval_seconds,
-            max_attempts=max_attempts,
+    # Rejoining a task already in flight costs nothing; submitting a second
+    # one costs a credit and abandons the first.
+    activity_id = resume_activity_id or client.submit_heatmap(request)
+    try:
+        raw_result = dict(
+            client.wait_for_activity(
+                activity_id,
+                poll_interval_seconds=poll_interval_seconds,
+                max_attempts=max_attempts,
+            )
         )
-    )
+    except FortyGuardTaskTimeout as exc:
+        raise DailyLevelPendingError(
+            f"FortyGuard is still computing the whole-day reading for "
+            f"{target_date.isoformat()}.",
+            activity_id=activity_id,
+        ) from exc
     if not heatmap_has_tiles(raw_result):
         # Early in a day the aggregate is not published yet: the response is
         # successful and empty. Caching it would answer the date with nothing
@@ -164,6 +190,7 @@ def collect_daily_level(
 
 __all__ = [
     "DEFAULT_LIVE_LEVEL_TTL",
+    "DailyLevelPendingError",
     "DailyLevelReading",
     "DailyLevelUnavailableError",
     "build_daily_level_request",

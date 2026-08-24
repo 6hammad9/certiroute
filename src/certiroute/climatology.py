@@ -483,6 +483,7 @@ def train_climatology_rolling(
             ),
         ),
         trained_at_utc=trained_at_utc or datetime.now(UTC),
+        trained_area=trained_area,
     )
 
 
