@@ -178,9 +178,7 @@ def collect_daily_level(
         request,
         raw_result=raw_result,
         activity_id=activity_id,
-        temporal_scope=(
-            "historical" if is_finished_day else "current_or_forecast"
-        ),
+        temporal_scope=("historical" if is_finished_day else "current_or_forecast"),
         collected_at_utc=now,
     )
     return DailyLevelReading(

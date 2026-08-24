@@ -102,9 +102,7 @@ def tiles_from(result: Mapping[str, Any]) -> list[dict[str, Any]]:
         properties = feature.get("properties") or {}
         temperature = properties.get("average_temperature")
         geometry = feature.get("geometry")
-        if isinstance(temperature, bool) or not isinstance(
-            temperature, (int, float)
-        ):
+        if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
             continue
         if not isinstance(geometry, dict):
             continue
@@ -132,8 +130,7 @@ def matured_targets(lookback_hours: int) -> list[datetime]:
 
     now_local = phoenix_now().replace(minute=0, second=0, microsecond=0)
     return [
-        now_local - timedelta(hours=offset)
-        for offset in range(1, lookback_hours + 1)
+        now_local - timedelta(hours=offset) for offset in range(1, lookback_hours + 1)
     ]
 
 
@@ -143,9 +140,7 @@ def run_forecast(archive: ForecastArchive, hours: int, live: bool) -> None:
     now_local = phoenix_now()
     horizon = min(hours, FORECAST_HORIZON_HOURS)
     targets = [
-        (now_local + timedelta(hours=offset)).replace(
-            minute=0, second=0, microsecond=0
-        )
+        (now_local + timedelta(hours=offset)).replace(minute=0, second=0, microsecond=0)
         for offset in range(1, horizon + 1)
     ]
     print(f"Phoenix local now : {now_local:%Y-%m-%d %H:%M}")
@@ -214,8 +209,7 @@ def run_realize(archive: ForecastArchive, lookback_hours: int, live: bool) -> No
     if not live:
         for target, forecast in pending:
             print(
-                f"  would realize {target:%Y-%m-%d %H:00}  "
-                f"({forecast.record_id[:12]})"
+                f"  would realize {target:%Y-%m-%d %H:00}  ({forecast.record_id[:12]})"
             )
         print("\nPass --live to submit these requests.")
         return
@@ -277,9 +271,7 @@ def run_status(archive: ForecastArchive, lookback_hours: int) -> None:
         request = build_request(target)
         for forecast in archive.list_forecast_vintages(request):
             forecasts += 1
-            realization = archive.latest_vendor_relative_realization(
-                forecast.record_id
-            )
+            realization = archive.latest_vendor_relative_realization(forecast.record_id)
             if realization is not None:
                 residuals.append(
                     (

@@ -166,13 +166,18 @@ def main() -> None:
     print(f"Area      : {detail['label']}")
     print(f"Day       : {detail['date']} (never trained or calibrated on)")
     print(f"Measured  : {detail['measured_level_c']} C across the area")
-    print(f"Chose     : {detail['recommended_start']} vs usual "
-          f"{detail['baseline_start']}")
+    print(
+        f"Chose     : {detail['recommended_start']} vs usual {detail['baseline_start']}"
+    )
     for run in payload["runs"]:
-        print(f"  {run['label']:22} depart {run['depart']:4d}  home {run['finish']:4d}"
-              f"  exposure {run['exposure']:7.1f}")
-    print(f"\nWrote {SHOWCASE_PATH.relative_to(PROJECT_ROOT)} "
-          f"({SHOWCASE_PATH.stat().st_size} bytes)")
+        print(
+            f"  {run['label']:22} depart {run['depart']:4d}  home {run['finish']:4d}"
+            f"  exposure {run['exposure']:7.1f}"
+        )
+    print(
+        f"\nWrote {SHOWCASE_PATH.relative_to(PROJECT_ROOT)} "
+        f"({SHOWCASE_PATH.stat().st_size} bytes)"
+    )
 
 
 if __name__ == "__main__":

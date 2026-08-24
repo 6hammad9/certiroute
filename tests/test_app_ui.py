@@ -673,9 +673,7 @@ def test_planner_view_exposes_auditable_api_evidence(
     assert "60 m" in text
     assert "No synthetic or substitute temperature profile" in text
     assert len(temperatures) == 6
-    assert list(temperatures.columns[1:]) == [
-        f"{hour:02d}:00" for hour in range(5, 18)
-    ]
+    assert list(temperatures.columns[1:]) == [f"{hour:02d}:00" for hour in range(5, 18)]
     assert len(source_records) == 13
     assert (source_records["Heat-data area"] == 1).all()
     assert (source_records["Retrieved"] == "Saved API response").all()
@@ -736,7 +734,7 @@ def test_every_guide_step_carries_a_hover_explanation(
     text = _all_text(rendered_states.empty)
 
     assert 'title="Click once on the map.' in text
-    assert "title=\"Click each place the crew must visit" in text
+    assert 'title="Click each place the crew must visit' in text
     assert 'title="CertiRoute reads today&#x27;s heat' in text
 
 

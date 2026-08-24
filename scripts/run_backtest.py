@@ -35,9 +35,7 @@ def build_day(case: dict[str, Any], source_label: str) -> HistoricalRouteDay:
         Job(
             job_id=entry["job_id"],
             name=entry.get("name", entry["job_id"]),
-            location=GeoPoint(
-                latitude=entry["latitude"], longitude=entry["longitude"]
-            ),
+            location=GeoPoint(latitude=entry["latitude"], longitude=entry["longitude"]),
             duration_minutes=entry["duration_minutes"],
             priority=entry["priority"],
             earliest_start=time.fromisoformat(entry["earliest_start"]),
@@ -94,9 +92,7 @@ def main() -> int:
         if case["role"] == "held_out_date"
     }
     held_geographies = {
-        case["geography"]
-        for case in cases
-        if case["role"] == "held_out_geography"
+        case["geography"] for case in cases if case["role"] == "held_out_geography"
     }
     holdout = BacktestHoldout(
         dates=frozenset(held_dates), geographies=frozenset(held_geographies)
@@ -159,9 +155,7 @@ def main() -> int:
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
-        args.json.write_text(
-            report.model_dump_json(indent=2) + "\n", encoding="utf-8"
-        )
+        args.json.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         print(f"\nWrote report: {args.json}")
     return 0
 

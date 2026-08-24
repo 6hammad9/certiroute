@@ -187,16 +187,21 @@ def main() -> None:
         raise SystemExit(f"\nTraining refused: {exc}") from exc
 
     evaluation = model.evaluation
-    print(f"\nTrained on {len(model.training_dates)} day(s), held out "
-          f"{len(evaluation.holdout_dates)}")
+    print(
+        f"\nTrained on {len(model.training_dates)} day(s), held out "
+        f"{len(evaluation.holdout_dates)}"
+    )
     print(f"  held-out MAE        : {evaluation.mean_absolute_error_c:.2f} C")
     print(f"  held-out worst      : {evaluation.worst_absolute_error_c:.2f} C")
     if evaluation.unseen_site_mae_c is not None:
         print(f"  unseen-site MAE     : {evaluation.unseen_site_mae_c:.2f} C")
-    print(f"  day scores          : "
-          f"{', '.join(f'{s:.2f}' for s in evaluation.day_scores_c)}")
-    print(f"  supported interval  : "
-          f"{(1 - evaluation.supported_miscoverage):.0%} coverage")
+    print(
+        f"  day scores          : "
+        f"{', '.join(f'{s:.2f}' for s in evaluation.day_scores_c)}"
+    )
+    print(
+        f"  supported interval  : {(1 - evaluation.supported_miscoverage):.0%} coverage"
+    )
 
     path = save_climatology(model, root=ARTIFACT_ROOT)
     print(f"\nSaved {path}")

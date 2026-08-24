@@ -114,17 +114,19 @@ def main() -> None:
 
     baseline = time.fromisoformat(args.baseline_start)
     shift_end = time(args.end_hour)
-    candidates = tuple(
-        time(hour) for hour in range(args.start_hour, baseline.hour + 1)
-    )
+    candidates = tuple(time(hour) for hour in range(args.start_hour, baseline.hour + 1))
     hours = tuple(time(hour) for hour in range(args.start_hour, args.end_hour + 1))
     seen = set(model.training_dates) | set(model.evaluation.holdout_dates)
 
-    print(f"Model     : {model.label}, trained {len(model.training_dates)} days, "
-          f"held-out MAE {model.evaluation.mean_absolute_error_c:.2f} C")
+    print(
+        f"Model     : {model.label}, trained {len(model.training_dates)} days, "
+        f"held-out MAE {model.evaluation.mean_absolute_error_c:.2f} C"
+    )
     print(f"Interval  : from {len(model.evaluation.day_scores_c)} held-out days")
-    print(f"Baseline  : {baseline:%H:%M}   candidates "
-          f"{candidates[0]:%H:%M}-{candidates[-1]:%H:%M}")
+    print(
+        f"Baseline  : {baseline:%H:%M}   candidates "
+        f"{candidates[0]:%H:%M}-{candidates[-1]:%H:%M}"
+    )
     print(f"Windows   : {'honoured' if args.honour_windows else 'ignored (demo)'}\n")
 
     end = date.fromisoformat(args.end) if args.end else date.today() - timedelta(days=1)
@@ -165,8 +167,12 @@ def main() -> None:
                 continue
             try:
                 reading = collect_daily_level(
-                    jobs, polygon, store, target_date=target,
-                    granularity=model.granularity_m, client=client,
+                    jobs,
+                    polygon,
+                    store,
+                    target_date=target,
+                    granularity=model.granularity_m,
+                    client=client,
                     poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
                     max_attempts=settings.fortyguard_max_poll_attempts,
                 )
@@ -175,13 +181,23 @@ def main() -> None:
                 continue
 
             plan = build_same_day_plan(
-                jobs, model, reading, depot=depot, baseline_start=baseline,
-                candidate_starts=candidates, shift_end=shift_end, **SCHEDULER,
+                jobs,
+                model,
+                reading,
+                depot=depot,
+                baseline_start=baseline,
+                candidate_starts=candidates,
+                shift_end=shift_end,
+                **SCHEDULER,
             )
             try:
                 outcome = score_plan_against_measurements(
-                    plan, measured, depot=depot, candidate_starts=candidates,
-                    shift_end=shift_end, **SCHEDULER,
+                    plan,
+                    measured,
+                    depot=depot,
+                    candidate_starts=candidates,
+                    shift_end=shift_end,
+                    **SCHEDULER,
                 )
             except LeakageError as exc:
                 print(f"  {target}  refused: {exc}")
@@ -191,7 +207,8 @@ def main() -> None:
             results.append(outcome)
             graded.append((target, outcome))
             verdict = (
-                "optimal" if outcome.chose_the_best_start
+                "optimal"
+                if outcome.chose_the_best_start
                 else ("helped" if outcome.helped else "WORSE")
             )
             print(
@@ -219,8 +236,10 @@ def main() -> None:
     print(f"  beat the usual start  : {helped}/{len(results)}")
     if reductions:
         print(f"  mean exposure avoided : {sum(reductions) / len(reductions):.1%}")
-    print(f"  worst regret          : "
-          f"{max(outcome.regret_units for outcome in results):.1f} degree-hours")
+    print(
+        f"  worst regret          : "
+        f"{max(outcome.regret_units for outcome in results):.1f} degree-hours"
+    )
 
     # Committed so the claim can be audited without rerunning the API.
     evidence_path = EVIDENCE_ROOT / f"recommendation_grades_{args.area}.json"

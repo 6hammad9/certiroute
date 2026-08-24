@@ -92,8 +92,13 @@ def test_a_fetched_level_is_returned_for_every_site(tmp_path) -> None:
     client = FakeClient(38.5)
 
     reading = collect_daily_level(
-        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW,
     )
 
     assert set(reading.level_by_job) == {"A", "B"}
@@ -109,20 +114,35 @@ def test_todays_level_is_reused_only_while_it_is_fresh(tmp_path) -> None:
     store = HeatmapSnapshotStore(tmp_path)
     client = FakeClient(38.5)
     collect_daily_level(
-        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW,
     )
 
     fresh = collect_daily_level(
-        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW + timedelta(minutes=5),
+        JOBS,
+        POLYGON,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW + timedelta(minutes=5),
     )
     assert fresh.cache_hit
     assert len(client.submitted) == 1
 
     stale = collect_daily_level(
-        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW + timedelta(hours=4),
+        JOBS,
+        POLYGON,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW + timedelta(hours=4),
     )
     assert not stale.cache_hit
     assert len(client.submitted) == 2
@@ -134,12 +154,22 @@ def test_a_finished_day_is_cached_forever(tmp_path) -> None:
     past = date(2026, 8, 10)
 
     collect_daily_level(
-        JOBS, POLYGON, store, target_date=past, granularity=60,
-        client=client, now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=past,
+        granularity=60,
+        client=client,
+        now_utc=NOW,
     )
     later = collect_daily_level(
-        JOBS, POLYGON, store, target_date=past, granularity=60,
-        client=client, now_utc=NOW + timedelta(days=30),
+        JOBS,
+        POLYGON,
+        store,
+        target_date=past,
+        granularity=60,
+        client=client,
+        now_utc=NOW + timedelta(days=30),
     )
 
     assert later.cache_hit
@@ -153,8 +183,13 @@ def test_offline_use_without_a_cached_reading_is_refused(tmp_path) -> None:
 
     with pytest.raises(LookupError, match="no cached whole-day aggregate"):
         collect_daily_level(
-            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-            client=None, now_utc=NOW,
+            JOBS,
+            POLYGON,
+            store,
+            target_date=TODAY,
+            granularity=60,
+            client=None,
+            now_utc=NOW,
         )
 
 
@@ -162,13 +197,23 @@ def test_a_cached_finished_day_is_readable_with_no_client(tmp_path) -> None:
     store = HeatmapSnapshotStore(tmp_path)
     past = date(2026, 8, 10)
     collect_daily_level(
-        JOBS, POLYGON, store, target_date=past, granularity=60,
-        client=FakeClient(36.0), now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=past,
+        granularity=60,
+        client=FakeClient(36.0),
+        now_utc=NOW,
     )
 
     offline = collect_daily_level(
-        JOBS, POLYGON, store, target_date=past, granularity=60,
-        client=None, now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=past,
+        granularity=60,
+        client=None,
+        now_utc=NOW,
     )
 
     assert offline.cache_hit
@@ -212,8 +257,13 @@ def test_an_unpublished_day_is_refused_and_never_cached(tmp_path) -> None:
         DailyLevelUnavailableError, match="has not published a whole-day reading"
     ):
         collect_daily_level(
-            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-            client=client, now_utc=NOW,
+            JOBS,
+            POLYGON,
+            store,
+            target_date=TODAY,
+            granularity=60,
+            client=client,
+            now_utc=NOW,
         )
 
     assert client.submitted == 1
@@ -239,8 +289,13 @@ def test_a_tile_less_cached_record_is_ignored_not_trusted(tmp_path) -> None:
     client = FakeClient(37.5)
 
     reading = collect_daily_level(
-        JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW,
+        JOBS,
+        POLYGON,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW,
     )
 
     # The empty record was skipped and a real reading collected in its place.
@@ -273,8 +328,13 @@ def test_a_still_computing_reading_carries_its_activity_forward(tmp_path) -> Non
 
     with pytest.raises(DailyLevelPendingError, match="still computing") as caught:
         collect_daily_level(
-            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-            client=client, now_utc=NOW,
+            JOBS,
+            POLYGON,
+            store,
+            target_date=TODAY,
+            granularity=60,
+            client=client,
+            now_utc=NOW,
         )
 
     assert caught.value.activity_id == "activity-slow"
@@ -289,8 +349,14 @@ def test_resuming_rejoins_the_task_instead_of_paying_for_another(tmp_path) -> No
 
     with pytest.raises(DailyLevelPendingError):
         collect_daily_level(
-            JOBS, POLYGON, store, target_date=TODAY, granularity=60,
-            client=client, now_utc=NOW, resume_activity_id="activity-earlier",
+            JOBS,
+            POLYGON,
+            store,
+            target_date=TODAY,
+            granularity=60,
+            client=client,
+            now_utc=NOW,
+            resume_activity_id="activity-earlier",
         )
 
     assert client.submitted == 0
@@ -337,8 +403,12 @@ def test_sites_wider_than_the_plan_limit_are_split_not_refused(tmp_path) -> None
     client = CountingClient(30.0)
 
     reading = collect_clustered_daily_level(
-        SPREAD_JOBS, store, target_date=TODAY, granularity=60,
-        client=client, now_utc=NOW,
+        SPREAD_JOBS,
+        store,
+        target_date=TODAY,
+        granularity=60,
+        client=client,
+        now_utc=NOW,
     )
 
     assert set(reading.level_by_job) == {"A", "B", "C"}

@@ -78,15 +78,12 @@ class TrainedArea:
         delta_lat = lat2 - lat1
         delta_lon = radians(longitude - centre_lon)
         value = (
-            sin(delta_lat / 2) ** 2
-            + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
+            sin(delta_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
         )
         return 2 * earth_radius_km * asin(sqrt(value))
 
     @classmethod
-    def covering(
-        cls, points: Iterable[tuple[float, float]]
-    ) -> TrainedArea:
+    def covering(cls, points: Iterable[tuple[float, float]]) -> TrainedArea:
         latitudes = []
         longitudes = []
         for latitude, longitude in points:
@@ -236,9 +233,7 @@ class DiurnalClimatology:
                 }
             ),
             "evaluation": {
-                "holdout_dates": [
-                    d.isoformat() for d in self.evaluation.holdout_dates
-                ],
+                "holdout_dates": [d.isoformat() for d in self.evaluation.holdout_dates],
                 "mean_absolute_error_c": self.evaluation.mean_absolute_error_c,
                 "worst_absolute_error_c": self.evaluation.worst_absolute_error_c,
                 "reading_count": self.evaluation.reading_count,
@@ -251,9 +246,7 @@ class DiurnalClimatology:
     def from_json(cls, payload: Mapping[str, Any]) -> DiurnalClimatology:
         version = payload.get("schema_version")
         if version != ARTIFACT_SCHEMA_VERSION:
-            raise ValueError(
-                f"unsupported climatology artifact version {version!r}"
-            )
+            raise ValueError(f"unsupported climatology artifact version {version!r}")
         evaluation = payload["evaluation"]
         return cls(
             area_id=str(payload["area_id"]),
@@ -261,8 +254,7 @@ class DiurnalClimatology:
             granularity_m=int(payload["granularity_m"]),
             shape=DailyLevelShape(
                 offsets_by_minute={
-                    int(k): float(v)
-                    for k, v in payload["offsets_by_minute"].items()
+                    int(k): float(v) for k, v in payload["offsets_by_minute"].items()
                 },
                 sample_counts={
                     int(k): int(v) for k, v in payload["sample_counts"].items()
@@ -324,9 +316,7 @@ def _learn_offsets(history: Sequence[TrainingDay]) -> DailyLevelShape:
                 continue
             for point in profile.points:
                 minute = point.minute_of_day
-                totals[minute] = totals.get(minute, 0.0) + (
-                    point.temperature_c - level
-                )
+                totals[minute] = totals.get(minute, 0.0) + (point.temperature_c - level)
                 counts[minute] = counts.get(minute, 0) + 1
                 contributed = True
         if contributed:
@@ -344,9 +334,7 @@ def _learn_offsets(history: Sequence[TrainingDay]) -> DailyLevelShape:
     )
 
 
-def _residuals(
-    shape: DailyLevelShape, days: Sequence[TrainingDay]
-) -> list[float]:
+def _residuals(shape: DailyLevelShape, days: Sequence[TrainingDay]) -> list[float]:
     """Signed prediction errors, each site anchored on its own level."""
 
     residuals: list[float] = []
@@ -434,9 +422,7 @@ def rolling_origin_day_scores(
         if not residuals:
             continue
         absolute = [abs(value) for value in residuals]
-        scores.append(
-            (ordered[index][0], sum(absolute) / len(absolute), max(absolute))
-        )
+        scores.append((ordered[index][0], sum(absolute) / len(absolute), max(absolute)))
     if not scores:
         raise InsufficientHistoryError("no day produced a rolling-origin score")
     return scores

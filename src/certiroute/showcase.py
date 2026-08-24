@@ -128,9 +128,7 @@ def load_grade_summary(root: Path | None = None) -> GradeSummary | None:
         picked_best_start=best,
         worst_regret_units=max(regrets) if regrets else 0.0,
         best_reduction=max(reductions) if reductions else None,
-        mean_absolute_error_c=(
-            sum(errors) / len(errors) if errors else None
-        ),
+        mean_absolute_error_c=(sum(errors) / len(errors) if errors else None),
     )
 
 

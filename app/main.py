@@ -277,7 +277,7 @@ def step_done(message: str) -> None:
 
     st.markdown(
         '<div class="step-done">'
-        f'{icon("check", size=15)}<span>{escape(message)}</span></div>',
+        f"{icon('check', size=15)}<span>{escape(message)}</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -356,7 +356,7 @@ def section(number: int, title: str, *, blurb: str = "") -> None:
     st.markdown(
         f'<div class="section-head"><span class="section-index">'
         f"[{number:02d}]</span><h2>{escape(title)}</h2>"
-        + (f'<p>{escape(blurb)}</p>' if blurb else "")
+        + (f"<p>{escape(blurb)}</p>" if blurb else "")
         + "</div>",
         unsafe_allow_html=True,
     )
@@ -1817,8 +1817,7 @@ def candidate_starts_for(shift_start: time, shift_end: time) -> tuple[time, ...]
     starts = [
         minute
         for minute in range(earliest, latest + 1, 60)
-        if minute + duration <= minutes_of_day(shift_end)
-        or minute == latest
+        if minute + duration <= minutes_of_day(shift_end) or minute == latest
     ]
     if latest not in starts:
         starts.append(latest)
@@ -1859,9 +1858,7 @@ def render_start_decision(plan: SameDayPlan) -> None:
         )
 
     finish = minute_label(plan.crew_plan.route_finish_minute)
-    peak = max(
-        stop.temperature_c for stop in plan.crew_plan.stops
-    )
+    peak = max(stop.temperature_c for stop in plan.crew_plan.stops)
     st.markdown(
         f"""
         <div class="bento">
@@ -2276,9 +2273,7 @@ def render_hindsight(
 def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
     """Crew view first; the model's workings stay one click away."""
 
-    st.markdown(
-        '<div id="certiroute-plan"></div>', unsafe_allow_html=True
-    )
+    st.markdown('<div id="certiroute-plan"></div>', unsafe_allow_html=True)
     section(3, "Today's plan")
     view = st.segmented_control(
         "Result view",
@@ -2375,9 +2370,7 @@ render_hero()
 render_landing_proof()
 render_three_steps(
     load_map_scenario(),
-    planned=isinstance(
-        st.session_state.get("certiroute_today_plan"), SameDayPlan
-    ),
+    planned=isinstance(st.session_state.get("certiroute_today_plan"), SameDayPlan),
 )
 route_result_slot = st.container()
 
@@ -2523,8 +2516,7 @@ if planning_today:
                     granularity=area_model.granularity_m,
                 )
                 step_done(
-                    f"Today measures {reading.area_mean_c:.1f} °C "
-                    "across this area"
+                    f"Today measures {reading.area_mean_c:.1f} °C across this area"
                 )
                 same_day_plan = build_same_day_plan(
                     domain_jobs,
@@ -2590,9 +2582,7 @@ if planning_today:
             )
         except (PlanningCoverageError, ProfileCoverageError) as exc:
             same_day_plan = None
-            st.error(
-                f"This shift reaches beyond what the trained model covers: {exc}"
-            )
+            st.error(f"This shift reaches beyond what the trained model covers: {exc}")
         except HeatmapCoverageError as exc:
             same_day_plan = None
             st.error(

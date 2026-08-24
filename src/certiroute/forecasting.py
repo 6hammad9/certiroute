@@ -86,9 +86,7 @@ class CalibratedForecast:
     def to_profile(self, job_id: str, *, conservative: bool = True):
         """Render as a TemperatureProfile the scheduler can consume."""
 
-        source = (
-            self.upper_by_minute() if conservative else self.expected_by_minute
-        )
+        source = self.upper_by_minute() if conservative else self.expected_by_minute
         return TemperatureProfile(
             job_id=job_id,
             points=tuple(
@@ -305,15 +303,11 @@ def day_blocked_residual_scores(
 
     scores: list[float] = []
     for day in held_out:
-        residuals = shape_residuals(
-            shape, [day], exclude_anchor=exclude_anchor
-        )
+        residuals = shape_residuals(shape, [day], exclude_anchor=exclude_anchor)
         if residuals:
             scores.append(max(abs(value) for value in residuals))
     if not scores:
-        raise InsufficientHistoryError(
-            "no held-out day produced a residual score"
-        )
+        raise InsufficientHistoryError("no held-out day produced a residual score")
     return scores
 
 
@@ -327,9 +321,7 @@ def calibrate_forecast(
 ) -> CalibratedForecast:
     """Predict a curve and attach a split-conformal interval radius."""
 
-    expected = predict_from_anchor(
-        shape, anchor_temperature_c, minutes=minutes
-    )
+    expected = predict_from_anchor(shape, anchor_temperature_c, minutes=minutes)
     quantile = finite_sample_absolute_residual_quantile(
         [abs(value) for value in calibration_residuals_c],
         miscoverage=miscoverage,
@@ -342,9 +334,7 @@ def calibrate_forecast(
     )
 
 
-def empirical_coverage(
-    residuals_c: Sequence[float], radius_c: float
-) -> float:
+def empirical_coverage(residuals_c: Sequence[float], radius_c: float) -> float:
     """Fraction of residuals the interval actually captured."""
 
     if not residuals_c:

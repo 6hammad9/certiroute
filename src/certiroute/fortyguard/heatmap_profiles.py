@@ -76,8 +76,7 @@ class HeatmapTile:
         delta_lat = lat2 - lat1
         delta_lon = radians(longitude - point.longitude)
         value = (
-            sin(delta_lat / 2) ** 2
-            + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
+            sin(delta_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
         )
         return 2 * earth_radius_m * asin(sqrt(value))
 

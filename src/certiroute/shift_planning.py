@@ -48,9 +48,7 @@ class ShiftRecommendation:
     @property
     def minutes_earlier(self) -> int:
         baseline = self.baseline_start.hour * 60 + self.baseline_start.minute
-        recommended = (
-            self.recommended_start.hour * 60 + self.recommended_start.minute
-        )
+        recommended = self.recommended_start.hour * 60 + self.recommended_start.minute
         return baseline - recommended
 
 
@@ -176,9 +174,9 @@ def score_starts_against_realization(
     if baseline_start not in by_start:
         raise ValueError("the baseline start is infeasible on the realised day")
 
-    best_start = min(by_start, key=lambda start: (by_start[start], -(
-        start.hour * 60 + start.minute
-    )))
+    best_start = min(
+        by_start, key=lambda start: (by_start[start], -(start.hour * 60 + start.minute))
+    )
     return RecommendationOutcome(
         recommended_start=recommended_start,
         baseline_start=baseline_start,

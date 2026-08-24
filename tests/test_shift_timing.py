@@ -21,8 +21,19 @@ DEPOT = GeoPoint(latitude=33.4485, longitude=-112.0740)
 # Measured FortyGuard values for central Phoenix on 2025-04-15, extended with
 # the pre-dawn hours that were collected separately. A real diurnal curve.
 MEASURED = {
-    5: 16.9, 6: 16.8, 7: 19.7, 8: 21.8, 9: 25.7, 10: 29.6, 11: 32.8,
-    12: 33.8, 13: 34.5, 14: 34.6, 15: 34.2, 16: 34.1, 17: 33.8,
+    5: 16.9,
+    6: 16.8,
+    7: 19.7,
+    8: 21.8,
+    9: 25.7,
+    10: 29.6,
+    11: 32.8,
+    12: 33.8,
+    13: 34.5,
+    14: 34.6,
+    15: 34.2,
+    16: 34.1,
+    17: 33.8,
 }
 
 

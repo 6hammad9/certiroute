@@ -71,9 +71,7 @@ _ICON_PATHS: dict[str, str] = {
         '<rect x="3" y="5" width="18" height="16" rx="2"/>'
         '<path d="M3 10h18M8 3v4M16 3v4"/>'
     ),
-    "download": (
-        '<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>'
-    ),
+    "download": ('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>'),
     "map": (
         '<path d="m2 6 6.5-3 7 3L22 3v15l-6.5 3-7-3L2 21V6Z"/>'
         '<path d="M8.5 3v15M15.5 6v15"/>'
@@ -107,6 +105,7 @@ FONT_LINKS = (
     "&family=Inter:wght@400;500;600;700"
     '&family=JetBrains+Mono:wght@400;500;600&display=swap">'
 )
+
 
 def as_markup(*blocks: str) -> str:
     """Join HTML for injection, with every blank line removed.

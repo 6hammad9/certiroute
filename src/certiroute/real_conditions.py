@@ -613,9 +613,7 @@ def _collect_snapshots_from_plan(
     return dict(sorted(snapshots.items())), cache_hits
 
 
-def _reject_empty_result(
-    request: HeatmapRequest, result: Mapping[str, Any]
-) -> None:
+def _reject_empty_result(request: HeatmapRequest, result: Mapping[str, Any]) -> None:
     """Refuse to archive a completed response that carries no tiles.
 
     FortyGuard returns a well-formed, "completed" result with zero features
@@ -721,9 +719,7 @@ def _select_reusable_snapshot(
     # another tool - is not a usable answer. Skipping it lets the date be
     # collected again instead of failing for as long as the record survives.
     usable = [
-        snapshot
-        for snapshot in candidates
-        if heatmap_has_tiles(snapshot.raw_result)
+        snapshot for snapshot in candidates if heatmap_has_tiles(snapshot.raw_result)
     ]
     if scope is SnapshotTemporalScope.HISTORICAL:
         historical = [

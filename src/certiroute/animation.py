@@ -119,8 +119,7 @@ def build_playback_payload(
     projected = _project(coordinates)
     depot_point = projected[0]
     by_job = {
-        stop.job_id: projected[index + 1]
-        for index, stop in enumerate(reference.stops)
+        stop.job_id: projected[index + 1] for index, stop in enumerate(reference.stops)
     }
 
     payload_runs = []

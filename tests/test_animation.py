@@ -52,8 +52,7 @@ def stop(sequence: int, *, arrive: int, minutes: int = 60, travel: int = 10):
 
 def plan_from(first_arrival: int, *, strategy=ScheduleStrategy.HEAT_AWARE):
     stops = tuple(
-        stop(index, arrive=first_arrival + (index - 1) * 70)
-        for index in range(1, 4)
+        stop(index, arrive=first_arrival + (index - 1) * 70) for index in range(1, 4)
     )
     return SchedulePlan(
         strategy=strategy,
@@ -123,9 +122,7 @@ def test_every_drawn_point_lands_inside_the_canvas(two_runs):
         two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
     )
     points = [(payload["depot"]["x"], payload["depot"]["y"])] + [
-        (item["x"], item["y"])
-        for run in payload["runs"]
-        for item in run["stops"]
+        (item["x"], item["y"]) for run in payload["runs"] for item in run["stops"]
     ]
 
     assert points
@@ -183,9 +180,7 @@ def test_a_run_without_stops_is_refused():
 def test_the_document_is_self_contained(two_runs):
     """It has to run on a demo machine with no network and no CDN."""
 
-    markup = route_playback_html(
-        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
-    )
+    markup = route_playback_html(two_runs, profiles_for(two_runs[0].plan), depot=DEPOT)
 
     assert "__PAYLOAD__" not in markup
     assert "<svg" in markup and "requestAnimationFrame" in markup
@@ -198,9 +193,7 @@ def test_the_document_is_self_contained(two_runs):
 
 
 def test_the_payload_embedded_in_the_document_is_valid_json(two_runs):
-    markup = route_playback_html(
-        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
-    )
+    markup = route_playback_html(two_runs, profiles_for(two_runs[0].plan), depot=DEPOT)
     raw = markup.split("const DATA = ", 1)[1].split(";\n", 1)[0]
 
     payload = json.loads(raw)
@@ -209,9 +202,7 @@ def test_the_payload_embedded_in_the_document_is_valid_json(two_runs):
 
 
 def test_the_playback_uses_only_the_product_palette(two_runs):
-    markup = route_playback_html(
-        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
-    )
+    markup = route_playback_html(two_runs, profiles_for(two_runs[0].plan), depot=DEPOT)
 
     assert ROUTE_COLOR in markup
     assert HEAT_COLOR in markup

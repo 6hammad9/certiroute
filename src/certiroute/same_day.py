@@ -231,15 +231,10 @@ def build_same_day_plan(
         job.job_id for job in jobs if job.job_id not in level_reading.level_by_job
     )
     if missing:
-        raise ValueError(
-            "no whole-day level was read for: " + ", ".join(missing)
-        )
+        raise ValueError("no whole-day level was read for: " + ", ".join(missing))
 
     far = climatology.sites_outside_trained_area(
-        {
-            job.job_id: (job.location.latitude, job.location.longitude)
-            for job in jobs
-        },
+        {job.job_id: (job.location.latitude, job.location.longitude) for job in jobs},
         radius_km=trained_radius_km,
     )
     if far:

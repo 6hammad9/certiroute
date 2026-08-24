@@ -24,9 +24,7 @@ def day(readings: dict[int, float], job_ids=("A", "B")) -> dict:
         job_id: TemperatureProfile(
             job_id=job_id,
             points=tuple(
-                ConditionPoint(
-                    minute_of_day=minute, temperature_c=value, certainty=1.0
-                )
+                ConditionPoint(minute_of_day=minute, temperature_c=value, certainty=1.0)
                 for minute, value in sorted(readings.items())
             ),
         )
@@ -73,9 +71,7 @@ def test_shape_ignores_days_missing_the_anchor_hour() -> None:
 
 def test_history_without_the_anchor_anywhere_is_refused() -> None:
     with pytest.raises(InsufficientHistoryError, match="anchor minute"):
-        learn_diurnal_shape(
-            [day({9 * 60: 33.0, 10 * 60: 35.0})], anchor_minute=ANCHOR
-        )
+        learn_diurnal_shape([day({9 * 60: 33.0, 10 * 60: 35.0})], anchor_minute=ANCHOR)
 
 
 def test_empty_history_is_refused() -> None:
@@ -160,9 +156,7 @@ def test_daily_level_offsets_are_learned_against_each_day_aggregate() -> None:
 
 
 def test_prediction_applies_offsets_to_todays_aggregate() -> None:
-    shape = learn_daily_level_shape(
-        [(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))]
-    )
+    shape = learn_daily_level_shape([(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))])
 
     predicted = shape.predict(40.0)
 
@@ -171,9 +165,7 @@ def test_prediction_applies_offsets_to_todays_aggregate() -> None:
 
 
 def test_daily_level_residuals_measure_held_out_error() -> None:
-    shape = learn_daily_level_shape(
-        [(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))]
-    )
+    shape = learn_daily_level_shape([(35.0, day({8 * 60: 33.0, 14 * 60: 39.0}))])
     # Held-out day runs 1 C hotter than the offsets predict at every hour.
     held_out = [(36.0, day({8 * 60: 35.0, 14 * 60: 41.0}))]
 

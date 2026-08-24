@@ -82,12 +82,24 @@ def test_planning_uses_the_conservative_upper_curve(jobs, history) -> None:
     scores = [1.0, 2.0, 3.0]
 
     cautious = recommend_shift_start(
-        jobs, shape, 21.0, scores, depot=DEPOT,
-        candidate_starts=CANDIDATES, miscoverage=0.25, conservative=True,
+        jobs,
+        shape,
+        21.0,
+        scores,
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
+        conservative=True,
     )
     expected = recommend_shift_start(
-        jobs, shape, 21.0, scores, depot=DEPOT,
-        candidate_starts=CANDIDATES, miscoverage=0.25, conservative=False,
+        jobs,
+        shape,
+        21.0,
+        scores,
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
+        conservative=False,
     )
 
     hot, _ = cautious.predicted_profiles["J1"].condition_at(10 * 60)
@@ -96,20 +108,26 @@ def test_planning_uses_the_conservative_upper_curve(jobs, history) -> None:
     assert cautious.forecast.radius_c > 0
 
 
-def test_scoring_replays_candidates_on_measured_temperatures(
-    jobs, history
-) -> None:
+def test_scoring_replays_candidates_on_measured_temperatures(jobs, history) -> None:
     shape = learn_diurnal_shape(history[:2], anchor_minute=ANCHOR)
     scores = day_blocked_residual_scores(shape, history[2:])
     recommendation = recommend_shift_start(
-        jobs, shape, 21.0, scores + [0.5, 0.7], depot=DEPOT,
-        candidate_starts=CANDIDATES, miscoverage=0.25,
+        jobs,
+        shape,
+        21.0,
+        scores + [0.5, 0.7],
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
     )
 
     # The day actually ran hotter than any training day.
     realized = day_for(jobs, warming_day(23.0))
     outcome = score_against_realization(
-        recommendation, jobs, realized, depot=DEPOT,
+        recommendation,
+        jobs,
+        realized,
+        depot=DEPOT,
         candidate_starts=CANDIDATES,
     )
 
@@ -126,14 +144,23 @@ def test_outcome_reports_regret_when_a_better_start_existed(jobs) -> None:
     history = [day_for(jobs, warming_day(18.0)), day_for(jobs, warming_day(19.0))]
     shape = learn_diurnal_shape(history, anchor_minute=ANCHOR)
     recommendation = recommend_shift_start(
-        jobs, shape, 20.0, [0.5, 0.6, 0.7], depot=DEPOT,
-        baseline_start=time(8, 0), candidate_starts=CANDIDATES, miscoverage=0.25,
+        jobs,
+        shape,
+        20.0,
+        [0.5, 0.6, 0.7],
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
     )
 
     # But the real day was hottest in the early morning and cooled off.
     inverted = {hour * 60: 40.0 - 1.2 * (hour - 5) for hour in HOURS}
     outcome = score_against_realization(
-        recommendation, jobs, day_for(jobs, inverted), depot=DEPOT,
+        recommendation,
+        jobs,
+        day_for(jobs, inverted),
+        depot=DEPOT,
         candidate_starts=CANDIDATES,
     )
 
@@ -147,12 +174,20 @@ def test_zero_exposure_baseline_reports_no_reduction_ratio(jobs) -> None:
     history = [day_for(jobs, cool), day_for(jobs, cool)]
     shape = learn_diurnal_shape(history, anchor_minute=ANCHOR)
     recommendation = recommend_shift_start(
-        jobs, shape, 20.0, [0.1, 0.2, 0.3], depot=DEPOT,
-        candidate_starts=CANDIDATES, miscoverage=0.25,
+        jobs,
+        shape,
+        20.0,
+        [0.1, 0.2, 0.3],
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
     )
 
     outcome = score_against_realization(
-        recommendation, jobs, day_for(jobs, cool), depot=DEPOT,
+        recommendation,
+        jobs,
+        day_for(jobs, cool),
+        depot=DEPOT,
         candidate_starts=CANDIDATES,
     )
 
@@ -165,8 +200,13 @@ def test_scoring_refuses_when_the_recommended_start_is_infeasible(
 ) -> None:
     shape = learn_diurnal_shape(history[:2], anchor_minute=ANCHOR)
     recommendation = recommend_shift_start(
-        jobs, shape, 21.0, [0.4, 0.5, 0.6], depot=DEPOT,
-        candidate_starts=CANDIDATES, miscoverage=0.25,
+        jobs,
+        shape,
+        21.0,
+        [0.4, 0.5, 0.6],
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        miscoverage=0.25,
     )
     realized = day_for(jobs, warming_day(23.0))
 
@@ -174,6 +214,9 @@ def test_scoring_refuses_when_the_recommended_start_is_infeasible(
     # rather than silently substitute a different start time.
     with pytest.raises(ValueError, match="recommended start is infeasible"):
         score_against_realization(
-            recommendation, jobs, realized, depot=DEPOT,
+            recommendation,
+            jobs,
+            realized,
+            depot=DEPOT,
             candidate_starts=(time(7, 0), time(8, 0)),
         )

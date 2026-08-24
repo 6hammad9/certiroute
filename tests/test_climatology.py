@@ -169,8 +169,7 @@ def test_unseen_site_error_measures_sites_left_out_of_training() -> None:
 
 def test_unseen_site_error_is_none_with_a_single_site() -> None:
     one_site = [
-        (day, {"A": levels["A"]}, {"A": prof["A"]})
-        for day, levels, prof in history()
+        (day, {"A": levels["A"]}, {"A": prof["A"]}) for day, levels, prof in history()
     ]
     assert unseen_site_error(one_site, holdout_days=2) is None
 

@@ -204,8 +204,12 @@ def test_a_flat_day_leaves_the_start_alone(jobs) -> None:
     flat = climatology(step=0.0)
 
     plan = build_same_day_plan(
-        jobs, flat, reading(jobs), depot=DEPOT,
-        baseline_start=time(8, 0), candidate_starts=CANDIDATES,
+        jobs,
+        flat,
+        reading(jobs),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
     )
 
     assert plan.recommended_start == time(8, 0)
@@ -320,8 +324,12 @@ def measured(jobs, base: float, step: float = 1.6):
 
 def test_a_clean_day_scores_the_decision_against_measurements(jobs) -> None:
     plan = build_same_day_plan(
-        jobs, climatology(), reading(jobs, target_date=date(2026, 9, 1)),
-        depot=DEPOT, baseline_start=time(8, 0), candidate_starts=CANDIDATES,
+        jobs,
+        climatology(),
+        reading(jobs, target_date=date(2026, 9, 1)),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
     )
 
     outcome = score_plan_against_measurements(
@@ -338,8 +346,12 @@ def test_scoring_reports_regret_when_hindsight_disagrees(jobs) -> None:
     """An unflattering result is reported, not suppressed."""
 
     plan = build_same_day_plan(
-        jobs, climatology(), reading(jobs, target_date=date(2026, 9, 1)),
-        depot=DEPOT, baseline_start=time(8, 0), candidate_starts=CANDIDATES,
+        jobs,
+        climatology(),
+        reading(jobs, target_date=date(2026, 9, 1)),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
     )
 
     # The real day ran hottest at dawn and cooled off, inverting the model.
@@ -356,8 +368,11 @@ def test_scoring_reports_regret_when_hindsight_disagrees(jobs) -> None:
 def test_a_training_day_cannot_score_its_own_model(jobs) -> None:
     model = climatology()
     plan = build_same_day_plan(
-        jobs, model, reading(jobs, target_date=model.training_dates[0]),
-        depot=DEPOT, candidate_starts=CANDIDATES,
+        jobs,
+        model,
+        reading(jobs, target_date=model.training_dates[0]),
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
     )
 
     with pytest.raises(LeakageError, match="trained on"):
@@ -371,8 +386,11 @@ def test_a_calibration_day_cannot_score_its_own_model(jobs) -> None:
 
     model = climatology()
     plan = build_same_day_plan(
-        jobs, model, reading(jobs, target_date=model.evaluation.holdout_dates[0]),
-        depot=DEPOT, candidate_starts=CANDIDATES,
+        jobs,
+        model,
+        reading(jobs, target_date=model.evaluation.holdout_dates[0]),
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
     )
 
     with pytest.raises(LeakageError, match="calibrated its interval on"):

@@ -63,9 +63,7 @@ class ShiftOption:
 
     @property
     def minutes_above_threshold(self) -> float | None:
-        return (
-            None if self.plan is None else self.plan.minutes_above_planning_threshold
-        )
+        return None if self.plan is None else self.plan.minutes_above_planning_threshold
 
 
 @dataclass(frozen=True)
@@ -140,9 +138,7 @@ def compare_shift_starts(
 
     starts = sorted({*candidate_starts, baseline_start})
     measured_from, measured_to = profile_coverage(profiles)
-    earliest_requested = min(
-        start.hour * 60 + start.minute for start in starts
-    )
+    earliest_requested = min(start.hour * 60 + start.minute for start in starts)
     if earliest_requested < measured_from:
         raise ProfileCoverageError(
             f"candidate start {earliest_requested // 60:02d}:"
