@@ -69,6 +69,9 @@ class SameDayPlan:
     efficient_plan: SchedulePlan
     heat_aware_plan: SchedulePlan
     windows: WindowRelaxation
+    # Where the shift begins and ends. Carried so anything rendering the
+    # plan can draw the whole round trip without being handed it again.
+    depot: GeoPoint
 
     @property
     def recommended_start(self) -> time:
@@ -318,6 +321,7 @@ def build_same_day_plan(
         efficient_plan=plans[ScheduleStrategy.EFFICIENCY],
         heat_aware_plan=plans[ScheduleStrategy.HEAT_AWARE],
         windows=windows,
+        depot=depot,
     )
 
 

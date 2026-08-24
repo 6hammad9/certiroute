@@ -23,6 +23,12 @@ import streamlit.components.v1 as components
 from pydantic import ValidationError
 
 import certiroute.map_picker as map_picker
+from certiroute.animation import (
+    HEAT_COLOR,
+    ROUTE_COLOR,
+    PlaybackRun,
+    route_playback_html,
+)
 from certiroute.climatology import (
     DEFAULT_TRAINED_RADIUS_KM,
     ClimatologyUnavailableError,
@@ -1796,6 +1802,58 @@ def render_start_decision(plan: SameDayPlan) -> None:
     )
 
 
+def render_day_playback(plan: SameDayPlan) -> None:
+    """Let the decision be watched instead of read.
+
+    Two crews leave the same base on the same route; one is home before the
+    heat arrives and the other is still out in it. That is the entire argument
+    for moving a shift, and it lands in seconds where a percentage does not.
+    """
+
+    by_start = {
+        option.shift_start: option.plan
+        for option in plan.comparison.options
+        if option.feasible and option.plan is not None
+    }
+    recommended = by_start.get(plan.recommended_start)
+    usual = by_start.get(plan.baseline_start)
+    if recommended is None or not recommended.stops:
+        return
+
+    runs = [
+        PlaybackRun(
+            label=f"Recommended {plan.recommended_start:%H:%M}",
+            plan=recommended,
+            color=ROUTE_COLOR,
+            recommended=True,
+        )
+    ]
+    if usual is not None and usual.stops and plan.changes_the_start:
+        runs.append(
+            PlaybackRun(
+                label=f"Your usual {plan.baseline_start:%H:%M}",
+                plan=usual,
+                color=HEAT_COLOR,
+            )
+        )
+
+    st.markdown("### Watch the day")
+    st.caption(
+        "The same jobs in the same order, run from two different start times. "
+        "Temperatures are the ones this plan was built against."
+    )
+    try:
+        markup = route_playback_html(
+            runs,
+            plan.conservative_profiles,
+            depot=plan.depot,
+            threshold_c=PLANNING_THRESHOLD_C,
+        )
+    except ValueError:
+        return
+    components.html(markup, height=620 if len(runs) > 1 else 560, scrolling=False)
+
+
 def render_start_options(plan: SameDayPlan) -> None:
     """Show every start time considered, so the choice is legible."""
 
@@ -2150,6 +2208,7 @@ def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
         return
 
     render_start_decision(plan)
+    render_day_playback(plan)
     render_start_options(plan)
     render_run_sheet(plan.crew_plan, depot)
     render_safety_boundary(compact=True)
