@@ -1,15 +1,16 @@
 # Build Plan
 
-Status as of 2026-08-22: the product now presents one guided, map-first,
-real-data-only historical-replay workflow. The primary path is choose a U.S.
-work area, click the crew base, click 2–9 work sites, and explicitly create the
-route. Useful work-order and workday defaults keep coordinates, spreadsheets,
-and advanced constraints out of first-time onboarding. CSV import and the
-Phoenix walkthrough remain optional advanced paths. The default **Crew route**
-stays focused on one decision, one numbered order preview, an ordered stop list,
-and hand-off controls. Comparison, exact temperatures, scoring, provenance, and
-detailed safety limits remain in **Planner details**. The current research focus
-is the evidence needed for calibrated forecast intervals.
+Status as of 2026-08-24: the product plans **today**. A map-first setup - choose
+a work area, click the crew base, click 2-9 work sites - leads to one decision:
+what time the shift should start. One whole-day FortyGuard reading anchors hour
+offsets trained offline per area and committed, the plan is built against the
+top of a calibrated interval, and the recommended and usual shifts are played
+back side by side. An earlier date switches to reviewing a finished day, which
+can grade the model against what that day actually did.
+
+Trained and graded areas: Phoenix, Houston, Miami - nine days after each
+training window closed, best available start chosen on all nine, zero regret.
+Evidence in `data/evidence/recommendation_grades_*.json`.
 
 ## Phase 1 — Data contract and vertical slice
 
@@ -63,9 +64,8 @@ is the evidence needed for calibrated forecast intervals.
 - [x] Create valid work orders from those clicks using a 45-minute duration,
   priority 3, and full-shift availability; expose only optional names and
   durations in the simple path.
-- [x] Default to yesterday and an 08:00–17:00 workday while keeping a completed
-  replay date and same-day shift of at most 12 hours available under an optional
-  control; batch distributed jobs into independently validated AOIs of at most
+- [x] Default to today and an 08:00-17:00 usual shift, with an earlier date and a
+  shift of at most 12 hours available under an optional control; batch distributed jobs into independently validated AOIs of at most
   10 mi² and state FortyGuard's U.S.-only coverage boundary.
 - [x] Keep CSV import as an advanced path for existing work-order exports, with
   a downloadable template, clear validation errors, and preview before placing
@@ -86,13 +86,15 @@ is the evidence needed for calibrated forecast intervals.
 - [x] Remove the misleading map-radius guide and transparently collect multiple
   bounded AOIs when selected jobs do not fit in one FortyGuard request.
 - [x] Replace the compact 0.78 mi², 230-work-minute API-plumbing portfolio with a
-  9.48 mi², 410-work-minute Phoenix corridor. The real 2026-07-15 replay is a
-  scientifically honest no-change result: the same route minimizes both the
-  operational score and modeled heat load, with a maximum same-hour site spread
-  of roughly 0.6 °C.
-- [ ] Evaluate additional dates and customer portfolios; select a submission
-  replay only from measured API outcomes, never by inventing temperature data.
-- [ ] Add current-day and up-to-12-hour forecast routing only after the API's
+  9.48 mi², 410-work-minute Phoenix corridor. Its reordering result is an honest
+  no-change: the same route minimizes both the operational score and modelled
+  heat load. That negative result is what redirected the product to shift
+  timing, which does move the number.
+- [x] Evaluate additional dates and cities; every published figure comes from
+  measured API outcomes, never from invented temperature data.
+- [x] Add current-day planning, anchored on the whole-day aggregate. Hourly
+  forecasting stays out: the API exposes none, and day-ahead level prediction
+  measured 2.27 C. Superseded detail below concerned the API's
   request-time-zone semantics are documented and verified.
 
 ## Phase 5 — Submission

@@ -2,41 +2,70 @@
 
 ## One-sentence pitch
 
-CertiRoute uses FortyGuard's street-level temperature intelligence to decide
-whether a mobile crew's work order should change, reducing modeled cumulative
-heat exposure when the benefit justifies the travel cost while preserving job
-duration, priority, deadlines, and depot return.
+CertiRoute uses FortyGuard's street-level temperature intelligence to tell an
+outdoor crew **what time to start today**, cutting modelled cumulative heat
+exposure while preserving job duration, priority, deadlines, and depot return.
 
 ## Current product slice
 
-The working interface is deliberately narrower than the full research vision:
+The product decides the shift start. That is a deliberate narrowing, and it was
+decided by measurement rather than taste: reordering stops inside a fixed window
+changed the recommended sequence in zero of three cities, because site-to-site
+spread (0.32-2.32 C) is far smaller than the swing across a day (5.2-9.3 C).
+Moving the window is the lever that works, by roughly an order of magnitude.
+The heat-aware order is still computed and still reported - including when it
+changes nothing, which is most of the time.
 
-- a primary map-first flow: position the map near a U.S. city, pan wherever the
-  crew works, click the crew base, then click 2–9 work sites without coordinates;
-- automatic 45-minute, priority-3 jobs available for the full selected shift,
-  with names, durations, completed replay day, and shift exposed only as
-  optional changes;
-- selection, work-order, shift, depot, and feasibility validation before any API
-  submission, with automatic clustering into 10 mi²-or-smaller heat-data AOIs;
-- hourly FortyGuard snapshots for a completed historical replay, with no
-  substitute temperature data;
-- one distance-efficient operations baseline and one heat-aware recommendation;
-- an explicit recommendation to reorder **or keep the baseline**;
-- a default **Crew route** with one numbered map, ordered stop cards, depot
-  return time, and Google Maps/CSV hand-off;
-- an honest separation between the straight-line route-order preview and Google
-  Maps road navigation—the current scheduler does not claim road-network
-  optimization;
-- a separate **Planner details** view for method comparison, exact modeled
-  temperatures, scoring assumptions, safety limits, and API source records;
-- an advanced CSV import for customers who already export structured work
-  orders, with a downloadable template rather than a required onboarding task;
-- an explicitly optional Phoenix example with fictional work orders at real
-  landmarks and real saved or API-retrieved FortyGuard temperatures;
-- no certainty score until forecast reliability is empirically calibrated.
+- a map-first flow: position the map near a U.S. city, pan wherever the crew
+  works, click the crew base, then click 2-9 work sites without coordinates;
+- a drawn 60 km coverage circle showing where the trained model applies, and a
+  refusal beyond it rather than a confident curve over unfamiliar ground;
+- automatic clustering into 10 mi²-or-smaller heat-data AOIs, for the hourly
+  history and for today's whole-day reading alike;
+- **planning today** as the default: one whole-day aggregate - the only same-day
+  signal the API returns - anchors hour offsets trained offline and committed;
+- a start-time recommendation planned against the top of a calibrated interval
+  rather than its middle, with the coverage its calibration set can support;
+- **reviewing a finished day**, which can grade the model on it: the
+  recommendation is rebuilt from that day's reading alone and scored against
+  what the day actually did, refusing any day the model was built from;
+- a **Crew route** with the decision, every candidate start, a numbered map,
+  ordered stop cards, depot return time, and Google Maps/CSV hand-off;
+- a side-by-side playback of the recommended and usual shifts, so the decision
+  can be watched rather than read;
+- a separate **Planner details** view for provenance, held-out error, interval
+  width, and the ordering result;
+- an advanced CSV import, and an optional Phoenix example with fictional work
+  orders at real landmarks and real FortyGuard temperatures;
+- **a calibrated interval, measured on held-out days** - see below.
 
-This keeps the professor-inspired reliability work as a defensible next layer
-without presenting an authored confidence value as measured evidence.
+### What is now measured rather than intended
+
+Trained areas: Phoenix, Houston, Miami. Each model is graded on days after its
+training window closed, planning from the whole-day reading alone without
+seeing a single hourly value:
+
+| Area | Clean days | Picked the best start | Exposure avoided |
+| --- | --- | --- | --- |
+| Phoenix | 4 | 4 / 4 | 19.7-37.1% |
+| Houston | 2 | 2 / 2 | 47.7-58.6% |
+| Miami | 3 | 3 / 3 | 33.3-49.5% |
+
+Zero regret on all nine. Prediction error over 16 consecutive Phoenix days,
+measured by rolling the origin forward, is 0.79 C - including a cool snap where
+it rose to 2.2 C, and excluding nothing. Evidence:
+`data/evidence/recommendation_grades_*.json`.
+
+The certainty field FortyGuard returns is a documented no-penalty sentinel and
+is never presented as a probability. Uncertainty reaches the user through one
+number only: the split-conformal interval radius, calibrated on scored days.
+
+### What is deliberately not offered
+
+Day-ahead forecasting. Predicting tomorrow's level from past days measured
+2.27 C mean absolute error with one day missed by 4.62 C - too loose to put a
+crew's morning on, so it is not offered at any confidence.
+
 
 ## Visual identity
 
@@ -91,7 +120,7 @@ Given a dispatcher and a map, the implemented product:
    crew's mint start/return base and the next 2–9 clicks create orange work
    sites.
 2. Supplies usable job and workday defaults, while allowing optional names,
-   durations, completed replay date, and same-day shift changes. Advanced users
+   durations, the workday, and shift changes. Advanced users
    can instead import a validated CSV and then click the actual crew base.
 3. Validates the selection, partitions spread-out jobs into valid heat-data
    areas, then waits for the explicit **Create my heat-aware route** action.
@@ -179,8 +208,8 @@ The implemented real-data product supports:
   duration, priority 3, and availability across the selected shift
 - Optional editing of job names and durations; the primary path does not expose
   coordinates, priority, or per-job time windows
-- A default completed historical replay of yesterday and an 08:00–17:00 shift,
-  with optional replay-day and same-day shift changes up to 12 hours
+- Today by default and an 08:00-17:00 usual shift, with an optional
+  earlier date for reviewing a finished day, up to 12 hours
 - An advanced UTF-8 CSV import of 1 MB or less for 2–9 existing work orders,
   backed by a downloadable template with these required columns (unrelated
   export columns are ignored):
@@ -213,7 +242,7 @@ The implemented real-data product supports:
 - No synthetic or substitute temperature in heat scoring or the route result,
   and no certainty indicator before calibration evidence exists
 
-The scheduler's real-data mode is now implemented for historical replay. It
+The scheduler runs on real data for both today and a reviewed day. It
 uses real FortyGuard API output but does not call that output sensor ground
 truth. Current-day and up-to-12-hour forecast collection remain deferred until
 the API request-time-zone semantics are documented and verified. Calibrated
@@ -260,7 +289,7 @@ Measure:
    clicks once for the mint crew base, and clicks 2–9 orange work sites; no
    coordinates or CSV are required.
 2. The app shows ready defaults and a selected-work summary. Optional controls
-   can name jobs, change visit duration, or change the completed replay day and
+   can name jobs, change visit duration, or change the workday and
    shift; advanced CSV import and the Phoenix walkthrough stay collapsed.
 3. The dispatcher presses **Create my heat-aware route**. CertiRoute validates
    the jobs, depot, shift, per-request heat-data areas, and route feasibility
