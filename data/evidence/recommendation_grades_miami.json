@@ -1,0 +1,74 @@
+{
+  "area_id": "miami",
+  "baseline_start": "08:00:00",
+  "candidate_starts": [
+    "05:00:00",
+    "06:00:00",
+    "07:00:00",
+    "08:00:00"
+  ],
+  "generated_at_utc": "2026-08-24T08:47:55.033721+00:00",
+  "graded_days": [
+    {
+      "best_start_in_hindsight": "05:00:00",
+      "chose_the_best_start": true,
+      "date": "2026-08-19",
+      "helped": true,
+      "realized_reduction": 0.44513788466905146,
+      "recommended_start": "05:00:00",
+      "regret_units": 0.0
+    },
+    {
+      "best_start_in_hindsight": "05:00:00",
+      "chose_the_best_start": true,
+      "date": "2026-08-20",
+      "helped": true,
+      "realized_reduction": 0.49461426491994176,
+      "recommended_start": "05:00:00",
+      "regret_units": 0.0
+    },
+    {
+      "best_start_in_hindsight": "05:00:00",
+      "chose_the_best_start": true,
+      "date": "2026-08-21",
+      "helped": true,
+      "realized_reduction": 0.33262528712920203,
+      "recommended_start": "05:00:00",
+      "regret_units": 0.0
+    }
+  ],
+  "honoured_job_windows": false,
+  "model": {
+    "calibration_dates": [
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16",
+      "2026-08-17",
+      "2026-08-18"
+    ],
+    "granularity_m": 60,
+    "held_out_mae_c": 0.7557655520508297,
+    "trained_dates": [
+      "2026-08-09",
+      "2026-08-10",
+      "2026-08-11",
+      "2026-08-12",
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16",
+      "2026-08-17",
+      "2026-08-18"
+    ],
+    "unseen_site_mae_c": 1.1162671794871797
+  },
+  "schema_version": 1,
+  "summary": {
+    "beat_the_usual_start": 3,
+    "graded_day_count": 3,
+    "mean_exposure_avoided": 0.42412581223939844,
+    "picked_best_start": 3,
+    "worst_regret_units": 0.0
+  }
+}

@@ -342,7 +342,12 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     app = rendered_states.empty
     text = _all_text(app)
 
-    assert app.title[0].value == "CertiRoute"
+    # The product name is a wordmark; the headline is the page's only h1, so
+    # nothing competes with it to be read first.
+    assert '<div class="wordmark">' in text
+    assert "CertiRoute" in text
+    assert not app.title
+    assert '<h1 class="hero-heading">' in text
     assert "Start the shift before the heat does" in text
     assert "No coordinates or spreadsheet setup required" in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))

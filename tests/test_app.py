@@ -11,4 +11,4 @@ def test_streamlit_app_renders_without_exceptions(tmp_path, monkeypatch) -> None
     app.run(timeout=15)
 
     assert not app.exception
-    assert "CertiRoute" in app.title[0].value
+    assert any("CertiRoute" in str(block.value) for block in app.markdown)

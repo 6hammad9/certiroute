@@ -184,10 +184,30 @@ p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
   color: var(--heat-ink); font-size: .7rem; font-weight: 600;
   letter-spacing: .13em; text-transform: uppercase;
 }}
-.hero-heading {{
-  font-family: var(--font-display); color: var(--ink); font-size: 2rem;
-  font-weight: 600; letter-spacing: -.028em; line-height: 1.14;
-  margin: .7rem 0 .7rem; max-width: 20ch;
+
+/* The product name sits at label scale so the headline owns the page. */
+.wordmark {{
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  padding-bottom: 1.1rem; margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--rule);
+}}
+.wordmark > span:first-of-type {{
+  font-family: var(--font-display); font-size: 1.02rem; font-weight: 700;
+  letter-spacing: -.02em; color: var(--ink);
+}}
+.wordmark > .icon {{ color: var(--route-ink); }}
+.wordmark-tag {{
+  display: inline-flex; align-items: center; gap: .35rem;
+  margin-left: .35rem; padding-left: .75rem;
+  border-left: 1px solid var(--rule);
+  color: var(--faint); font-size: .74rem; font-weight: 500;
+}}
+.wordmark-tag .icon {{ color: var(--heat); }}
+
+h1.hero-heading {{
+  font-family: var(--font-display); color: var(--ink);
+  font-size: 2.9rem; font-weight: 700; letter-spacing: -.038em;
+  line-height: 1.02; margin: 0 0 1rem; max-width: 16ch;
 }}
 .hero-copy {{
   color: var(--muted); font-size: 1.02rem; line-height: 1.6;
@@ -494,7 +514,8 @@ hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
 @media (max-width: 760px) {{
   .block-container {{ padding-left: 1rem; padding-right: 1rem; }}
   h1 {{ font-size: 2rem; }}
-  .hero-heading {{ font-size: 1.6rem; }}
+  h1.hero-heading {{ font-size: 2.05rem; max-width: 100%; }}
+  .wordmark-tag {{ margin-left: 0; padding-left: 0; border-left: 0; }}
   .process-arrow {{ display: none; }}
   .bento {{ grid-template-columns: 1fr; }}
   .bento-hero, .bento-tile {{ grid-column: span 1; grid-row: auto; }}
@@ -511,6 +532,7 @@ hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
 RESULT_MODE_STYLES = """
 <style>
 .hero-heading, .hero-copy, .hero-proof, .process-strip { display: none; }
+.wordmark { margin-bottom: 1rem; }
 </style>
 """
 

@@ -295,17 +295,21 @@ def inject_styles() -> None:
 def render_hero() -> None:
     """Explain the customer, decision, and evidence before any controls."""
 
+    # The product name is a wordmark, not a headline. Setting it at title size
+    # above the actual headline gives a page two things competing to be read
+    # first, which is the surest way to make a layout look unconsidered.
     st.markdown(
-        f'<div class="eyebrow">{icon("thermometer", size=14)}'
-        "Heat-aware field operations</div>",
+        '<div class="wordmark">'
+        f'{icon("sunrise", size=20)}<span>CertiRoute</span>'
+        f'<span class="wordmark-tag">{icon("thermometer", size=13)}'
+        "Heat-aware field operations</span></div>",
         unsafe_allow_html=True,
     )
-    st.title("CertiRoute")
     st.markdown(
         f"""
-        <div class="hero-heading">
+        <h1 class="hero-heading">
           Start the shift before the heat does.
-        </div>
+        </h1>
         <div class="hero-copy">
         Tap your crew base and work sites on the map. CertiRoute reads today's
         street-level heat from FortyGuard, predicts the hours ahead, and tells
