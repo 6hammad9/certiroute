@@ -52,7 +52,7 @@ from certiroute.daily_level import (
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
-from certiroute.fortyguard.errors import FortyGuardError
+from certiroute.fortyguard.errors import FortyGuardError, FortyGuardHTTPError
 from certiroute.fortyguard.heatmap_profiles import HeatmapCoverageError
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
@@ -2680,6 +2680,19 @@ if planning_today:
         except InsufficientHistoryError as exc:
             same_day_plan = None
             st.error(f"The trained model cannot support this plan: {exc}")
+        except FortyGuardHTTPError as exc:
+            same_day_plan = None
+            if exc.status_code == 0:
+                # A dropped connection is the one failure that is usually over
+                # by the time it is reported, so it should not read like a
+                # verdict on the request.
+                st.warning(
+                    "The connection to FortyGuard dropped before the reading "
+                    "came back. Nothing was sent twice and nothing was cached "
+                    "— press **Plan today's shift** again."
+                )
+            else:
+                st.error(f"FortyGuard refused the request: {exc}")
         except (
             CacheCorruptionError,
             FortyGuardError,
