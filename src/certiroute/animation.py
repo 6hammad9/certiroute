@@ -38,9 +38,9 @@ RULE = "#E5E9EC"
 SURFACE = "#FFFFFF"
 CANVAS = "#F7F8FA"
 
-VIEW_WIDTH = 720
-VIEW_HEIGHT = 380
-PADDING = 46
+VIEW_WIDTH = 760
+VIEW_HEIGHT = 330
+PADDING = 96
 
 
 @dataclass(frozen=True)
@@ -158,11 +158,29 @@ def build_playback_payload(
             }
         )
 
+    # Fit the drawing box to the route actually drawn. A wide, shallow corridor
+    # projected into a fixed box leaves most of the stage empty, and the empty
+    # part reads as something failing to load.
+    drawn = [depot_point] + [
+        (leg["x"], leg["y"]) for run in payload_runs for leg in run["stops"]
+    ]
+    pad_x, pad_y = 120.0, 52.0
+    min_x = min(x for x, _ in drawn) - pad_x
+    max_x = max(x for x, _ in drawn) + pad_x
+    min_y = min(y for _, y in drawn) - pad_y
+    max_y = max(y for _, y in drawn) + pad_y
+
     series = _temperature_series(profiles, reference.stops[0].job_id)
     starts = [run["depart"] for run in payload_runs]
     ends = [run["finish"] for run in payload_runs]
     return {
         "depot": {"x": round(depot_point[0], 2), "y": round(depot_point[1], 2)},
+        "view": {
+            "x": round(min_x, 2),
+            "y": round(min_y, 2),
+            "w": round(max_x - min_x, 2),
+            "h": round(max_y - min_y, 2),
+        },
         "runs": payload_runs,
         "curve": {str(minute): round(value, 1) for minute, value in series.items()},
         "from": min(starts),
@@ -171,6 +189,27 @@ def build_playback_payload(
         "width": VIEW_WIDTH,
         "height": VIEW_HEIGHT,
     }
+
+
+# Streamlit's content column at its 1180px maximum, less block and iframe
+# padding. The stage scales to this width, so its drawn height follows from
+# the fitted view and the frame can be sized to fit rather than guessed at.
+STAGE_WIDTH_PX = 984
+CHROME_HEIGHT_PX = 172
+
+
+def playback_height(payload: dict, *, stage_width: int = STAGE_WIDTH_PX) -> int:
+    """How tall the frame must be for this route, with nothing left over.
+
+    A fixed height leaves a band of blank white under a shallow route, and
+    blank space inside a bordered panel reads as something failing to load.
+    """
+
+    view = payload.get("view")
+    if not view or not view.get("w"):
+        return 620
+    stage = stage_width * (float(view["h"]) / float(view["w"]))
+    return int(round(min(max(stage, 180.0), 460.0))) + CHROME_HEIGHT_PX
 
 
 def route_playback_html_from_payload(payload: dict) -> str:
@@ -264,7 +303,7 @@ button.primary { background: var(--ink); border-color: var(--ink); color: #fff; 
       <button id="speed">1&times;</button>
     </div>
   </div>
-  <svg class="stage" id="stage" width="100%" viewBox="0 0 720 380"
+  <svg class="stage" id="stage" width="100%"
        role="img" aria-label="The crew route, played through the day"></svg>
   <div class="cards" id="cards"></div>
 </div>
@@ -294,6 +333,10 @@ function make(tag, attrs) {
 }
 
 // --- static scene ---------------------------------------------------------
+stage.setAttribute(
+  "viewBox",
+  [DATA.view.x, DATA.view.y, DATA.view.w, DATA.view.h].join(" ")
+);
 const base = DATA.runs[0];
 const path = [DATA.depot, ...base.stops, DATA.depot];
 let d = "";
@@ -315,27 +358,33 @@ base.stops.forEach((s) => {
   });
   t.textContent = s.seq;
   stage.appendChild(t);
+  const leftHalf = s.x < DATA.view.x + DATA.view.w / 2;
   const n = make("text", {
-    x: s.x, y: s.y - 22, "text-anchor": "middle",
+    x: s.x + (leftHalf ? -22 : 22), y: s.y + 4,
+    "text-anchor": leftHalf ? "end" : "start",
     "font-size": 10.5, "font-weight": 500, fill: "#8A949E",
   });
   n.textContent = s.name;
   stage.appendChild(n);
 });
 
-stage.appendChild(make("rect", {
-  x: DATA.depot.x - 15, y: DATA.depot.y - 11, width: 30, height: 22, rx: 5,
-  fill: "__ROUTE__", stroke: "#9DF4DC",
+stage.appendChild(make("circle", {
+  cx: DATA.depot.x, cy: DATA.depot.y, r: 13,
+  fill: "__ROUTE__", stroke: "#FFFFFF", "stroke-width": 2.5,
 }));
 const depotText = make("text", {
-  x: DATA.depot.x, y: DATA.depot.y + 4, "text-anchor": "middle",
-  "font-size": 9, "font-weight": 700, fill: "__ROUTE_INK__",
+  x: DATA.depot.x, y: DATA.depot.y + 29, "text-anchor": "middle",
+  "font-size": 10, "font-weight": 700, fill: "__ROUTE_INK__",
+  "letter-spacing": ".08em",
 });
 depotText.textContent = "BASE";
 stage.appendChild(depotText);
 
 // --- one moving crew per run ---------------------------------------------
-const crews = DATA.runs.map((run, index) => {
+const ordered = DATA.runs
+  .map((run, index) => ({ run, index }))
+  .sort((a, b) => Number(a.run.recommended) - Number(b.run.recommended));
+const crews = ordered.map(({ run }) => {
   const trail = make("path", {
     d: "", fill: "none", stroke: run.color, "stroke-width": 3.5,
     "stroke-linecap": "round", opacity: .9,
@@ -489,6 +538,7 @@ for _token, _value in (
 
 __all__ = [
     "PlaybackRun",
+    "playback_height",
     "route_playback_html_from_payload",
     "build_playback_payload",
     "route_playback_html",

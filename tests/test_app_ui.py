@@ -352,7 +352,9 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert '<h1 class="hero-heading">' in text
     assert "Start the shift before the heat does" in text
     # The hero states the premise before the promise.
-    assert "work the hottest hours of the day by default" in text
+    assert "work the hottest hours by default" in text
+    # The hero shows the graded record beside the claim, not only the claim.
+    assert '<div class="hero-proofs">' in text
     assert '<div class="hero-band">' in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
     assert "color-scheme: light" in text

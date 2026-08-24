@@ -16,6 +16,7 @@ from certiroute.animation import (
     VIEW_WIDTH,
     PlaybackRun,
     build_playback_payload,
+    playback_height,
     route_playback_html,
 )
 from certiroute.domain import GeoPoint
@@ -206,3 +207,35 @@ def test_the_playback_uses_only_the_product_palette(two_runs):
 
     assert ROUTE_COLOR in markup
     assert HEAT_COLOR in markup
+
+
+def test_the_frame_is_sized_to_the_route_it_draws(two_runs):
+    """Blank space inside a bordered panel reads as a failure to load."""
+
+    payload = build_playback_payload(
+        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
+    )
+    view = payload["view"]
+
+    expected_stage = 984 * (view["h"] / view["w"])
+    assert playback_height(payload) == pytest.approx(
+        round(min(max(expected_stage, 180.0), 460.0)) + 172, abs=1
+    )
+
+
+def test_the_view_encloses_every_drawn_point(two_runs):
+    payload = build_playback_payload(
+        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
+    )
+    view = payload["view"]
+    points = [(payload["depot"]["x"], payload["depot"]["y"])] + [
+        (leg["x"], leg["y"]) for run in payload["runs"] for leg in run["stops"]
+    ]
+
+    for x, y in points:
+        assert view["x"] <= x <= view["x"] + view["w"]
+        assert view["y"] <= y <= view["y"] + view["h"]
+
+
+def test_a_payload_without_a_view_still_yields_a_usable_height():
+    assert playback_height({}) == 620

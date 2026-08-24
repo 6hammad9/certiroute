@@ -26,7 +26,8 @@ from certiroute.animation import (
     HEAT_COLOR,
     ROUTE_COLOR,
     PlaybackRun,
-    route_playback_html,
+    build_playback_payload,
+    playback_height,
     route_playback_html_from_payload,
 )
 from certiroute.climatology import (
@@ -307,14 +308,57 @@ def inject_styles() -> None:
 
 
 def render_hero() -> None:
-    """State the premise, the promise, and what backs it, in one band.
+    """State the premise and show what backs it, side by side.
 
-    Streamlit wraps each markdown call in its own element, so the whole band
-    is emitted at once; split across calls the container would not enclose
-    anything. The pitch sits on dark ground and the tool below it stays light,
-    because a dispatcher works in the interface but does not have to be sold
-    to in the same register as the controls.
+    Streamlit wraps each markdown call in its own element, so the whole band is
+    emitted at once; split across calls the container would not enclose
+    anything. The claim sits left and the measured record sits right, because a
+    hero that asserts something with half its width empty is asking to be
+    believed rather than showing why it should be.
     """
+
+    summary = load_grade_summary(PROJECT_ROOT / DEFAULT_EVIDENCE_ROOT)
+    proof = ""
+    if summary is not None and summary.chose_best_every_time:
+        rows = [
+            (
+                f"{summary.picked_best_start}/{summary.graded_days}",
+                "",
+                "days it chose the best possible start",
+                f"across {len(summary.areas)} cities, on days it had never seen, "
+                "with zero regret",
+            )
+        ]
+        if summary.lowest_reduction is not None and summary.best_reduction:
+            rows.append(
+                (
+                    f"{summary.lowest_reduction:.0%}–{summary.best_reduction:.0%}",
+                    "",
+                    "of the day's heat avoided",
+                    "same crew, same jobs, a different starting hour",
+                )
+            )
+        if summary.mean_absolute_error_c is not None:
+            rows.append(
+                (
+                    f"{summary.mean_absolute_error_c:.2f}",
+                    "°C",
+                    "mean error against measured heat",
+                    "including the week the weather turned under it",
+                )
+            )
+        proof = (
+            '<div class="hero-proofs">'
+            + "".join(
+                f'<div class="hero-stat"><div class="hero-figure">{figure}'
+                + (f'<span class="hero-unit">{unit}</span>' if unit else "")
+                + "</div>"
+                f'<div class="hero-stat-label">{escape(label)}</div>'
+                f'<div class="hero-stat-note">{escape(note)}</div></div>'
+                for figure, unit, label, note in rows
+            )
+            + "</div>"
+        )
 
     st.markdown(
         f"""
@@ -324,25 +368,25 @@ def render_hero() -> None:
             <span class="wordmark-tag">{icon("thermometer", size=13)}
               Heat-aware field operations</span>
           </div>
-          <h1 class="hero-heading">
-            Start the shift before the heat does.
-          </h1>
-          <div class="hero-copy">
-          Outdoor crews work the hottest hours of the day by default, because
-          the shift was set long before anyone knew what the day would do.
-          CertiRoute reads today's street-level heat from FortyGuard, predicts
-          the hours ahead, and tells you what time to begin &mdash; with the
-          visit order already worked out.
-          </div>
-          <div class="hero-lede">
-            Moving the shift is worth more than reordering the stops. That is
-            measured, not assumed.
-          </div>
-          <div class="hero-proof">
-            <span class="heat">{icon("thermometer", size=15)}
-              Today's real measurements</span>
-            <span>{icon("gauge", size=15)} Calibrated interval</span>
-            <span>{icon("shield", size=15)} No synthetic fallback</span>
+          <div class="hero-grid">
+            <div>
+              <h1 class="hero-heading">Start the shift before the heat does.</h1>
+              <div class="hero-copy">
+              Outdoor crews work the hottest hours by default, because the shift
+              was set long before anyone knew what the day would do.
+              </div>
+              <div class="hero-lede">
+                CertiRoute reads today's street-level heat and tells you what
+                time to begin &mdash; with the visit order already worked out.
+              </div>
+              <div class="hero-proof">
+                <span class="heat">{icon("thermometer", size=15)}
+                  Today's real measurements</span>
+                <span>{icon("gauge", size=15)} Calibrated interval</span>
+                <span>{icon("shield", size=15)} No synthetic fallback</span>
+              </div>
+            </div>
+            {proof}
           </div>
         </div>
         """,
@@ -400,31 +444,21 @@ def render_landing_proof() -> None:
         )
 
     st.markdown(
-        '<div class="proof-head"><div>'
+        '<div class="proof-head">'
         f'<div class="proof-kicker">{icon("calendar", size=13)}'
         f"{escape(graded.area_label)} &middot; "
         f"{graded.day:%d %B %Y}</div>"
         '<div class="proof-title">A day CertiRoute had never seen</div>'
-        "</div>"
         f'<div class="proof-note">It read one measurement &mdash; '
-        f"{graded.measured_level_c:.1f} &deg;C across the area &mdash; then "
-        f"sent the crew at {graded.recommended_start} instead of "
-        f"{graded.baseline_start}. Watch both.</div></div>",
+        f"{graded.measured_level_c:.1f} &deg;C across the area &mdash; then sent "
+        f"the crew at {graded.recommended_start} instead of "
+        f"{graded.baseline_start}. Both runs are below.</div></div>",
         unsafe_allow_html=True,
     )
-    st.iframe(route_playback_html_from_payload(graded.payload), height=600)
-    if facts:
-        st.markdown(
-            '<div class="proof-facts">'
-            + "".join(
-                f'<div class="proof-fact">{icon(name, size=16)}'
-                f'<div><div class="proof-figure">{escape(figure)}</div>'
-                f'<div class="proof-caption">{escape(caption)}</div></div></div>'
-                for name, figure, caption in facts
-            )
-            + "</div>",
-            unsafe_allow_html=True,
-        )
+    st.iframe(
+        route_playback_html_from_payload(graded.payload),
+        height=playback_height(graded.payload),
+    )
 
 
 def render_result_mode_styles() -> None:
@@ -1932,7 +1966,7 @@ def render_day_playback(plan: SameDayPlan) -> None:
         "Temperatures are the ones this plan was built against."
     )
     try:
-        markup = route_playback_html(
+        payload = build_playback_payload(
             runs,
             plan.conservative_profiles,
             depot=plan.depot,
@@ -1940,7 +1974,10 @@ def render_day_playback(plan: SameDayPlan) -> None:
         )
     except ValueError:
         return
-    st.iframe(markup, height=620 if len(runs) > 1 else 560)
+    st.iframe(
+        route_playback_html_from_payload(payload),
+        height=playback_height(payload),
+    )
 
 
 def render_start_options(plan: SameDayPlan) -> None:

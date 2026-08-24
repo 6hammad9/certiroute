@@ -205,8 +205,8 @@ p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
    be made in the same register as the controls. */
 .hero-band {{
   background: var(--ink); color: #FFFFFF;
-  border-radius: var(--r-xl); padding: 2.4rem 2.4rem 2.1rem;
-  margin: 0 0 1.6rem;
+  border-radius: var(--r-xl); padding: 2rem 2.3rem 1.9rem;
+  margin: 0 0 1.4rem;
 }}
 .hero-band .wordmark {{ border-bottom-color: rgba(255,255,255,.14); }}
 .hero-band .wordmark > span:first-of-type {{ color: #FFFFFF; }}
@@ -221,8 +221,33 @@ p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
 }}
 .hero-band .hero-proof .heat {{ color: var(--gold); }}
 .hero-band .hero-lede {{
-  color: var(--route); font-size: .95rem; font-weight: 500;
-  margin: 1.1rem 0 0; max-width: 54ch; line-height: 1.55;
+  color: var(--route); font-size: .97rem; font-weight: 500;
+  margin: .9rem 0 0; max-width: 46ch; line-height: 1.55;
+}}
+.hero-grid {{
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 3rem; align-items: start; margin-top: 1.7rem;
+}}
+.hero-proofs {{
+  display: flex; flex-direction: column; gap: 1rem;
+  padding-left: 2.4rem; border-left: 1px solid rgba(255,255,255,.14);
+}}
+.hero-figure {{
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 2rem; font-weight: 600; letter-spacing: -.045em;
+  color: var(--route); line-height: 1;
+}}
+/* A unit set in the mono face leaves a gap the size of a digit. */
+.hero-unit {{
+  font-family: var(--font-ui); font-size: .95rem; font-weight: 500;
+  letter-spacing: 0; margin-left: .18rem;
+}}
+.hero-stat-label {{
+  color: #FFFFFF; font-size: .84rem; font-weight: 500; margin-top: .3rem;
+}}
+.hero-stat-note {{
+  color: rgba(255,255,255,.45); font-size: .76rem; line-height: 1.45;
+  margin-top: .15rem;
 }}
 
 /* The product name sits at label scale so the headline owns the page. */
@@ -246,8 +271,8 @@ p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
 
 h1.hero-heading {{
   font-family: var(--font-display); color: var(--ink);
-  font-size: 2.9rem; font-weight: 700; letter-spacing: -.038em;
-  line-height: 1.02; margin: 0 0 1rem; max-width: 16ch;
+  font-size: 2.75rem; font-weight: 700; letter-spacing: -.038em;
+  line-height: 1.03; margin: 0 0 .9rem; max-width: 15ch;
 }}
 .hero-copy {{
   color: var(--muted); font-size: 1.02rem; line-height: 1.6;
@@ -264,7 +289,7 @@ h1.hero-heading {{
 
 /* --- Sections --------------------------------------------------------- */
 
-.section-head {{ margin: 3.2rem 0 1.1rem; }}
+.section-head {{ margin: 2.4rem 0 1rem; }}
 .section-index {{
   font-family: var(--font-mono); font-size: .74rem; font-weight: 500;
   letter-spacing: .04em; color: var(--faint); display: block;
@@ -281,9 +306,8 @@ h1.hero-heading {{
 /* --- Landing proof ---------------------------------------------------- */
 
 .proof-head {{
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 1.5rem; flex-wrap: wrap; margin: 1.9rem 0 .8rem;
-  padding-top: 1.4rem; border-top: 1px solid var(--rule);
+  margin: 1.5rem 0 .7rem; padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
 }}
 .proof-kicker {{
   display: inline-flex; align-items: center; gap: .4rem;
@@ -295,8 +319,8 @@ h1.hero-heading {{
   font-weight: 600; letter-spacing: -.024em; margin-top: .25rem;
 }}
 .proof-note {{
-  color: var(--muted); font-size: .87rem; line-height: 1.55;
-  max-width: 40ch; text-align: right;
+  color: var(--muted); font-size: .89rem; line-height: 1.55;
+  max-width: 62ch; margin-top: .3rem;
 }}
 .proof-facts {{
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -318,7 +342,7 @@ h1.hero-heading {{
 
 .process-strip {{
   display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
-  margin: 1.6rem 0 2rem; color: var(--muted);
+  margin: 1.2rem 0 .4rem; color: var(--muted);
 }}
 .process-step {{
   display: inline-flex; align-items: center; gap: .5rem;
@@ -621,6 +645,11 @@ hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
   h1 {{ font-size: 2rem; }}
   h1.hero-heading {{ font-size: 2.05rem; max-width: 100%; }}
   .hero-band {{ padding: 1.6rem 1.4rem 1.5rem; }}
+  .hero-grid {{ grid-template-columns: 1fr; gap: 1.8rem; }}
+  .hero-proofs {{
+    padding-left: 0; border-left: 0; padding-top: 1.4rem;
+    border-top: 1px solid rgba(255,255,255,.14);
+  }}
   .wordmark-tag {{ margin-left: 0; padding-left: 0; border-left: 0; }}
   .process-arrow {{ display: none; }}
   .proof-note {{ text-align: left; }}
