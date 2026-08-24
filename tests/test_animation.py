@@ -218,9 +218,7 @@ def test_the_frame_matches_the_stage_it_holds(two_runs):
     view = payload["view"]
 
     expected_stage = 984 * (view["h"] / view["w"])
-    assert playback_height(payload) == pytest.approx(
-        round(expected_stage) + 172, abs=1
-    )
+    assert playback_height(payload) == pytest.approx(round(expected_stage) + 172, abs=1)
 
 
 def test_the_view_encloses_every_drawn_point(two_runs):
@@ -269,9 +267,7 @@ def test_the_drawing_box_never_shrinks_to_fit_a_clustered_route(two_runs):
         )
         for run in two_runs
     ]
-    clustered = build_playback_payload(
-        tight, profiles_for(tight[0].plan), depot=DEPOT
-    )
+    clustered = build_playback_payload(tight, profiles_for(tight[0].plan), depot=DEPOT)
 
     assert clustered["view"] == spread["view"]
     assert playback_height(clustered) == playback_height(spread)
