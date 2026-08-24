@@ -9,6 +9,7 @@ from certiroute.daily_level import (
     DailyLevelPendingError,
     DailyLevelUnavailableError,
     build_daily_level_request,
+    collect_clustered_daily_level,
     collect_daily_level,
 )
 from certiroute.domain import GeoPoint, Job
@@ -294,3 +295,73 @@ def test_resuming_rejoins_the_task_instead_of_paying_for_another(tmp_path) -> No
 
     assert client.submitted == 0
     assert client.polled == ["activity-earlier"]
+
+
+# --- Sites spread wider than one permitted request --------------------------
+
+
+SPREAD_JOBS = [
+    job("A", longitude=-112.0740, latitude=33.4485),
+    job("B", longitude=-112.0476, latitude=33.4496),
+    job("C", longitude=-111.9400, latitude=33.4700),
+]
+
+
+class CountingClient(FakeClient):
+    """Answers every area, and records how many requests that took."""
+
+    def wait_for_activity(self, activity_id, **_):
+        return result(self.temperature_c + len(self.submitted))
+
+
+def test_sites_wider_than_the_plan_limit_are_split_not_refused(tmp_path) -> None:
+    """One bounding box across a metro exceeds 10 sq mi easily.
+
+    A crew whose work spans a city is ordinary, so this must partition the
+    request the way the hourly path already does rather than fail.
+    """
+
+    from certiroute.fortyguard.geometry import (
+        bounding_polygon as _bounding_polygon,
+    )
+    from certiroute.fortyguard.geometry import (
+        polygon_area_square_miles,
+    )
+
+    whole = polygon_area_square_miles(
+        _bounding_polygon(item.location for item in SPREAD_JOBS)
+    )
+    assert whole > 10.0, "fixture must exceed the plan limit to be meaningful"
+
+    store = HeatmapSnapshotStore(tmp_path)
+    client = CountingClient(30.0)
+
+    reading = collect_clustered_daily_level(
+        SPREAD_JOBS, store, target_date=TODAY, granularity=60,
+        client=client, now_utc=NOW,
+    )
+
+    assert set(reading.level_by_job) == {"A", "B", "C"}
+    assert len(client.submitted) >= 2
+    assert not reading.cache_hit
+
+
+def test_a_compact_set_still_costs_a_single_request(tmp_path) -> None:
+    store = HeatmapSnapshotStore(tmp_path)
+    client = CountingClient(31.0)
+
+    reading = collect_clustered_daily_level(
+        JOBS, store, target_date=TODAY, granularity=60, client=client, now_utc=NOW
+    )
+
+    assert len(client.submitted) == 1
+    assert set(reading.level_by_job) == {"A", "B"}
+
+
+def test_clustered_reading_needs_at_least_one_job(tmp_path) -> None:
+    store = HeatmapSnapshotStore(tmp_path)
+
+    with pytest.raises(ValueError, match="at least one job"):
+        collect_clustered_daily_level(
+            [], store, target_date=TODAY, client=FakeClient(), now_utc=NOW
+        )

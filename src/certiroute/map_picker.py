@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from math import cos, radians
 from typing import Any, Final
 
 import folium
@@ -51,13 +52,24 @@ def build_map_picker(
     the user's pan and zoom position stable as clicks add markers.
     """
 
+    # A 60 km boundary is entirely off-screen at a city working zoom, so an
+    # untouched map opens framed on the whole covered area: the limit is the
+    # first thing seen rather than something discovered by being refused. Once
+    # a base is placed the map keeps the operator's own view.
+    show_whole_area = coverage is not None and depot is None and not job_sites
     base_map = folium.Map(
-        location=[operating_area.center.latitude, operating_area.center.longitude],
+        location=(
+            [coverage.centre.latitude, coverage.centre.longitude]
+            if show_whole_area and coverage is not None
+            else [operating_area.center.latitude, operating_area.center.longitude]
+        ),
         zoom_start=operating_area.zoom,
         tiles="CartoDB positron",
         control_scale=True,
         prefer_canvas=True,
     )
+    if show_whole_area and coverage is not None:
+        base_map.fit_bounds(_coverage_bounds(coverage))
     selections = folium.FeatureGroup(
         name="Selected route points",
         overlay=True,
@@ -147,6 +159,25 @@ def render_map_picker(
         feature_group_to_add=selections,
     )
     return result if isinstance(result, Mapping) else {}
+
+
+def _coverage_bounds(coverage: CoverageArea) -> list[list[float]]:
+    """A latitude/longitude box that just contains the coverage circle."""
+
+    latitude_degrees = coverage.radius_km / 110.574
+    longitude_degrees = coverage.radius_km / (
+        111.320 * max(cos(radians(coverage.centre.latitude)), 1e-6)
+    )
+    return [
+        [
+            coverage.centre.latitude - latitude_degrees,
+            coverage.centre.longitude - longitude_degrees,
+        ],
+        [
+            coverage.centre.latitude + latitude_degrees,
+            coverage.centre.longitude + longitude_degrees,
+        ],
+    ]
 
 
 def _depot_marker_html() -> str:

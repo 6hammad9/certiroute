@@ -40,13 +40,12 @@ from certiroute.daily_level import (
     DailyLevelPendingError,
     DailyLevelReading,
     DailyLevelUnavailableError,
-    collect_daily_level,
+    collect_clustered_daily_level,
 )
 from certiroute.domain import GeoPoint, Job
 from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardError
-from certiroute.fortyguard.geometry import bounding_polygon
 from certiroute.fortyguard.heatmap_profiles import HeatmapCoverageError
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
@@ -1234,6 +1233,13 @@ def render_picker_instruction(state: MapScenarioState) -> None:
         title = f"Ready — {state.job_count} work sites selected"
         detail = "Add another site, adjust the optional details, or build the route."
         style = " ready"
+    coverage = coverage_for(state.operating_area_id)
+    if coverage is not None:
+        detail += (
+            f" The dashed circle is where CertiRoute's {escape(coverage.label)} "
+            f"heat model applies — {coverage.radius_km:.0f} km across its "
+            "trained ground."
+        )
     st.markdown(
         f'<div class="picker-instruction{style}"><strong>{title}</strong>'
         f"<span>{detail}</span></div>",
@@ -1674,12 +1680,11 @@ def read_today_level(
     spending a second credit and abandoning the first.
     """
 
-    polygon = bounding_polygon(job.location for job in jobs)
     pending = st.session_state.get(PENDING_LEVEL_KEY)
     resume = (
-        pending.get("activity_id")
+        pending.get("activity_ids", {})
         if isinstance(pending, dict) and pending.get("date") == target_date.isoformat()
-        else None
+        else {}
     )
     settings = get_settings()
     with FortyGuardClient(
@@ -1687,16 +1692,15 @@ def read_today_level(
         base_url=settings.fortyguard_api_base_url,
         timeout_seconds=settings.fortyguard_timeout_seconds,
     ) as client:
-        reading = collect_daily_level(
+        reading = collect_clustered_daily_level(
             jobs,
-            polygon,
             store,
             target_date=target_date,
             granularity=granularity,
             client=client,
             poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
             max_attempts=settings.fortyguard_max_poll_attempts,
-            resume_activity_id=resume,
+            resume_activity_ids=resume,
         )
         st.session_state.pop(PENDING_LEVEL_KEY, None)
         return reading
@@ -2389,9 +2393,17 @@ if planning_today:
             same_day_plan = None
             # The task is still running on FortyGuard's side, so remember it and
             # rejoin rather than paying for a second one.
+            pending = st.session_state.get(PENDING_LEVEL_KEY)
+            known = (
+                dict(pending.get("activity_ids", {}))
+                if isinstance(pending, dict)
+                and pending.get("date") == selected_date.isoformat()
+                else {}
+            )
+            known[len(known)] = exc.activity_id
             st.session_state[PENDING_LEVEL_KEY] = {
                 "date": selected_date.isoformat(),
-                "activity_id": exc.activity_id,
+                "activity_ids": known,
             }
             st.warning(
                 f"{exc} Large areas can take several minutes. Press "

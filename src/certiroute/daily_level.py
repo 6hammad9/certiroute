@@ -13,7 +13,8 @@ an area-wide mean.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections import defaultdict, deque
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -21,6 +22,10 @@ from certiroute.collection import HeatmapSnapshotStore
 from certiroute.domain import Job
 from certiroute.fortyguard.client import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardTaskTimeout
+from certiroute.fortyguard.geometry import (
+    DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
+    cluster_points_into_aois,
+)
 from certiroute.fortyguard.heatmap_profiles import (
     heatmap_has_tiles,
     map_job_temperatures,
@@ -188,11 +193,84 @@ def collect_daily_level(
     )
 
 
+def collect_clustered_daily_level(
+    jobs: Sequence[Job],
+    store: HeatmapSnapshotStore,
+    *,
+    target_date: date,
+    granularity: int = 60,
+    client: FortyGuardClient | None = None,
+    poll_interval_seconds: float = 5.0,
+    max_attempts: int = 60,
+    live_ttl: timedelta = DEFAULT_LIVE_LEVEL_TTL,
+    resume_activity_ids: Mapping[int, str] | None = None,
+    max_aoi_area_square_miles: float = DEFAULT_MAX_AOI_AREA_SQUARE_MILES,
+    now_utc: datetime | None = None,
+) -> DailyLevelReading:
+    """Read every site's level, splitting the work into permitted areas.
+
+    FortyGuard caps a single request at 10 square miles. A crew whose sites
+    span more than that is ordinary, not exceptional - one bounding box across
+    a metro exceeds the cap easily - so the sites are partitioned into compact
+    areas exactly as the hourly path already does, and the per-site levels are
+    merged back into one reading.
+    """
+
+    if not jobs:
+        raise ValueError("at least one job is required to read a daily level")
+    ordered = sorted(jobs, key=lambda job: (job.location.longitude, job.job_id))
+    clusters = cluster_points_into_aois(
+        (job.location for job in ordered),
+        max_area_square_miles=max_aoi_area_square_miles,
+    )
+
+    remaining: defaultdict[tuple[float, float], deque[Job]] = defaultdict(deque)
+    for job in ordered:
+        remaining[job.location.geojson_position].append(job)
+
+    levels: dict[str, float] = {}
+    activity_ids: list[str] = []
+    collected: list[datetime] = []
+    every_reading_cached = True
+    resume = dict(resume_activity_ids or {})
+    for index, cluster in enumerate(clusters):
+        cluster_jobs = [
+            remaining[point.geojson_position].popleft() for point in cluster.points
+        ]
+        reading = collect_daily_level(
+            cluster_jobs,
+            cluster.polygon,
+            store,
+            target_date=target_date,
+            granularity=granularity,
+            client=client,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+            live_ttl=live_ttl,
+            resume_activity_id=resume.get(index),
+            now_utc=now_utc,
+        )
+        levels.update(reading.level_by_job)
+        activity_ids.append(reading.activity_id)
+        collected.append(reading.collected_at_utc)
+        every_reading_cached = every_reading_cached and reading.cache_hit
+
+    return DailyLevelReading(
+        target_date=target_date,
+        granularity_m=granularity,
+        level_by_job=levels,
+        activity_id=", ".join(activity_ids),
+        collected_at_utc=max(collected),
+        cache_hit=every_reading_cached,
+    )
+
+
 __all__ = [
     "DEFAULT_LIVE_LEVEL_TTL",
     "DailyLevelPendingError",
     "DailyLevelReading",
     "DailyLevelUnavailableError",
     "build_daily_level_request",
+    "collect_clustered_daily_level",
     "collect_daily_level",
 ]
