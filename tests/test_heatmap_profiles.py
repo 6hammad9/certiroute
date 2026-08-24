@@ -202,3 +202,112 @@ def test_profile_builder_rejects_duplicate_job_ids_and_invalid_minutes() -> None
         build_temperature_profiles([job, job], {480: result})
     with pytest.raises(ValueError, match="between 0 and 1439"):
         build_temperature_profiles([job], {1440: result})
+
+
+# --- Gaps in the vendor's tile grid -----------------------------------------
+#
+# FortyGuard's coverage has real holes: a site can sit inside the returned area
+# and still fall between tiles. Refusing there tells a dispatcher to "move that
+# point slightly", which is not an answer during a shift.
+
+
+def _tile_at(longitude: float, latitude: float, temperature_c: float, *, half=0.0003):
+    return {
+        "type": "Feature",
+        "properties": {
+            "tile_id": f"t-{longitude:.4f}",
+            "average_temperature": temperature_c,
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [longitude - half, latitude - half],
+                    [longitude + half, latitude - half],
+                    [longitude + half, latitude + half],
+                    [longitude - half, latitude + half],
+                    [longitude - half, latitude - half],
+                ]
+            ],
+        },
+    }
+
+
+def _grid_with_a_hole() -> dict:
+    """Two tiles either side of an uncovered strip."""
+
+    return {
+        "map_data": {
+            "type": "FeatureCollection",
+            "features": [
+                _tile_at(-112.0700, 33.4485, 38.0),
+                _tile_at(-112.0600, 33.4485, 41.0),
+            ],
+        }
+    }
+
+
+def _job_at(job_id: str, longitude: float, latitude: float) -> Job:
+    return Job(
+        job_id=job_id,
+        name=job_id,
+        location=GeoPoint(longitude=longitude, latitude=latitude),
+        duration_minutes=30,
+    )
+
+
+def test_a_site_in_a_grid_gap_takes_the_nearest_reading() -> None:
+    # Roughly 46 m east of the first tile's centre: in the gap, but adjacent.
+    job = _job_at("SITE-02", -112.06950, 33.4485)
+
+    temperatures = map_job_temperatures([job], _grid_with_a_hole())
+
+    assert temperatures["SITE-02"] == pytest.approx(38.0)
+
+
+def test_the_nearest_reading_is_the_one_actually_nearest() -> None:
+    near_hot = _job_at("SITE-03", -112.06050, 33.4485)
+
+    temperatures = map_job_temperatures([near_hot], _grid_with_a_hole())
+
+    assert temperatures["SITE-03"] == pytest.approx(41.0)
+
+
+def test_a_site_far_from_every_tile_is_still_refused() -> None:
+    """Borrowing a temperature from streets away would be a fabrication."""
+
+    stranded = _job_at("SITE-09", -112.2000, 33.4485)
+
+    with pytest.raises(HeatmapCoverageError, match="not covered: SITE-09"):
+        map_job_temperatures([stranded], _grid_with_a_hole())
+
+
+def test_the_refusal_says_how_far_away_the_nearest_reading_was() -> None:
+    stranded = _job_at("SITE-09", -112.2000, 33.4485)
+
+    with pytest.raises(HeatmapCoverageError, match=r"SITE-09 \(\d+ m from any"):
+        map_job_temperatures([stranded], _grid_with_a_hole())
+
+
+def test_snapping_can_be_switched_off_for_a_strict_caller() -> None:
+    job = _job_at("SITE-02", -112.06950, 33.4485)
+
+    with pytest.raises(HeatmapCoverageError, match="not covered"):
+        map_job_temperatures([job], _grid_with_a_hole(), max_snap_metres=0.0)
+
+
+def test_a_covering_tile_always_wins_over_a_nearer_centre() -> None:
+    """Snapping must never override a tile the point genuinely sits inside."""
+
+    inside = _job_at("SITE-01", -112.0700, 33.4485)
+
+    temperatures = map_job_temperatures([inside], _grid_with_a_hole())
+
+    assert temperatures["SITE-01"] == pytest.approx(38.0)
+
+
+def test_a_negative_snap_bound_is_refused() -> None:
+    with pytest.raises(ValueError, match="cannot be negative"):
+        map_job_temperatures(
+            [_job_at("A", -112.07, 33.4485)], _grid_with_a_hole(), max_snap_metres=-1
+        )

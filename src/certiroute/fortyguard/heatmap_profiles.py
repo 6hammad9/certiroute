@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from math import isfinite
+from math import asin, cos, isfinite, radians, sin, sqrt
 from typing import Any, Literal, TypeAlias
 
 from certiroute.domain import GeoPoint, Job
@@ -30,6 +30,15 @@ class HeatmapCoverageError(FortyGuardProtocolError):
     """A job is uncovered by, or ambiguously covered by, heatmap tiles."""
 
 
+# A point that no tile covers is snapped to the nearest tile within this
+# distance. FortyGuard's grid has gaps - a site can sit inside the returned
+# area and still fall between tiles - and refusing there would tell a
+# dispatcher to "move that point slightly", which is not an answer. The bound
+# is roughly two cells at the coarsest granularity, so a snap always takes a
+# genuinely adjacent reading rather than inventing coverage that is not there.
+DEFAULT_SNAP_METRES = 220.0
+
+
 @dataclass(frozen=True)
 class HeatmapTile:
     """One validated temperature tile from ``result.map_data.features``."""
@@ -45,6 +54,32 @@ class HeatmapTile:
 
         position = point.geojson_position
         return any(_polygon_covers(position, polygon) for polygon in self.polygons)
+
+    @property
+    def centre(self) -> tuple[float, float]:
+        """The mean of this tile's exterior ring vertices, as (lon, lat)."""
+
+        vertices = [vertex for polygon in self.polygons for vertex in polygon[0]]
+        if not vertices:  # pragma: no cover - parsing rejects empty rings
+            raise FortyGuardProtocolError("tile has no exterior ring")
+        return (
+            sum(x for x, _ in vertices) / len(vertices),
+            sum(y for _, y in vertices) / len(vertices),
+        )
+
+    def metres_from(self, point: GeoPoint) -> float:
+        """Great-circle distance from a point to this tile's centre."""
+
+        longitude, latitude = self.centre
+        earth_radius_m = 6_371_008.8
+        lat1, lat2 = radians(point.latitude), radians(latitude)
+        delta_lat = lat2 - lat1
+        delta_lon = radians(longitude - point.longitude)
+        value = (
+            sin(delta_lat / 2) ** 2
+            + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
+        )
+        return 2 * earth_radius_m * asin(sqrt(value))
 
 
 def extract_heatmap_tiles(result: Mapping[str, Any]) -> tuple[HeatmapTile, ...]:
@@ -107,17 +142,28 @@ def geometry_covers_point(geometry: Mapping[str, Any], point: GeoPoint) -> bool:
 
 
 def map_job_temperatures(
-    jobs: Sequence[Job], result: Mapping[str, Any]
+    jobs: Sequence[Job],
+    result: Mapping[str, Any],
+    *,
+    max_snap_metres: float = DEFAULT_SNAP_METRES,
 ) -> dict[str, float]:
-    """Map every job to exactly one heatmap tile or raise a clear error.
+    """Map every job to one heatmap tile, snapping across small grid gaps.
 
     A point on a shared tile edge may be covered by multiple polygons. If those
     matches disagree on temperature, selecting one by response order would be
     arbitrary, so the result is rejected. Identical-temperature overlaps are
     harmless and collapse to that shared value.
+
+    A point covered by no tile is taken from the nearest tile within
+    ``max_snap_metres``. FortyGuard's grid has real gaps, and a site that falls
+    into one is not outside the area - it is metres from a reading. Beyond that
+    bound the point genuinely has no data and is still refused, because
+    borrowing a temperature from streets away would be a fabrication.
     """
 
     _validate_unique_job_ids(jobs)
+    if max_snap_metres < 0:
+        raise ValueError("max_snap_metres cannot be negative")
     tiles = extract_heatmap_tiles(result)
     temperatures: dict[str, float] = {}
     uncovered: list[str] = []
@@ -126,7 +172,12 @@ def map_job_temperatures(
     for job in jobs:
         matches = [tile for tile in tiles if tile.covers(job.location)]
         if not matches:
-            uncovered.append(job.job_id)
+            nearest = min(tiles, key=lambda tile: tile.metres_from(job.location))
+            distance = nearest.metres_from(job.location)
+            if distance > max_snap_metres:
+                uncovered.append(f"{job.job_id} ({distance:.0f} m from any reading)")
+                continue
+            temperatures[job.job_id] = nearest.average_temperature_c
             continue
         distinct_temperatures = {tile.average_temperature_c for tile in matches}
         if len(distinct_temperatures) > 1:
@@ -340,6 +391,7 @@ def heatmap_has_tiles(result: Mapping[str, Any]) -> bool:
 
 
 __all__ = [
+    "DEFAULT_SNAP_METRES",
     "HeatmapCoverageError",
     "HeatmapTile",
     "UNCALIBRATED_CERTAINTY",
