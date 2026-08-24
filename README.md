@@ -27,10 +27,13 @@ candidate start on the temperatures the day actually produced.
 | --- | --- | --- | --- |
 | Phoenix | 4 | 4 / 4 | 19.7-37.1% |
 | Houston | 2 | 2 / 2 | 47.7-58.6% |
+| Miami | 3 | 3 / 3 | 33.3-49.5% |
 
-Zero regret on all six: no other start time would have been cooler. Houston's
-larger savings are not a better model but a steeper afternoon, which is why
-each area is measured rather than assumed.
+Zero regret on all nine: on no day would another start time have been cooler.
+The spread in savings is not a difference in model quality but in local
+climate - Houston and Miami have steeper afternoons than Phoenix - and it is
+the reason each area carries its own trained model instead of one number being
+asserted everywhere.
 
 Prediction error, measured by rolling the origin forward over 16 consecutive
 Phoenix days, is **0.79 C mean absolute error**. That figure includes the
