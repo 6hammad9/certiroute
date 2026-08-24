@@ -8,7 +8,7 @@ every network route closed, so the grading runs entirely on cached evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -310,3 +310,54 @@ def test_a_training_day_is_refused_rather_than_graded(review_states) -> None:
 
 def test_grading_never_touched_the_network(review_states) -> None:
     assert review_states["network"] == []
+
+
+# --- Dates the vendor has not published yet ---------------------------------
+
+
+def test_a_day_inside_the_publishing_lag_is_refused_before_any_request(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Offering a date that can only fail wastes the operator's wait.
+
+    FortyGuard publishes hourly history about two days behind, so yesterday
+    returns zero tiles for every hour. The app used to discover that only after
+    the request had been sent and waited on.
+    """
+
+    patch = pytest.MonkeyPatch()
+    driver = MapDriver()
+    network: list[str] = []
+
+    def reject(*_args: object, **_kwargs: object) -> object:
+        network.append("network")
+        raise AssertionError("no request may be sent for an unpublished day")
+
+    patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
+    patch.setattr(FortyGuardClient, "create_heatmap", reject)
+    patch.setattr(FortyGuardClient, "submit_heatmap", reject)
+    patch.setattr(map_picker, "render_map_picker", driver.render)
+    get_settings.cache_clear()
+    patch.setenv(
+        "CERTIROUTE_HEATMAP_CACHE_PATH", str(tmp_path_factory.mktemp("lag_cache"))
+    )
+    model_root = tmp_path_factory.mktemp("lag_climatology")
+    save_climatology(_model(), root=model_root)
+    patch.setenv("CERTIROUTE_CLIMATOLOGY_PATH", str(model_root))
+
+    try:
+        app = AppTest.from_file(APP_PATH)
+        app.run(timeout=60)
+        _button(app, "Load the Phoenix walkthrough").click().run(timeout=60)
+        _review(app, date.today() - timedelta(days=1))
+        text = _all_text(app)
+
+        assert "has not published hourly temperatures" in text
+        assert "runs about 2 days behind" in text
+        assert not any(
+            button.label == "Create my heat-aware route" for button in app.button
+        )
+        assert network == []
+    finally:
+        patch.undo()
+        get_settings.cache_clear()

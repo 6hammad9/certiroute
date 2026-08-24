@@ -114,6 +114,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_JOBS_PATH = PROJECT_ROOT / "data" / "sample" / "phoenix_jobs.csv"
 DEFAULT_CACHE_PATH = PROJECT_ROOT / "data" / "raw" / "fortyguard_heatmap_snapshots"
 CLIMATOLOGY_ROOT = PROJECT_ROOT / "data" / "climatology"
+# FortyGuard publishes hourly history behind the present. Measured on
+# 2026-08-23: every hour of the previous day returned zero tiles while the
+# day before that was complete. Offering a date inside that window means
+# sending a request that can only fail, after the operator has waited for it.
+HOURLY_HISTORY_LAG_DAYS = 2
 
 EXAMPLE_DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
 EXAMPLE_SHIFT_START = time(8)
@@ -1674,9 +1679,12 @@ def render_workday_settings(
         )
 
     with st.expander("Change the day or shift (optional)"):
+        reviewable = today - timedelta(days=HOURLY_HISTORY_LAG_DAYS)
         st.caption(
-            "Today is planned from this morning's measured heat. Pick an earlier "
-            "date to review a finished day against what actually happened."
+            "Today is planned from this morning's measured heat. To review a "
+            "finished day against what actually happened, pick "
+            f"{reviewable:%d %b %Y} or earlier — FortyGuard publishes "
+            f"hourly history about {HOURLY_HISTORY_LAG_DAYS} days behind."
         )
         selected_date = st.date_input(
             "Workday",
@@ -2699,6 +2707,22 @@ if planning_today:
 # Reviewing a day exists to grade earlier starts against it, so the measured
 # hours have to reach back to the earliest candidate. Collecting only the
 # entered shift would leave the grader unable to see the hours it must judge.
+earliest_reviewable = date.today() - timedelta(days=HOURLY_HISTORY_LAG_DAYS)
+if selected_date > earliest_reviewable:
+    section(2, "Review a finished day")
+    st.warning(
+        f"FortyGuard has not published hourly temperatures for "
+        f"{selected_date:%d %b %Y} yet. Its history runs about "
+        f"{HOURLY_HISTORY_LAG_DAYS} days behind, so the most recent day that "
+        f"can be reviewed is **{earliest_reviewable:%d %b %Y}**."
+    )
+    st.info(
+        "Pick that date or earlier above to review a finished day, or set the "
+        "workday to today to plan the shift ahead."
+    )
+    render_safety_boundary(compact=True)
+    st.stop()
+
 review_candidates = candidate_starts_for(shift_start, shift_end)
 sample_times = hourly_sample_times(min(review_candidates), shift_end)
 try:
