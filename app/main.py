@@ -67,6 +67,7 @@ from certiroute.map_scenario import (
     DEFAULT_OPERATING_AREA_ID,
     DEFAULT_SHIFT_END,
     DEFAULT_SHIFT_START,
+    OPERATING_AREA_BY_ID,
     OPERATING_AREA_PRESETS,
     MapClickAction,
     MapPoint,
@@ -1576,6 +1577,7 @@ def render_map_setup() -> MapScenarioState:
             depot=state.depot,
             job_sites=state.job_sites,
             coverage=coverage_for(state.operating_area_id),
+            hint=hint_for(state),
             generation=generation,
             height=470,
         )
@@ -1765,6 +1767,35 @@ def scroll_to(anchor_id: str) -> None:
         "</script>",
         height=1,
     )
+
+
+def hint_for(state: MapScenarioState) -> map_picker.MapHint | None:
+    """Put the next instruction on the map, where the click has to happen.
+
+    The written instruction sits above the map and can be read as a caption.
+    A target pulsing on the map itself cannot: it says the pale rectangle is
+    the input. It stops once the crew has enough sites, because an invitation
+    that never leaves is just decoration.
+    """
+
+    area = OPERATING_AREA_BY_ID[state.operating_area_id]
+    if state.depot is None:
+        return map_picker.MapHint(
+            latitude=area.center.latitude,
+            longitude=area.center.longitude,
+            text="Click to place the crew base",
+        )
+    if state.job_count < MIN_MANIFEST_JOBS:
+        # Offset from the base so the two markers do not sit on top of one
+        # another, and so the click it is asking for lands somewhere new.
+        return map_picker.MapHint(
+            latitude=state.depot.latitude + 0.012,
+            longitude=state.depot.longitude + 0.016,
+            text="Click anywhere to add a work site",
+            color=map_picker.JOB_COLOR,
+            ink="#8A3B00",
+        )
+    return None
 
 
 def coverage_for(area_id: str) -> map_picker.CoverageArea | None:

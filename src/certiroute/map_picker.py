@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from html import escape
 from math import cos, radians
 from typing import Any, Final
 
@@ -22,6 +23,23 @@ DEPOT_COLOR: Final = "#70FFD2"
 JOB_COLOR: Final = "#FF9137"
 MARKER_TEXT_COLOR: Final = "#0B1524"
 COVERAGE_COLOR: Final = "#0A7D5E"
+
+
+@dataclass(frozen=True)
+class MapHint:
+    """A pulsing target telling the operator the map is theirs to click.
+
+    An untouched map is a pale rectangle, and a pale rectangle looks like a
+    picture of a city rather than a control. Nothing else on the page says
+    "this is the input" - the instruction above it can be read as a caption -
+    so the invitation has to live on the map itself.
+    """
+
+    latitude: float
+    longitude: float
+    text: str
+    color: str = DEPOT_COLOR
+    ink: str = "#05372A"
 
 
 @dataclass(frozen=True)
@@ -43,6 +61,7 @@ def build_map_picker(
     depot: MapPoint | None,
     job_sites: Sequence[MapPoint],
     coverage: CoverageArea | None = None,
+    hint: MapHint | None = None,
 ) -> tuple[folium.Map, folium.FeatureGroup]:
     """Build a stable base map and a replaceable selection overlay.
 
@@ -69,7 +88,12 @@ def build_map_picker(
         prefer_canvas=True,
     )
     if show_whole_area and coverage is not None:
-        base_map.fit_bounds(_coverage_bounds(coverage))
+        # Framing the whole 60 km circle shows the boundary but reduces the city
+        # to a pale smudge, which is not a scale anyone can place a work site
+        # at. Just over half of it keeps streets legible while the edge stays
+        # in view.
+        base_map.fit_bounds(_coverage_bounds(coverage, fraction=0.58))
+    base_map.get_root().header.add_child(folium.Element(_MAP_STYLE))
     selections = folium.FeatureGroup(
         name="Selected route points",
         overlay=True,
@@ -94,6 +118,16 @@ def build_map_picker(
             tooltip=(
                 f"{coverage.label}: heat model covers "
                 f"{coverage.radius_km:.0f} km from here"
+            ),
+        ).add_to(selections)
+
+    if hint is not None:
+        folium.Marker(
+            location=[hint.latitude, hint.longitude],
+            icon=folium.DivIcon(
+                icon_size=(230, 230),
+                icon_anchor=(115, 115),
+                html=_hint_html(hint),
             ),
         ).add_to(selections)
 
@@ -128,6 +162,7 @@ def render_map_picker(
     depot: MapPoint | None,
     job_sites: Sequence[MapPoint],
     coverage: CoverageArea | None = None,
+    hint: MapHint | None = None,
     generation: int = 0,
     height: int = 500,
 ) -> Mapping[str, Any]:
@@ -148,6 +183,7 @@ def render_map_picker(
         depot=depot,
         job_sites=job_sites,
         coverage=coverage,
+        hint=hint,
     )
     result = st_folium(
         base_map,
@@ -161,11 +197,16 @@ def render_map_picker(
     return result if isinstance(result, Mapping) else {}
 
 
-def _coverage_bounds(coverage: CoverageArea) -> list[list[float]]:
-    """A latitude/longitude box that just contains the coverage circle."""
+def _coverage_bounds(
+    coverage: CoverageArea, *, fraction: float = 1.0
+) -> list[list[float]]:
+    """A latitude/longitude box containing this share of the coverage circle."""
 
-    latitude_degrees = coverage.radius_km / 110.574
-    longitude_degrees = coverage.radius_km / (
+    if fraction <= 0:
+        raise ValueError("fraction must be greater than zero")
+    radius = coverage.radius_km * fraction
+    latitude_degrees = radius / 110.574
+    longitude_degrees = radius / (
         111.320 * max(cos(radians(coverage.centre.latitude)), 1e-6)
     )
     return [
@@ -178,6 +219,61 @@ def _coverage_bounds(coverage: CoverageArea) -> list[list[float]]:
             coverage.centre.longitude + longitude_degrees,
         ],
     ]
+
+
+# The picker renders inside its own iframe, so this has to travel with the
+# map rather than living in the page stylesheet.
+_MAP_STYLE = """
+<style>
+.leaflet-container { cursor: crosshair !important; }
+.leaflet-container .leaflet-control-zoom a { cursor: pointer !important; }
+.cr-hint { pointer-events: none; text-align: center; }
+.cr-hint-ring {
+  position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+  margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 2px solid var(--cr-hint); opacity: 0;
+  animation: cr-pulse 2.4s ease-out infinite;
+}
+.cr-hint-ring:nth-child(2) { animation-delay: .8s; }
+.cr-hint-ring:nth-child(3) { animation-delay: 1.6s; }
+.cr-hint-dot {
+  position: absolute; left: 50%; top: 50%; width: 13px; height: 13px;
+  margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+  background: var(--cr-hint); border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(12,17,22,.28);
+}
+.cr-hint-label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -46px);
+  white-space: nowrap; padding: .34rem .62rem; border-radius: 999px;
+  background: var(--cr-hint); color: var(--cr-hint-ink);
+  font: 600 11.5px/1 Inter, system-ui, sans-serif; letter-spacing: .01em;
+  box-shadow: 0 2px 10px rgba(12,17,22,.22);
+}
+@keyframes cr-pulse {
+  0%   { transform: scale(.6);  opacity: .85; }
+  70%  { transform: scale(3.6); opacity: 0; }
+  100% { transform: scale(3.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-hint-ring { animation: none; opacity: .5; transform: scale(2.2); }
+}
+</style>
+"""
+
+
+def _hint_html(hint: MapHint) -> str:
+    """A pulsing target with a label, which never intercepts a map click."""
+
+    return (
+        f'<div class="cr-hint" style="--cr-hint:{hint.color};'
+        f'--cr-hint-ink:{hint.ink}">'
+        '<div class="cr-hint-ring"></div>'
+        '<div class="cr-hint-ring"></div>'
+        '<div class="cr-hint-ring"></div>'
+        '<div class="cr-hint-dot"></div>'
+        f'<div class="cr-hint-label">{escape(hint.text)}</div>'
+        "</div>"
+    )
 
 
 def _depot_marker_html() -> str:
@@ -202,6 +298,7 @@ def _job_marker_html(sequence: int) -> str:
 
 __all__ = [
     "COVERAGE_COLOR",
+    "MapHint",
     "CoverageArea",
     "DEPOT_COLOR",
     "JOB_COLOR",

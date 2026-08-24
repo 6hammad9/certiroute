@@ -199,3 +199,90 @@ def test_a_meaningless_radius_is_refused(radius: float) -> None:
         map_picker.CoverageArea(
             centre=MapPoint(33.44, -112.07), radius_km=radius, label="X"
         )
+
+
+# --- Inviting the first click -----------------------------------------------
+#
+# An untouched map is a pale rectangle, and a pale rectangle looks like a
+# picture of a city rather than a control. Nothing else on the page says "this
+# is the input", so the invitation has to live on the map itself.
+
+
+def base_hint() -> map_picker.MapHint:
+    return map_picker.MapHint(
+        latitude=33.4484,
+        longitude=-112.0740,
+        text="Click to place the crew base",
+    )
+
+
+def _icon_html(**kwargs) -> str:
+    """The DivIcon markup of every marker, without needing a parent Figure."""
+
+    _, selections = map_picker.build_map_picker(
+        phoenix_area(), depot=None, job_sites=(), **kwargs
+    )
+    return "".join(
+        child.options.get("html", "")
+        for marker in selections._children.values()
+        for child in getattr(marker, "_children", {}).values()
+        if hasattr(child, "options")
+    )
+
+
+def test_the_hint_puts_a_target_and_its_words_on_the_map() -> None:
+    markup = _icon_html(hint=base_hint())
+
+    assert "cr-hint-dot" in markup
+    assert "cr-hint-ring" in markup
+    assert "Click to place the crew base" in markup
+
+
+def test_the_hint_never_swallows_the_click_it_is_asking_for() -> None:
+    """A target that blocks the map would be worse than no target at all."""
+
+    markup = _icon_html(hint=base_hint())
+
+    assert "cr-hint" in markup
+    assert "pointer-events: none" in map_picker._MAP_STYLE
+
+
+def test_the_map_shows_a_crosshair_so_it_reads_as_clickable() -> None:
+    base_map, _ = map_picker.build_map_picker(phoenix_area(), depot=None, job_sites=())
+
+    rendered = base_map.get_root().render()
+    assert "cursor: crosshair" in rendered
+    # The zoom control is still a button, not a place to drop a work site.
+    assert ".leaflet-control-zoom a { cursor: pointer" in rendered
+
+
+def test_hint_text_is_escaped_rather_than_injected() -> None:
+    markup = _icon_html(
+        hint=map_picker.MapHint(
+            latitude=33.4, longitude=-112.0, text='<img src=x onerror="bad()">'
+        )
+    )
+
+    assert "onerror" not in markup or "&lt;img" in markup
+    assert "<img src=x" not in markup
+
+
+def test_no_hint_leaves_the_map_alone() -> None:
+    assert "cr-hint" not in _icon_html(hint=None)
+
+
+def test_coverage_bounds_can_frame_part_of_the_circle() -> None:
+    """The whole 60 km circle reduces a city to a smudge; part of it does not."""
+
+    whole = map_picker._coverage_bounds(phoenix_coverage())
+    part = map_picker._coverage_bounds(phoenix_coverage(), fraction=0.58)
+
+    whole_span = whole[1][0] - whole[0][0]
+    part_span = part[1][0] - part[0][0]
+    assert part_span == pytest.approx(whole_span * 0.58, rel=1e-6)
+
+
+@pytest.mark.parametrize("fraction", [0.0, -0.5])
+def test_a_meaningless_framing_fraction_is_refused(fraction: float) -> None:
+    with pytest.raises(ValueError, match="greater than zero"):
+        map_picker._coverage_bounds(phoenix_coverage(), fraction=fraction)
