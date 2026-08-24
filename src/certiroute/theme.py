@@ -108,8 +108,24 @@ FONT_LINKS = (
     '&family=JetBrains+Mono:wght@400;500;600&display=swap">'
 )
 
-STYLESHEET = f"""
-{FONT_LINKS}
+def as_markup(*blocks: str) -> str:
+    """Join HTML for injection, with every blank line removed.
+
+    CommonMark ends a raw-HTML block at the first blank line. A stylesheet
+    written with blank lines between its sections therefore stops being a
+    stylesheet at the first section break, and every rule after it is rendered
+    onto the page as paragraph text. That is not a subtle failure - the whole
+    design system appears as visible source above the interface.
+
+    Blank lines are stripped here so the CSS can still be authored with the
+    spacing that makes it readable.
+    """
+
+    joined = "\n".join(blocks)
+    return "\n".join(line for line in joined.splitlines() if line.strip())
+
+
+_CSS = f"""
 <style>
 {FONT_IMPORT}
 
@@ -529,17 +545,22 @@ hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
 </style>
 """
 
-RESULT_MODE_STYLES = """
+STYLESHEET = as_markup(FONT_LINKS, _CSS)
+
+RESULT_MODE_STYLES = as_markup(
+    """
 <style>
 .hero-heading, .hero-copy, .hero-proof, .process-strip { display: none; }
 .wordmark { margin-bottom: 1rem; }
 </style>
 """
+)
 
 __all__ = [
     "FONT_IMPORT",
     "FONT_LINKS",
     "RESULT_MODE_STYLES",
     "STYLESHEET",
+    "as_markup",
     "icon",
 ]
