@@ -174,6 +174,9 @@ def today_states(tmp_path_factory: pytest.TempPathFactory):
         raise AssertionError("AppTest must not submit a FortyGuard request")
 
     patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
+    # Early enough that every candidate start is still ahead, so these
+    # contracts do not change meaning depending on the hour they run.
+    patch.setenv("CERTIROUTE_NOW", "04:30")
     patch.setattr(FortyGuardClient, "create_heatmap", reject)
     patch.setattr(FortyGuardClient, "submit_heatmap", reject)
     patch.setattr(map_picker, "render_map_picker", driver.render)
@@ -330,3 +333,43 @@ def test_planning_today_never_touched_the_network(today_states) -> None:
     """The cached same-day reading is reused rather than re-fetched."""
 
     assert today_states["network_calls"] == []
+
+
+def test_a_spent_day_is_refused_rather_than_planned_into_the_past(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Recommending 05:00 at seven in the evening is not a plan.
+
+    The coolest hour is nearly always one that has gone, so without a clock the
+    app confidently tells a dispatcher to do something impossible.
+    """
+
+    patch = pytest.MonkeyPatch()
+    driver = MapDriver()
+
+    patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
+    patch.setenv("CERTIROUTE_NOW", "19:00")
+    patch.setattr(map_picker, "render_map_picker", driver.render)
+    get_settings.cache_clear()
+
+    cache_root = tmp_path_factory.mktemp("spent_cache")
+    _publish_todays_reading(cache_root)
+    patch.setenv("CERTIROUTE_HEATMAP_CACHE_PATH", str(cache_root))
+    model_root = tmp_path_factory.mktemp("spent_climatology")
+    save_climatology(_model(), root=model_root)
+    patch.setenv("CERTIROUTE_CLIMATOLOGY_PATH", str(model_root))
+
+    try:
+        app = AppTest.from_file(APP_PATH)
+        app.run(timeout=60)
+        _button(app, "Load the Phoenix walkthrough").click().run(timeout=60)
+        _button(app, "Plan today's shift").click().run(timeout=60)
+        assert not app.exception
+        text = _all_text(app)
+
+        assert "not enough of today left" in text
+        assert "come back in the morning" in text
+        assert "Start at 05:00" not in text
+    finally:
+        patch.undo()
+        get_settings.cache_clear()

@@ -101,7 +101,10 @@ from certiroute.same_day import (
     build_same_day_plan,
     score_plan_against_measurements,
 )
-from certiroute.shift_timing import ProfileCoverageError
+from certiroute.shift_timing import (
+    NoRemainingStartError,
+    ProfileCoverageError,
+)
 from certiroute.showcase import (
     DEFAULT_EVIDENCE_ROOT,
     DEFAULT_SHOWCASE_PATH,
@@ -205,6 +208,17 @@ def climatology_root() -> Path:
 
     configured = os.getenv("CERTIROUTE_CLIMATOLOGY_PATH")
     return Path(configured) if configured else CLIMATOLOGY_ROOT
+
+
+def current_time() -> time:
+    """The wall clock a plan has to be actionable against.
+
+    Injectable for the same reason the cache and model roots are: a test that
+    depends on the hour it happens to run at is a test that fails overnight.
+    """
+
+    override = os.getenv("CERTIROUTE_NOW")
+    return time.fromisoformat(override) if override else datetime.now().time()
 
 
 def minutes_of_day(value: time) -> int:
@@ -2044,6 +2058,7 @@ def render_start_options(plan: SameDayPlan) -> None:
         for option in plan.comparison.options
         if option.feasible and option.exposure_units is not None
     ]
+    passed = [option for option in plan.comparison.options if option.already_past]
     if len(feasible) < 2:
         return
     by_start = {option.shift_start: option.exposure_units for option in feasible}
@@ -2089,6 +2104,13 @@ def render_start_options(plan: SameDayPlan) -> None:
         '<div class="timing-bars">' + "".join(rows) + "</div>",
         unsafe_allow_html=True,
     )
+    if passed:
+        hours = ", ".join(option.shift_start.strftime("%H:%M") for option in passed)
+        st.caption(
+            f"{hours} already passed today, so they were not offered. Cooler "
+            "hours than the one recommended may exist earlier in the day; they "
+            "are not hours a crew can still be sent into."
+        )
     held = plan.windows.held_job_ids
     if held:
         blocking = plan.windows.earliest_held_start
@@ -2631,8 +2653,11 @@ if planning_today:
                     planning_threshold_c=PLANNING_THRESHOLD_C,
                     uncertainty_penalty=0.0,
                     heat_weight=HEAT_WEIGHT,
+                    # A crew cannot be sent into a morning that has gone, so
+                    # the plan is made against the clock it has to be acted on.
+                    now=current_time(),
                 )
-                step_done("Compared every start time the crew could work")
+                step_done("Compared every start time the crew could still work")
                 status.update(label="Today's plan is ready", state="complete")
         except (InfeasibleScheduleError, ScheduleSearchLimitError) as exc:
             same_day_plan = None
@@ -2679,6 +2704,13 @@ if planning_today:
             st.info(
                 "Move the map back to a trained operating area, or pick a past "
                 "date to review a finished day from measured temperatures."
+            )
+        except NoRemainingStartError as exc:
+            same_day_plan = None
+            st.warning(
+                f"There is not enough of today left to run this shift. {exc}. "
+                "Shorten the shift, or come back in the morning — the "
+                "hours worth moving a crew into are the early ones."
             )
         except (PlanningCoverageError, ProfileCoverageError) as exc:
             same_day_plan = None

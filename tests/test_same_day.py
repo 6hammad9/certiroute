@@ -21,6 +21,7 @@ from certiroute.same_day import (
     required_minutes,
     score_plan_against_measurements,
 )
+from certiroute.shift_timing import PAST_START_REASON, NoRemainingStartError
 
 DEPOT = GeoPoint(latitude=33.4485, longitude=-112.0740)
 TODAY = date(2026, 8, 22)
@@ -462,3 +463,94 @@ def test_planning_inside_the_trained_area_proceeds(jobs) -> None:
     )
 
     assert plan.recommended_start == time(5, 0)
+
+
+# --- A plan has to be actionable against the clock --------------------------
+#
+# The coolest hour of the day is usually one that has already gone. Naming it
+# is not a plan: nobody can send a crew into the morning from the afternoon.
+
+
+def test_an_hour_already_past_is_never_recommended(jobs) -> None:
+    plan = build_same_day_plan(
+        jobs,
+        climatology(),
+        reading(jobs),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        now=time(6, 15),
+    )
+
+    # 05:00 and 06:00 are gone, and 06:15 plus the lead rules out 07:00 too.
+    assert plan.recommended_start >= time(7, 0)
+    past = {
+        option.shift_start for option in plan.comparison.options if option.already_past
+    }
+    assert time(5, 0) in past and time(6, 0) in past
+
+
+def test_a_passed_hour_is_still_scored_so_the_loss_can_be_seen(jobs) -> None:
+    """Knowing the morning would have been cooler is worth saying."""
+
+    plan = build_same_day_plan(
+        jobs,
+        climatology(),
+        reading(jobs),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        now=time(6, 15),
+    )
+
+    passed = [o for o in plan.comparison.options if o.already_past]
+    assert passed
+    assert all(o.infeasible_reason == PAST_START_REASON for o in passed)
+    assert all(not o.feasible for o in passed)
+
+
+def test_the_lead_time_keeps_the_recommendation_reachable(jobs) -> None:
+    """Leaving this minute is not something a crew can be told to do."""
+
+    plan = build_same_day_plan(
+        jobs,
+        climatology(),
+        reading(jobs),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        now=time(6, 45),
+        lead_minutes=30,
+    )
+
+    assert plan.recommended_start >= time(7, 15)
+
+
+def test_a_day_with_no_start_left_is_refused_rather_than_faked(jobs) -> None:
+    with pytest.raises(NoRemainingStartError, match="none left today"):
+        build_same_day_plan(
+            jobs,
+            climatology(),
+            reading(jobs),
+            depot=DEPOT,
+            baseline_start=time(8, 0),
+            candidate_starts=CANDIDATES,
+            now=time(19, 0),
+        )
+
+
+def test_replaying_a_finished_day_ignores_the_clock(jobs) -> None:
+    """Every hour of a finished day is past; grading it is still valid."""
+
+    plan = build_same_day_plan(
+        jobs,
+        climatology(),
+        reading(jobs),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        now=None,
+    )
+
+    assert plan.recommended_start == time(5, 0)
+    assert not any(o.already_past for o in plan.comparison.options)

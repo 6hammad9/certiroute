@@ -48,6 +48,11 @@ from certiroute.shift_timing import (
     compare_shift_starts,
 )
 
+# A recommendation to leave right now is not actionable: a crew has to be
+# told, and has to get to the base. Anything sooner than this is treated as
+# already gone.
+DEFAULT_LEAD_MINUTES = 30
+
 
 class PlanningCoverageError(ValueError):
     """The trained model does not reach the hours this shift needs."""
@@ -195,6 +200,17 @@ def relax_windows_to(
     )
 
 
+def _plus_minutes(value: time, minutes: int) -> time:
+    """Advance a wall clock, clamped to the end of the day rather than wrapped.
+
+    Wrapping past midnight would turn "too late to start" into "very early
+    tomorrow", which is exactly the wrong answer.
+    """
+
+    total = min(value.hour * 60 + value.minute + minutes, 24 * 60 - 1)
+    return time(total // 60, total % 60)
+
+
 def required_minutes(
     candidate_starts: Sequence[time], shift_end: time
 ) -> tuple[int, int]:
@@ -216,6 +232,8 @@ def build_same_day_plan(
     candidate_starts: Sequence[time] = DEFAULT_CANDIDATE_STARTS,
     shift_end: time = time(17, 0),
     trained_radius_km: float = DEFAULT_TRAINED_RADIUS_KM,
+    now: time | None = None,
+    lead_minutes: int = DEFAULT_LEAD_MINUTES,
     **scheduler_options: object,
 ) -> SameDayPlan:
     """Turn today's measured level into a start-time decision.
@@ -223,6 +241,11 @@ def build_same_day_plan(
     Nothing in here touches the network; the caller supplies the one reading
     that had to be fetched. That keeps the decision reproducible from stored
     evidence alone.
+
+    ``now`` is the wall clock the plan has to be actionable against. Without
+    it the coolest hour is usually one that has already gone, and a crew
+    cannot be sent into the morning from the afternoon. Leave it unset when
+    replaying a finished day.
     """
 
     if not jobs:
@@ -286,6 +309,7 @@ def build_same_day_plan(
     )
     schedulable = list(windows.jobs)
 
+    not_before = None if now is None else _plus_minutes(now, lead_minutes)
     comparison = compare_shift_starts(
         schedulable,
         conservative,
@@ -293,6 +317,7 @@ def build_same_day_plan(
         baseline_start=baseline_start,
         candidate_starts=candidate_starts,
         shift_end=shift_end,
+        not_before=not_before,
         **scheduler_options,  # type: ignore[arg-type]
     )
     plans = compare_schedules(
@@ -367,6 +392,7 @@ def score_plan_against_measurements(
 
 
 __all__ = [
+    "DEFAULT_LEAD_MINUTES",
     "LeakageError",
     "PlanningCoverageError",
     "SameDayPlan",

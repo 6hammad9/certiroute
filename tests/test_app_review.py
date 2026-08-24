@@ -227,6 +227,9 @@ def review_states(tmp_path_factory: pytest.TempPathFactory):
         raise AssertionError("AppTest must not submit a FortyGuard request")
 
     patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
+    # Early enough that every candidate start is still ahead, so these
+    # contracts do not change meaning depending on the hour they run.
+    patch.setenv("CERTIROUTE_NOW", "04:30")
     patch.setattr(FortyGuardClient, "create_heatmap", reject)
     patch.setattr(FortyGuardClient, "submit_heatmap", reject)
     patch.setattr(map_picker, "render_map_picker", driver.render)
@@ -334,6 +337,9 @@ def test_a_day_inside_the_publishing_lag_is_refused_before_any_request(
         raise AssertionError("no request may be sent for an unpublished day")
 
     patch.setenv("FORTYGUARD_API_KEY", "ui-test-key")
+    # Early enough that every candidate start is still ahead, so these
+    # contracts do not change meaning depending on the hour they run.
+    patch.setenv("CERTIROUTE_NOW", "04:30")
     patch.setattr(FortyGuardClient, "create_heatmap", reject)
     patch.setattr(FortyGuardClient, "submit_heatmap", reject)
     patch.setattr(map_picker, "render_map_picker", driver.render)

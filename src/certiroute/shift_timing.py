@@ -34,6 +34,10 @@ DEFAULT_CANDIDATE_STARTS = (
 )
 
 
+class NoRemainingStartError(ValueError):
+    """Every start this shift could use is already behind the current time."""
+
+
 class ProfileCoverageError(ValueError):
     """A candidate start falls outside the measured temperature profiles.
 
@@ -44,6 +48,9 @@ class ProfileCoverageError(ValueError):
     """
 
 
+PAST_START_REASON = "this hour has already passed"
+
+
 @dataclass(frozen=True)
 class ShiftOption:
     """One candidate shift start and the plan it produces."""
@@ -52,6 +59,7 @@ class ShiftOption:
     feasible: bool
     plan: SchedulePlan | None = None
     infeasible_reason: str | None = None
+    already_past: bool = False
 
     @property
     def start_minute(self) -> int:
@@ -122,6 +130,7 @@ def compare_shift_starts(
     candidate_starts: Sequence[time] = DEFAULT_CANDIDATE_STARTS,
     shift_end: time = time(17, 0),
     strategy: ScheduleStrategy = ScheduleStrategy.HEAT_AWARE,
+    not_before: time | None = None,
     **scheduler_options: object,
 ) -> ShiftTimingComparison:
     """Schedule the same jobs from several start times and compare exposure.
@@ -129,6 +138,11 @@ def compare_shift_starts(
     Every candidate is scheduled with identical constraints, so the only
     difference between options is the hour the crew begins. Starts the
     measured profiles cannot cover are rejected rather than extrapolated.
+
+    ``not_before`` marks hours that have already gone. They are still scored,
+    because knowing the morning would have been cooler is worth saying, but
+    they can never be recommended: a plan a crew cannot act on is not a plan.
+    Leave it unset when scoring a finished day, where every hour is past.
     """
 
     if not jobs:
@@ -154,6 +168,16 @@ def compare_shift_starts(
 
     options: list[ShiftOption] = []
     for start in starts:
+        if not_before is not None and start < not_before:
+            options.append(
+                ShiftOption(
+                    shift_start=start,
+                    feasible=False,
+                    infeasible_reason=PAST_START_REASON,
+                    already_past=True,
+                )
+            )
+            continue
         try:
             plans = compare_schedules(
                 jobs,
@@ -182,6 +206,11 @@ def compare_shift_starts(
     )
     feasible = [option for option in ordered if option.feasible]
     if not feasible:
+        if not_before is not None and all(option.already_past for option in ordered):
+            raise NoRemainingStartError(
+                f"every start this shift could use is earlier than "
+                f"{not_before.strftime('%H:%M')}, so there is none left today"
+            )
         raise InfeasibleScheduleError(
             "no candidate shift start produces a feasible schedule"
         )
@@ -199,6 +228,8 @@ def compare_shift_starts(
 
 __all__ = [
     "DEFAULT_CANDIDATE_STARTS",
+    "PAST_START_REASON",
+    "NoRemainingStartError",
     "ProfileCoverageError",
     "ShiftOption",
     "ShiftTimingComparison",
