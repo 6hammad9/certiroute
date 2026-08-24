@@ -577,6 +577,19 @@ h1.hero-heading {{
 }}
 .journey-meta {{ color: var(--muted); font-size: .8rem; margin-top: .08rem; }}
 
+/* Each map click costs a server round trip of roughly 600ms, during which
+   the map cannot accept another one. That is streamlit-folium's nature, not
+   something the page can buffer away - so the wait is made obvious instead,
+   because a click that vanishes with no sign of work reads as a broken map. */
+[data-testid="stStatusWidget"] {{
+  background: var(--ink) !important; color: #FFFFFF !important;
+  border-radius: 999px !important; border: 0 !important;
+  padding: .3rem .85rem .3rem .5rem !important;
+  box-shadow: 0 6px 20px -8px rgba(12,17,22,.5) !important;
+}}
+[data-testid="stStatusWidget"] * {{ color: #FFFFFF !important; }}
+[data-testid="stStatusWidget"] svg {{ fill: var(--route) !important; }}
+
 /* --- Streamlit widgets ------------------------------------------------ */
 
 .stButton > button {{

@@ -407,7 +407,7 @@ def section(number: int, title: str, *, blurb: str = "") -> None:
     )
 
 
-def render_landing_proof() -> None:
+def render_landing_proof(state: MapScenarioState) -> None:
     """Show the product working before the visitor has done anything.
 
     A landing page that only describes a product asks to be believed. This
@@ -415,6 +415,13 @@ def render_landing_proof() -> None:
     has been graded on - both read from committed files, so neither can drift
     away from what was actually measured.
     """
+
+    # The showcase is an argument for a first-time visitor. Once someone is
+    # placing points it is clutter, and worse: every click reruns the script,
+    # and each element still on the page is re-rendered before the next click
+    # can be received. Clicks made during that window are simply lost.
+    if state.depot is not None or state.job_count:
+        return
 
     graded = load_graded_day(PROJECT_ROOT / DEFAULT_SHOWCASE_PATH)
     summary = load_grade_summary(PROJECT_ROOT / DEFAULT_EVIDENCE_ROOT)
@@ -1352,7 +1359,11 @@ def render_picker_instruction(state: MapScenarioState) -> None:
             )
         else:
             title = "First, click where the crew starts and returns"
-            detail = "Pan or zoom if needed. Your first click becomes the mint base."
+            detail = (
+                "Pan or zoom if needed. Your first click becomes the mint base. "
+                "Each click takes a moment to register, so give it a beat "
+                "before the next one."
+            )
         style = ""
     elif state.job_count < MIN_MANIFEST_JOBS:
         remaining = MIN_MANIFEST_JOBS - state.job_count
@@ -2435,9 +2446,10 @@ st.set_page_config(
 )
 inject_styles()
 render_hero()
-render_landing_proof()
+opening_state = load_map_scenario()
+render_landing_proof(opening_state)
 render_three_steps(
-    load_map_scenario(),
+    opening_state,
     planned=isinstance(st.session_state.get("certiroute_today_plan"), SameDayPlan),
 )
 route_result_slot = st.container()

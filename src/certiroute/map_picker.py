@@ -86,6 +86,12 @@ def build_map_picker(
         tiles="CartoDB positron",
         control_scale=True,
         prefer_canvas=True,
+        # Two clicks in quick succession are a double-click, and Leaflet turns
+        # that into a zoom rather than two map clicks - so placing sites at a
+        # normal pace silently loses every second one. Zooming stays available
+        # through the controls and the scroll wheel, neither of which is in the
+        # way of the interaction this map exists for.
+        doubleClickZoom=False,
     )
     if show_whole_area and coverage is not None:
         # Framing the whole 60 km circle shows the boundary but reduces the city
@@ -105,7 +111,7 @@ def build_map_picker(
         # work outside it and only then be refused. The boundary is a property
         # of the trained model, not a licence area, so it is shown as a soft
         # edge rather than a hard wall.
-        folium.Circle(
+        boundary = folium.Circle(
             location=[coverage.centre.latitude, coverage.centre.longitude],
             radius=coverage.radius_km * 1000,
             color=COVERAGE_COLOR,
@@ -115,11 +121,14 @@ def build_map_picker(
             fill=True,
             fill_color=DEPOT_COLOR,
             fill_opacity=0.07,
-            tooltip=(
-                f"{coverage.label}: heat model covers "
-                f"{coverage.radius_km:.0f} km from here"
-            ),
-        ).add_to(selections)
+        )
+        # folium's path_options builds a fixed dictionary and drops anything it
+        # does not know, so passing interactive to the constructor is silently
+        # ignored. It has to be set on the options that reach Leaflet. It
+        # matters: a filled 60 km shape is hit-tested before the map underneath
+        # it, and the crew works inside it.
+        boundary.options["interactive"] = False
+        boundary.add_to(selections)
 
     if hint is not None:
         folium.Marker(
@@ -128,6 +137,7 @@ def build_map_picker(
                 icon_size=(230, 230),
                 icon_anchor=(115, 115),
                 html=_hint_html(hint),
+                class_name="cr-passthrough",
             ),
         ).add_to(selections)
 
@@ -139,6 +149,7 @@ def build_map_picker(
                 icon_size=(54, 36),
                 icon_anchor=(27, 18),
                 html=_depot_marker_html(),
+                class_name="cr-passthrough",
             ),
         ).add_to(selections)
 
@@ -150,6 +161,7 @@ def build_map_picker(
                 icon_size=(36, 36),
                 icon_anchor=(18, 18),
                 html=_job_marker_html(sequence),
+                class_name="cr-passthrough",
             ),
         ).add_to(selections)
 
@@ -227,6 +239,13 @@ _MAP_STYLE = """
 <style>
 .leaflet-container { cursor: crosshair !important; }
 .leaflet-container .leaflet-control-zoom a { cursor: pointer !important; }
+/* Leaflet makes every marker icon interactive, so a marker sitting over the
+   map swallows the click the map is waiting for. The hint is 230px across and
+   centred, which made most of the first click area dead; the placed markers
+   did the same over themselves. Nothing here is meant to be clicked - the map
+   underneath is - so every icon lets the click through. */
+.cr-passthrough,
+.cr-passthrough * { pointer-events: none !important; }
 .cr-hint { pointer-events: none; text-align: center; }
 .cr-hint-ring {
   position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;

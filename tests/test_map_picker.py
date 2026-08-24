@@ -178,7 +178,14 @@ def test_no_coverage_draws_no_circle() -> None:
     ]
 
 
-def test_the_circle_names_the_area_and_its_radius() -> None:
+def test_the_circle_never_intercepts_a_click() -> None:
+    """A filled 60 km shape is hit-tested before the map underneath it.
+
+    The radius is drawn for orientation, not to be clicked, and the crew works
+    inside it - so an interactive one would swallow clicks in exactly the area
+    that matters. The area is named in the instruction text instead.
+    """
+
     _, selections = map_picker.build_map_picker(
         phoenix_area(), depot=None, job_sites=(), coverage=phoenix_coverage()
     )
@@ -188,9 +195,7 @@ def test_the_circle_names_the_area_and_its_radius() -> None:
         if child.__class__.__name__ == "Circle"
     )
 
-    tooltip = str(next(iter(circle._children.values())).text)
-    assert "Phoenix, Arizona" in tooltip
-    assert "60 km" in tooltip
+    assert circle.options["interactive"] is False
 
 
 @pytest.mark.parametrize("radius", [0.0, -1.0])
