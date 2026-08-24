@@ -233,7 +233,9 @@ def test_the_app_opens_ready_to_plan_today(today_states) -> None:
     text = _all_text(app)
 
     assert "Planning today" in text
-    assert "Plan today's shift" in text
+    # Sections are numbered, and the heading escapes its apostrophe.
+    assert '<span class="section-index">[02]</span>' in text
+    assert "Plan today&#x27;s shift" in text
     assert _button(app, "Plan today's shift").disabled is False
     assert today_states["network_calls"] == []
 

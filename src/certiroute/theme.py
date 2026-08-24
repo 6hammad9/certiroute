@@ -201,6 +201,31 @@ p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
   letter-spacing: .13em; text-transform: uppercase;
 }}
 
+/* A dark band for the pitch, light below it for the tool. A dispatcher
+   works in the light interface; the argument for the product does not have to
+   be made in the same register as the controls. */
+.hero-band {{
+  background: var(--ink); color: #FFFFFF;
+  border-radius: var(--r-xl); padding: 2.4rem 2.4rem 2.1rem;
+  margin: 0 0 1.6rem;
+}}
+.hero-band .wordmark {{ border-bottom-color: rgba(255,255,255,.14); }}
+.hero-band .wordmark > span:first-of-type {{ color: #FFFFFF; }}
+.hero-band .wordmark > .icon {{ color: var(--route); }}
+.hero-band .wordmark-tag {{
+  border-left-color: rgba(255,255,255,.16); color: rgba(255,255,255,.55);
+}}
+.hero-band h1.hero-heading {{ color: #FFFFFF; }}
+.hero-band .hero-copy {{ color: rgba(255,255,255,.66); }}
+.hero-band .hero-proof {{
+  border-top-color: rgba(255,255,255,.14); color: rgba(255,255,255,.62);
+}}
+.hero-band .hero-proof .heat {{ color: var(--gold); }}
+.hero-band .hero-lede {{
+  color: var(--route); font-size: .95rem; font-weight: 500;
+  margin: 1.1rem 0 0; max-width: 54ch; line-height: 1.55;
+}}
+
 /* The product name sits at label scale so the headline owns the page. */
 .wordmark {{
   display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
@@ -237,6 +262,58 @@ h1.hero-heading {{
 .hero-proof span {{ display: inline-flex; align-items: center; gap: .45rem; }}
 .hero-proof .heat {{ color: var(--heat-ink); }}
 .hero-proof .heat .icon {{ color: var(--heat); }}
+
+/* --- Sections --------------------------------------------------------- */
+
+.section-head {{ margin: 3.2rem 0 1.1rem; }}
+.section-index {{
+  font-family: var(--font-mono); font-size: .74rem; font-weight: 500;
+  letter-spacing: .04em; color: var(--faint); display: block;
+  margin-bottom: .35rem;
+}}
+.section-head h2 {{
+  margin: 0; font-size: 1.62rem; font-weight: 600; letter-spacing: -.026em;
+}}
+.section-head p {{
+  margin: .35rem 0 0; color: var(--muted); font-size: .92rem;
+  line-height: 1.55; max-width: 56ch;
+}}
+
+/* --- Landing proof ---------------------------------------------------- */
+
+.proof-head {{
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap; margin: 1.9rem 0 .8rem;
+  padding-top: 1.4rem; border-top: 1px solid var(--rule);
+}}
+.proof-kicker {{
+  display: inline-flex; align-items: center; gap: .4rem;
+  color: var(--faint); font-size: .68rem; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+}}
+.proof-title {{
+  font-family: var(--font-display); color: var(--ink); font-size: 1.5rem;
+  font-weight: 600; letter-spacing: -.024em; margin-top: .25rem;
+}}
+.proof-note {{
+  color: var(--muted); font-size: .87rem; line-height: 1.55;
+  max-width: 40ch; text-align: right;
+}}
+.proof-facts {{
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin: .9rem 0 .4rem;
+}}
+.proof-fact {{
+  display: flex; align-items: center; gap: .7rem;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-lg); padding: .9rem 1.1rem;
+}}
+.proof-fact .icon {{ color: var(--route-ink); }}
+.proof-figure {{
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 1.3rem; font-weight: 600; letter-spacing: -.03em; color: var(--ink);
+}}
+.proof-caption {{ color: var(--muted); font-size: .78rem; margin-top: .1rem; }}
 
 /* --- Steps ------------------------------------------------------------ */
 
@@ -544,8 +621,11 @@ hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
   .block-container {{ padding-left: 1rem; padding-right: 1rem; }}
   h1 {{ font-size: 2rem; }}
   h1.hero-heading {{ font-size: 2.05rem; max-width: 100%; }}
+  .hero-band {{ padding: 1.6rem 1.4rem 1.5rem; }}
   .wordmark-tag {{ margin-left: 0; padding-left: 0; border-left: 0; }}
   .process-arrow {{ display: none; }}
+  .proof-note {{ text-align: left; }}
+  .proof-facts {{ grid-template-columns: 1fr; }}
   .bento {{ grid-template-columns: 1fr; }}
   .bento-hero, .bento-tile {{ grid-column: span 1; grid-row: auto; }}
   .decision-card h2 {{ font-size: 1.75rem; }}

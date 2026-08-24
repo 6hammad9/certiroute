@@ -174,6 +174,12 @@ def build_playback_payload(
     }
 
 
+def route_playback_html_from_payload(payload: dict) -> str:
+    """Render a payload resolved earlier, such as the committed showcase."""
+
+    return _TEMPLATE.replace("__PAYLOAD__", json.dumps(payload))
+
+
 def route_playback_html(
     runs: Sequence[PlaybackRun],
     profiles: Mapping[str, TemperatureProfile],
@@ -484,6 +490,7 @@ for _token, _value in (
 
 __all__ = [
     "PlaybackRun",
+    "route_playback_html_from_payload",
     "build_playback_payload",
     "route_playback_html",
 ]

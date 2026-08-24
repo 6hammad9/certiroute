@@ -351,7 +351,9 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     assert not app.title
     assert '<h1 class="hero-heading">' in text
     assert "Start the shift before the heat does" in text
-    assert "No coordinates or spreadsheet setup required" in text
+    # The hero states the premise before the promise.
+    assert "work the hottest hours of the day by default" in text
+    assert '<div class="hero-band">' in text
     assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
     assert "color-scheme: light" in text
     # The chosen palette must survive restyling, and type must be explicit.

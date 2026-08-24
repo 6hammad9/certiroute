@@ -19,7 +19,6 @@ from urllib.parse import urlencode
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
-import streamlit.components.v1 as components
 from pydantic import ValidationError
 
 import certiroute.map_picker as map_picker
@@ -28,6 +27,7 @@ from certiroute.animation import (
     ROUTE_COLOR,
     PlaybackRun,
     route_playback_html,
+    route_playback_html_from_payload,
 )
 from certiroute.climatology import (
     DEFAULT_TRAINED_RADIUS_KM,
@@ -100,6 +100,12 @@ from certiroute.same_day import (
     score_plan_against_measurements,
 )
 from certiroute.shift_timing import ProfileCoverageError
+from certiroute.showcase import (
+    DEFAULT_EVIDENCE_ROOT,
+    DEFAULT_SHOWCASE_PATH,
+    load_grade_summary,
+    load_graded_day,
+)
 from certiroute.theme import RESULT_MODE_STYLES, STYLESHEET, icon
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -301,38 +307,124 @@ def inject_styles() -> None:
 
 
 def render_hero() -> None:
-    """Explain the customer, decision, and evidence before any controls."""
+    """State the premise, the promise, and what backs it, in one band.
 
-    # The product name is a wordmark, not a headline. Setting it at title size
-    # above the actual headline gives a page two things competing to be read
-    # first, which is the surest way to make a layout look unconsidered.
-    st.markdown(
-        '<div class="wordmark">'
-        f'{icon("sunrise", size=20)}<span>CertiRoute</span>'
-        f'<span class="wordmark-tag">{icon("thermometer", size=13)}'
-        "Heat-aware field operations</span></div>",
-        unsafe_allow_html=True,
-    )
+    Streamlit wraps each markdown call in its own element, so the whole band
+    is emitted at once; split across calls the container would not enclose
+    anything. The pitch sits on dark ground and the tool below it stays light,
+    because a dispatcher works in the interface but does not have to be sold
+    to in the same register as the controls.
+    """
+
     st.markdown(
         f"""
-        <h1 class="hero-heading">
-          Start the shift before the heat does.
-        </h1>
-        <div class="hero-copy">
-        Tap your crew base and work sites on the map. CertiRoute reads today's
-        street-level heat from FortyGuard, predicts the hours ahead, and tells
-        you what time to begin &mdash; with the visit order already worked out.
-        No coordinates or spreadsheet setup required.
-        </div>
-        <div class="hero-proof">
-          <span class="heat">{icon("thermometer", size=15)}
-            Today's real measurements</span>
-          <span>{icon("gauge", size=15)} Calibrated interval</span>
-          <span>{icon("shield", size=15)} No synthetic fallback</span>
+        <div class="hero-band">
+          <div class="wordmark">
+            {icon("sunrise", size=20)}<span>CertiRoute</span>
+            <span class="wordmark-tag">{icon("thermometer", size=13)}
+              Heat-aware field operations</span>
+          </div>
+          <h1 class="hero-heading">
+            Start the shift before the heat does.
+          </h1>
+          <div class="hero-copy">
+          Outdoor crews work the hottest hours of the day by default, because
+          the shift was set long before anyone knew what the day would do.
+          CertiRoute reads today's street-level heat from FortyGuard, predicts
+          the hours ahead, and tells you what time to begin &mdash; with the
+          visit order already worked out.
+          </div>
+          <div class="hero-lede">
+            Moving the shift is worth more than reordering the stops. That is
+            measured, not assumed.
+          </div>
+          <div class="hero-proof">
+            <span class="heat">{icon("thermometer", size=15)}
+              Today's real measurements</span>
+            <span>{icon("gauge", size=15)} Calibrated interval</span>
+            <span>{icon("shield", size=15)} No synthetic fallback</span>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def section(number: int, title: str, *, blurb: str = "") -> None:
+    """A numbered section heading, so the page reads as a sequence."""
+
+    st.markdown(
+        f'<div class="section-head"><span class="section-index">'
+        f"[{number:02d}]</span><h2>{escape(title)}</h2>"
+        + (f'<p>{escape(blurb)}</p>' if blurb else "")
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_landing_proof() -> None:
+    """Show the product working before the visitor has done anything.
+
+    A landing page that only describes a product asks to be believed. This
+    plays a day the model had never seen, beside the record of every day it
+    has been graded on - both read from committed files, so neither can drift
+    away from what was actually measured.
+    """
+
+    graded = load_graded_day(PROJECT_ROOT / DEFAULT_SHOWCASE_PATH)
+    summary = load_grade_summary(PROJECT_ROOT / DEFAULT_EVIDENCE_ROOT)
+    if graded is None:
+        return
+
+    earlier = graded.home_earlier_minutes
+    facts: list[tuple[str, str, str]] = []
+    if graded.exposure_reduction is not None:
+        facts.append(
+            (
+                "gauge",
+                f"{graded.exposure_reduction:.0%}",
+                "less heat exposure, same jobs",
+            )
+        )
+    if earlier:
+        facts.append(
+            ("clock", f"{earlier // 60}h earlier", "home, on a day it never saw")
+        )
+    if summary is not None and summary.chose_best_every_time:
+        facts.append(
+            (
+                "check",
+                f"{summary.picked_best_start}/{summary.graded_days}",
+                f"best possible start, across {len(summary.areas)} cities",
+            )
+        )
+
+    st.markdown(
+        '<div class="proof-head"><div>'
+        f'<div class="proof-kicker">{icon("calendar", size=13)}'
+        f"{escape(graded.area_label)} &middot; "
+        f"{graded.day:%d %B %Y}</div>"
+        '<div class="proof-title">A day CertiRoute had never seen</div>'
+        "</div>"
+        f'<div class="proof-note">It read one measurement &mdash; '
+        f"{graded.measured_level_c:.1f} &deg;C across the area &mdash; then "
+        f"sent the crew at {graded.recommended_start} instead of "
+        f"{graded.baseline_start}. Watch both.</div></div>",
+        unsafe_allow_html=True,
+    )
+    st.iframe(route_playback_html_from_payload(graded.payload), height=600)
+    if facts:
+        st.markdown(
+            '<div class="proof-facts">'
+            + "".join(
+                f'<div class="proof-fact">{icon(name, size=16)}'
+                f'<div><div class="proof-figure">{escape(figure)}</div>'
+                f'<div class="proof-caption">{escape(caption)}</div></div></div>'
+                for name, figure, caption in facts
+            )
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_result_mode_styles() -> None:
@@ -901,7 +993,7 @@ def render_result(
         recommendation.total_raw_exposure_units,
     )
 
-    st.markdown("## Reviewing a finished day")
+    section(3, "Reviewing a finished day")
     st.caption(
         "Every temperature below was measured by FortyGuard on this date, so "
         "the route and the grading can both be checked against evidence."
@@ -1629,15 +1721,15 @@ def scroll_to(anchor_id: str) -> None:
     never on ordinary reruns, so it cannot fight the user's own scrolling.
     """
 
-    components.html(
+    st.iframe(
         "<script>"
         "const doc = window.parent.document;"
         f'const target = doc.getElementById("{anchor_id}");'
-        'if (target) {'
+        "if (target) {"
         'target.scrollIntoView({behavior: "smooth", block: "start"});'
         "}"
         "</script>",
-        height=0,
+        height=1,
     )
 
 
@@ -1851,7 +1943,7 @@ def render_day_playback(plan: SameDayPlan) -> None:
         )
     except ValueError:
         return
-    components.html(markup, height=620 if len(runs) > 1 else 560, scrolling=False)
+    st.iframe(markup, height=620 if len(runs) > 1 else 560)
 
 
 def render_start_options(plan: SameDayPlan) -> None:
@@ -2187,7 +2279,7 @@ def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
     st.markdown(
         '<div id="certiroute-plan"></div>', unsafe_allow_html=True
     )
-    st.markdown("## Today's plan")
+    section(3, "Today's plan")
     view = st.segmented_control(
         "Result view",
         options=["Crew route", "Planner details"],
@@ -2280,6 +2372,7 @@ st.set_page_config(
 )
 inject_styles()
 render_hero()
+render_landing_proof()
 render_three_steps(
     load_map_scenario(),
     planned=isinstance(
@@ -2288,7 +2381,11 @@ render_three_steps(
 )
 route_result_slot = st.container()
 
-st.markdown("## Build a route from the map")
+section(
+    1,
+    "Build a route from the map",
+    blurb="Tap the crew base, then every place the crew has to be.",
+)
 map_state = render_map_setup()
 if not map_state.is_ready or map_state.depot is None:
     st.markdown("---")
@@ -2345,7 +2442,11 @@ planning_today = selected_date >= date.today()
 area_model = trained_model(map_state.operating_area_id)
 
 if planning_today:
-    st.markdown("## Plan today's shift")
+    section(
+        2,
+        "Plan today's shift",
+        blurb="One reading of today's heat decides when the crew starts.",
+    )
     if area_model is None:
         st.warning(
             f"CertiRoute has no trained heat model for "
@@ -2555,7 +2656,11 @@ except (ValidationError, ValueError) as exc:
     st.stop()
 
 key_available = api_key_available()
-st.markdown("## Create the crew route")
+section(
+    2,
+    "Create the crew route",
+    blurb="Measured temperatures for every hour this shift could use.",
+)
 st.markdown(
     f"""
     <div class="build-summary">

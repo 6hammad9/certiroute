@@ -1,0 +1,194 @@
+{
+  "curve": {
+    "1020": 36.1,
+    "300": 28.5,
+    "360": 28.6,
+    "420": 28.7,
+    "480": 30.9,
+    "540": 33.2,
+    "600": 34.6,
+    "660": 35.3,
+    "720": 35.9,
+    "780": 36.9,
+    "840": 37.4,
+    "900": 37.5,
+    "960": 36.4
+  },
+  "depot": {
+    "x": 179.71,
+    "y": 46.0
+  },
+  "from": 300,
+  "height": 380,
+  "runs": [
+    {
+      "color": "#70FFD2",
+      "depart": 300,
+      "exposure": 43.8,
+      "finish": 745,
+      "hot": 167,
+      "label": "Recommended 05:00",
+      "recommended": true,
+      "stops": [
+        {
+          "arrive": 300,
+          "finish": 355,
+          "name": "Downtown Houston",
+          "peak": 28.6,
+          "seq": 1,
+          "start": 300,
+          "temp": 28.6,
+          "x": 179.71,
+          "y": 46.0
+        },
+        {
+          "arrive": 359,
+          "finish": 424,
+          "name": "Midtown Houston",
+          "peak": 30.5,
+          "seq": 2,
+          "start": 359,
+          "temp": 30.3,
+          "x": 253.62,
+          "y": 99.3
+        },
+        {
+          "arrive": 427,
+          "finish": 492,
+          "name": "Museum District",
+          "peak": 32.9,
+          "seq": 3,
+          "start": 427,
+          "temp": 31.6,
+          "x": 322.7,
+          "y": 144.65
+        },
+        {
+          "arrive": 496,
+          "finish": 576,
+          "name": "Hermann Park",
+          "peak": 35.5,
+          "seq": 4,
+          "start": 496,
+          "temp": 34.4,
+          "x": 388.32,
+          "y": 206.71
+        },
+        {
+          "arrive": 580,
+          "finish": 650,
+          "name": "Texas Medical Center",
+          "peak": 36.8,
+          "seq": 5,
+          "start": 580,
+          "temp": 36.4,
+          "x": 464.31,
+          "y": 270.35
+        },
+        {
+          "arrive": 654,
+          "finish": 729,
+          "name": "Rice Village",
+          "peak": 37.8,
+          "seq": 6,
+          "start": 654,
+          "temp": 37.3,
+          "x": 540.29,
+          "y": 334.0
+        }
+      ]
+    },
+    {
+      "color": "#FF9137",
+      "depart": 480,
+      "exposure": 66.7,
+      "finish": 925,
+      "hot": 346,
+      "label": "Usual 08:00",
+      "recommended": false,
+      "stops": [
+        {
+          "arrive": 480,
+          "finish": 535,
+          "name": "Downtown Houston",
+          "peak": 33.0,
+          "seq": 1,
+          "start": 480,
+          "temp": 31.9,
+          "x": 179.71,
+          "y": 46.0
+        },
+        {
+          "arrive": 539,
+          "finish": 604,
+          "name": "Midtown Houston",
+          "peak": 36.3,
+          "seq": 2,
+          "start": 539,
+          "temp": 35.6,
+          "x": 253.62,
+          "y": 99.3
+        },
+        {
+          "arrive": 607,
+          "finish": 672,
+          "name": "Museum District",
+          "peak": 36.9,
+          "seq": 3,
+          "start": 607,
+          "temp": 36.5,
+          "x": 322.7,
+          "y": 144.65
+        },
+        {
+          "arrive": 676,
+          "finish": 756,
+          "name": "Hermann Park",
+          "peak": 38.0,
+          "seq": 4,
+          "start": 676,
+          "temp": 37.4,
+          "x": 388.32,
+          "y": 206.71
+        },
+        {
+          "arrive": 760,
+          "finish": 830,
+          "name": "Texas Medical Center",
+          "peak": 38.9,
+          "seq": 5,
+          "start": 760,
+          "temp": 38.6,
+          "x": 464.31,
+          "y": 270.35
+        },
+        {
+          "arrive": 834,
+          "finish": 909,
+          "name": "Rice Village",
+          "peak": 39.2,
+          "seq": 6,
+          "start": 834,
+          "temp": 39.1,
+          "x": 540.29,
+          "y": 334.0
+        }
+      ]
+    }
+  ],
+  "showcase": {
+    "area_id": "houston",
+    "baseline_start": "08:00",
+    "coverage": 0.8,
+    "date": "2026-08-17",
+    "exposure_reduction": 0.3441,
+    "interval_radius_c": 2.97,
+    "label": "Houston, Texas",
+    "measured_level_c": 31.0,
+    "recommended_start": "05:00",
+    "site_count": 6
+  },
+  "threshold": 35.0,
+  "to": 925,
+  "width": 720
+}
