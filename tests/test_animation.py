@@ -209,8 +209,8 @@ def test_the_playback_uses_only_the_product_palette(two_runs):
     assert HEAT_COLOR in markup
 
 
-def test_the_frame_is_sized_to_the_route_it_draws(two_runs):
-    """Blank space inside a bordered panel reads as a failure to load."""
+def test_the_frame_matches_the_stage_it_holds(two_runs):
+    """Too short crops the route; too tall leaves blank white under it."""
 
     payload = build_playback_payload(
         two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
@@ -219,7 +219,7 @@ def test_the_frame_is_sized_to_the_route_it_draws(two_runs):
 
     expected_stage = 984 * (view["h"] / view["w"])
     assert playback_height(payload) == pytest.approx(
-        round(min(max(expected_stage, 180.0), 460.0)) + 172, abs=1
+        round(expected_stage) + 172, abs=1
     )
 
 
@@ -237,5 +237,47 @@ def test_the_view_encloses_every_drawn_point(two_runs):
         assert view["y"] <= y <= view["y"] + view["h"]
 
 
+def test_the_drawing_box_never_shrinks_to_fit_a_clustered_route(two_runs):
+    """Text and markers are sized in box units, so the box must not shrink.
+
+    Sites a few streets apart would otherwise produce a tiny box, rendering
+    labels and stop numbers at many times their intended size.
+    """
+
+    spread = build_playback_payload(
+        two_runs, profiles_for(two_runs[0].plan), depot=DEPOT
+    )
+
+    tight = [
+        PlaybackRun(
+            run.label,
+            run.plan.model_copy(
+                update={
+                    "stops": tuple(
+                        stop.model_copy(
+                            update={
+                                "latitude": 33.4485 + 0.0004 * stop.sequence,
+                                "longitude": -112.0740 + 0.0005 * stop.sequence,
+                            }
+                        )
+                        for stop in run.plan.stops
+                    )
+                }
+            ),
+            run.color,
+            run.recommended,
+        )
+        for run in two_runs
+    ]
+    clustered = build_playback_payload(
+        tight, profiles_for(tight[0].plan), depot=DEPOT
+    )
+
+    assert clustered["view"] == spread["view"]
+    assert playback_height(clustered) == playback_height(spread)
+
+
 def test_a_payload_without_a_view_still_yields_a_usable_height():
-    assert playback_height({}) == 620
+    assert playback_height({}) == playback_height(
+        {"view": {"w": VIEW_WIDTH, "h": VIEW_HEIGHT}}
+    )

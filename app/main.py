@@ -1846,6 +1846,12 @@ def trained_model(area_id: str) -> DiurnalClimatology | None:
 
 
 PENDING_LEVEL_KEY = "certiroute_pending_level_activity"
+# A whole-day aggregate is a far heavier computation than a single hour.
+# Timed live on the Phoenix area: 264 seconds to return 6847 tiles, against
+# a default budget of 300. That margin is too thin - a slightly slower run
+# times out and reports as pending, which reads as a failure. The task is
+# resumable, so a longer wait costs nothing but patience.
+DAILY_LEVEL_POLL_ATTEMPTS = 180
 
 
 def read_today_level(
@@ -1881,7 +1887,7 @@ def read_today_level(
             granularity=granularity,
             client=client,
             poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
-            max_attempts=settings.fortyguard_max_poll_attempts,
+            max_attempts=DAILY_LEVEL_POLL_ATTEMPTS,
             resume_activity_ids=resume,
         )
         st.session_state.pop(PENDING_LEVEL_KEY, None)
@@ -2561,8 +2567,9 @@ if planning_today:
     )
     st.caption(
         "One FortyGuard request is sent when you press this: today's whole-day "
-        "reading for this area. The hour-by-hour shape is already trained and "
-        "committed. Nothing is invented when data is missing."
+        "reading for this area. It is a large computation on their side and "
+        "usually takes three to five minutes. The hour-by-hour shape is already "
+        "trained and committed, and nothing is invented when data is missing."
     )
     if not key_available:
         st.error(
@@ -2597,6 +2604,11 @@ if planning_today:
                     shift_end=shift_end,
                 )
                 step_done("Confirmed the crew can finish every job in this shift")
+                st.write(
+                    "Asking FortyGuard for today's whole-day reading. This is "
+                    "their heaviest call and usually takes three to five "
+                    "minutes — leave this tab open."
+                )
                 reading = read_today_level(
                     domain_jobs,
                     HeatmapSnapshotStore(cache_path()),

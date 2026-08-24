@@ -158,29 +158,16 @@ def build_playback_payload(
             }
         )
 
-    # Fit the drawing box to the route actually drawn. A wide, shallow corridor
-    # projected into a fixed box leaves most of the stage empty, and the empty
-    # part reads as something failing to load.
-    drawn = [depot_point] + [
-        (leg["x"], leg["y"]) for run in payload_runs for leg in run["stops"]
-    ]
-    pad_x, pad_y = 120.0, 52.0
-    min_x = min(x for x, _ in drawn) - pad_x
-    max_x = max(x for x, _ in drawn) + pad_x
-    min_y = min(y for _, y in drawn) - pad_y
-    max_y = max(y for _, y in drawn) + pad_y
-
     series = _temperature_series(profiles, reference.stops[0].job_id)
     starts = [run["depart"] for run in payload_runs]
     ends = [run["finish"] for run in payload_runs]
     return {
         "depot": {"x": round(depot_point[0], 2), "y": round(depot_point[1], 2)},
-        "view": {
-            "x": round(min_x, 2),
-            "y": round(min_y, 2),
-            "w": round(max_x - min_x, 2),
-            "h": round(max_y - min_y, 2),
-        },
+        # A fixed drawing box, always. Text and markers are sized in these
+        # units, so a box that shrinks to fit a tightly grouped route would
+        # render them enormous, and one taller than the frame would be cut off
+        # at the bottom. _project already spreads any route across this box.
+        "view": {"x": 0, "y": 0, "w": VIEW_WIDTH, "h": VIEW_HEIGHT},
         "runs": payload_runs,
         "curve": {str(minute): round(value, 1) for minute, value in series.items()},
         "from": min(starts),
@@ -199,17 +186,16 @@ CHROME_HEIGHT_PX = 172
 
 
 def playback_height(payload: dict, *, stage_width: int = STAGE_WIDTH_PX) -> int:
-    """How tall the frame must be for this route, with nothing left over.
+    """Exactly the height the stage and its cards occupy.
 
-    A fixed height leaves a band of blank white under a shallow route, and
-    blank space inside a bordered panel reads as something failing to load.
+    The stage keeps its aspect at any width, so this follows from the drawing
+    box rather than being guessed - no band of blank white underneath, and no
+    route running off the bottom edge.
     """
 
-    view = payload.get("view")
-    if not view or not view.get("w"):
-        return 620
+    view = payload.get("view") or {"w": VIEW_WIDTH, "h": VIEW_HEIGHT}
     stage = stage_width * (float(view["h"]) / float(view["w"]))
-    return int(round(min(max(stage, 180.0), 460.0))) + CHROME_HEIGHT_PX
+    return int(round(stage)) + CHROME_HEIGHT_PX
 
 
 def route_playback_html_from_payload(payload: dict) -> str:
@@ -304,6 +290,7 @@ button.primary { background: var(--ink); border-color: var(--ink); color: #fff; 
     </div>
   </div>
   <svg class="stage" id="stage" width="100%"
+       preserveAspectRatio="xMidYMid meet"
        role="img" aria-label="The crew route, played through the day"></svg>
   <div class="cards" id="cards"></div>
 </div>
