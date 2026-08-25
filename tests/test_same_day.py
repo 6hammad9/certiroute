@@ -16,6 +16,7 @@ from certiroute.forecasting import DailyLevelShape, InsufficientHistoryError
 from certiroute.same_day import (
     LeakageError,
     PlanningCoverageError,
+    PlanningLeadError,
     build_same_day_plan,
     relax_windows_to,
     required_minutes,
@@ -648,3 +649,17 @@ def test_planning_today_is_unaffected_by_the_day_ahead_scores(jobs) -> None:
 
     assert plan.lead_days == 0
     assert plan.coverage == pytest.approx(0.75)
+
+
+def test_reaching_further_than_the_calibration_is_refused(jobs) -> None:
+    """The scores describe a one-day gap and say nothing about a longer one."""
+
+    with pytest.raises(PlanningLeadError, match="calibrated 1 day ahead"):
+        build_same_day_plan(
+            jobs,
+            climatology_with_day_ahead(),
+            reading(jobs, target_date=TODAY),
+            depot=DEPOT,
+            candidate_starts=CANDIDATES,
+            target_date=TODAY + timedelta(days=3),
+        )

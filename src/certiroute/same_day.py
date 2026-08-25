@@ -2,10 +2,18 @@
 
 This is the path the product runs on. Everything it needs is either already
 trained and committed (the area's hour offsets) or is one cheap call away
-(today's whole-day aggregate). Nothing here replays a finished day, and
-nothing here predicts tomorrow - day-ahead level prediction was measured at
-2.27 C mean absolute error on this data, with one day missed by 4.62 C, which
-is too loose to put a crew's morning on.
+(the whole-day aggregate). Nothing here replays a finished day.
+
+Tomorrow can be planned, one day out, anchored on today's reading - the call a
+dispatcher actually makes the evening before. That is narrower than it sounds.
+Day-ahead *temperature* is poor: predicting tomorrow's level measured 2.27 C
+mean absolute error with one day missed by 4.62 C. But the output here is a
+start time, and an error in the level shifts the whole curve without reordering
+its hours. Measured across Phoenix, Houston and Miami, the evening-before plan
+chose the same start as the morning-of plan on every day tested, including days
+the level was out by more than 3 C. So the timing is offered and the
+temperatures are widened to the day-ahead calibration, which is the honest
+split between what survives a day and what does not.
 
 The decision this returns is the shift start. Job ordering is computed too,
 but it is reported for what it is: on real Phoenix, Houston and Miami data,
@@ -52,6 +60,15 @@ from certiroute.shift_timing import (
 # told, and has to get to the base. Anything sooner than this is treated as
 # already gone.
 DEFAULT_LEAD_MINUTES = 30
+
+
+# Day-ahead scores come from anchoring each day on the one directly before
+# it, so they describe a one-day gap and nothing longer.
+MAX_LEAD_DAYS = 1
+
+
+class PlanningLeadError(ValueError):
+    """The plan reaches further ahead than the model was calibrated for."""
 
 
 class PlanningCoverageError(ValueError):
@@ -302,6 +319,15 @@ def build_same_day_plan(
 
     planned_for = target_date or level_reading.target_date
     lead_days = max((planned_for - level_reading.target_date).days, 0)
+    if lead_days > MAX_LEAD_DAYS:
+        # The day-ahead scores were produced by anchoring each day on the one
+        # directly before it. Reusing them across a longer gap would claim a
+        # confidence that was never measured at that distance.
+        raise PlanningLeadError(
+            f"this model is calibrated {MAX_LEAD_DAYS} day ahead, and "
+            f"{planned_for.isoformat()} is {lead_days} days past the reading "
+            "anchoring it"
+        )
 
     evaluation = climatology.evaluation
     if lead_days:
@@ -417,7 +443,9 @@ def score_plan_against_measurements(
 
 __all__ = [
     "DEFAULT_LEAD_MINUTES",
+    "MAX_LEAD_DAYS",
     "LeakageError",
+    "PlanningLeadError",
     "PlanningCoverageError",
     "SameDayPlan",
     "WindowRelaxation",

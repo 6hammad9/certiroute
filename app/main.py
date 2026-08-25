@@ -97,6 +97,7 @@ from certiroute.risk import relative_exposure_reduction
 from certiroute.same_day import (
     LeakageError,
     PlanningCoverageError,
+    PlanningLeadError,
     SameDayPlan,
     build_same_day_plan,
     score_plan_against_measurements,
@@ -2064,6 +2065,25 @@ def render_day_playback(plan: SameDayPlan) -> None:
     )
 
 
+def render_passed_hours(plan: SameDayPlan) -> None:
+    """Say which hours were ruled out by the clock rather than by heat.
+
+    This has to stand on its own, because the case where it matters most is
+    the one where so few starts remain that there is no comparison left to
+    draw - and silently offering one option explains nothing.
+    """
+
+    passed = [option for option in plan.comparison.options if option.already_past]
+    if not passed:
+        return
+    hours = ", ".join(option.shift_start.strftime("%H:%M") for option in passed)
+    st.caption(
+        f"{hours} already passed today, so they were not offered. Cooler hours "
+        "than the one recommended may exist earlier in the day; they are not "
+        "hours a crew can still be sent into."
+    )
+
+
 def render_start_options(plan: SameDayPlan) -> None:
     """Show every start time considered, so the choice is legible."""
 
@@ -2072,13 +2092,14 @@ def render_start_options(plan: SameDayPlan) -> None:
         for option in plan.comparison.options
         if option.feasible and option.exposure_units is not None
     ]
-    passed = [option for option in plan.comparison.options if option.already_past]
     if len(feasible) < 2:
+        render_passed_hours(plan)
         return
     by_start = {option.shift_start: option.exposure_units for option in feasible}
     usual = by_start.get(plan.baseline_start)
     worst = max(by_start.values())
     if not usual or worst <= 0:
+        render_passed_hours(plan)
         return
 
     # Exposure never approaches zero across these options, so a zero-based bar
@@ -2118,13 +2139,7 @@ def render_start_options(plan: SameDayPlan) -> None:
         '<div class="timing-bars">' + "".join(rows) + "</div>",
         unsafe_allow_html=True,
     )
-    if passed:
-        hours = ", ".join(option.shift_start.strftime("%H:%M") for option in passed)
-        st.caption(
-            f"{hours} already passed today, so they were not offered. Cooler "
-            "hours than the one recommended may exist earlier in the day; they "
-            "are not hours a crew can still be sent into."
-        )
+    render_passed_hours(plan)
     held = plan.windows.held_job_ids
     if held:
         blocking = plan.windows.earliest_held_start
@@ -2747,6 +2762,12 @@ if planning_today:
             st.info(
                 "Move the map back to a trained operating area, or pick a past "
                 "date to review a finished day from measured temperatures."
+            )
+        except PlanningLeadError as exc:
+            same_day_plan = None
+            st.warning(
+                f"CertiRoute plans at most one day ahead. {exc}. Pick today or "
+                "tomorrow."
             )
         except NoRemainingStartError as exc:
             same_day_plan = None
