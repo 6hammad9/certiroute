@@ -29,6 +29,13 @@ candidate start on the temperatures the day actually produced.
 | Houston | 2 | 2 / 2 | 47.7-58.6% |
 | Miami | 3 | 3 / 3 | 33.3-49.5% |
 
+The same nine days planned **the evening before**, anchored on the previous
+day's reading rather than the target day's, chose the same start every time -
+9/9, zero regret. An error in the day's level shifts the whole curve without
+reordering its hours, so the timing survives where the temperature does not.
+That is why tomorrow can be planned tonight and today's temperatures cannot be
+promised for it.
+
 Zero regret on all nine: on no day would another start time have been cooler.
 The spread in savings is not a difference in model quality but in local
 climate - Houston and Miami have steeper afternoons than Phoenix - and it is

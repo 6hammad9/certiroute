@@ -1,6 +1,6 @@
 """Tests for the planning path the product actually runs on."""
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 
@@ -12,7 +12,7 @@ from certiroute.climatology import (
 )
 from certiroute.daily_level import DailyLevelReading
 from certiroute.domain import GeoPoint, Job
-from certiroute.forecasting import DailyLevelShape
+from certiroute.forecasting import DailyLevelShape, InsufficientHistoryError
 from certiroute.same_day import (
     LeakageError,
     PlanningCoverageError,
@@ -554,3 +554,97 @@ def test_replaying_a_finished_day_ignores_the_clock(jobs) -> None:
 
     assert plan.recommended_start == time(5, 0)
     assert not any(o.already_past for o in plan.comparison.options)
+
+
+# --- Planning the evening before --------------------------------------------
+#
+# The decision a dispatcher actually makes is tomorrow's start, made tonight.
+# Measured across three cities, anchoring on the previous day's reading picked
+# the same start as the morning-of plan on every day tested: an error in the
+# day's level shifts the whole curve without reordering its hours.
+
+
+def climatology_with_day_ahead(**kwargs) -> DiurnalClimatology:
+    base = climatology(**kwargs)
+    return DiurnalClimatology(
+        area_id=base.area_id,
+        label=base.label,
+        granularity_m=base.granularity_m,
+        shape=base.shape,
+        training_dates=base.training_dates,
+        evaluation=ClimatologyEvaluation(
+            holdout_dates=base.evaluation.holdout_dates,
+            mean_absolute_error_c=base.evaluation.mean_absolute_error_c,
+            worst_absolute_error_c=base.evaluation.worst_absolute_error_c,
+            reading_count=base.evaluation.reading_count,
+            day_scores_c=base.evaluation.day_scores_c,
+            unseen_site_mae_c=base.evaluation.unseen_site_mae_c,
+            day_ahead_scores_c=(1.1, 1.6, 2.2),
+        ),
+        trained_at_utc=base.trained_at_utc,
+        trained_area=base.trained_area,
+    )
+
+
+def test_tomorrow_is_planned_from_todays_reading(jobs) -> None:
+    tomorrow = TODAY + timedelta(days=1)
+
+    plan = build_same_day_plan(
+        jobs,
+        climatology_with_day_ahead(),
+        reading(jobs, target_date=TODAY),
+        depot=DEPOT,
+        baseline_start=time(8, 0),
+        candidate_starts=CANDIDATES,
+        target_date=tomorrow,
+    )
+
+    assert plan.target_date == tomorrow
+    assert plan.level_reading.target_date == TODAY
+    assert plan.lead_days == 1
+    assert plan.recommended_start == time(5, 0)
+
+
+def test_a_day_ahead_plan_uses_the_wider_interval_it_earned(jobs) -> None:
+    """Borrowing the same-day interval would claim a confidence not measured."""
+
+    model = climatology_with_day_ahead()
+    same = build_same_day_plan(
+        jobs, model, reading(jobs), depot=DEPOT, candidate_starts=CANDIDATES
+    )
+    ahead = build_same_day_plan(
+        jobs,
+        model,
+        reading(jobs),
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+        target_date=TODAY + timedelta(days=1),
+    )
+
+    assert ahead.interval_radius_c > same.interval_radius_c
+    assert ahead.lead_days == 1 and same.lead_days == 0
+
+
+def test_a_model_without_day_ahead_calibration_refuses_tomorrow(jobs) -> None:
+    with pytest.raises(InsufficientHistoryError, match="no day-ahead calibration"):
+        build_same_day_plan(
+            jobs,
+            climatology(),
+            reading(jobs),
+            depot=DEPOT,
+            candidate_starts=CANDIDATES,
+            target_date=TODAY + timedelta(days=1),
+        )
+
+
+def test_planning_today_is_unaffected_by_the_day_ahead_scores(jobs) -> None:
+    plan = build_same_day_plan(
+        jobs,
+        climatology_with_day_ahead(),
+        reading(jobs),
+        depot=DEPOT,
+        candidate_starts=CANDIDATES,
+    )
+
+    assert plan.lead_days == 0
+    assert plan.coverage == pytest.approx(0.75)

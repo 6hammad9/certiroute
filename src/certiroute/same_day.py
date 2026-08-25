@@ -69,6 +69,10 @@ class SameDayPlan:
     conservative_profiles: dict[str, TemperatureProfile]
     interval_radius_c: float
     coverage: float
+    # Days between the reading that anchored this plan and the day it plans.
+    # One means the evening before: same decision, wider interval, and
+    # temperatures that are indicative rather than measured.
+    lead_days: int
     level_reading: DailyLevelReading
     climatology: DiurnalClimatology
     efficient_plan: SchedulePlan
@@ -234,6 +238,7 @@ def build_same_day_plan(
     trained_radius_km: float = DEFAULT_TRAINED_RADIUS_KM,
     now: time | None = None,
     lead_minutes: int = DEFAULT_LEAD_MINUTES,
+    target_date: date | None = None,
     **scheduler_options: object,
 ) -> SameDayPlan:
     """Turn today's measured level into a start-time decision.
@@ -246,6 +251,13 @@ def build_same_day_plan(
     it the coolest hour is usually one that has already gone, and a crew
     cannot be sent into the morning from the afternoon. Leave it unset when
     replaying a finished day.
+
+    ``target_date`` plans a day later than the reading anchoring it - the
+    evening-before case. Measured across three cities, that picked the same
+    start as the morning-of plan on every day tested, because an error in the
+    day's level shifts the whole curve without reordering its hours. The
+    interval widens to the day-ahead calibration, because the temperatures
+    themselves are a further day's guess.
     """
 
     if not jobs:
@@ -288,15 +300,26 @@ def build_same_day_plan(
         {job.job_id: level_reading.level_by_job[job.job_id] for job in jobs}
     )
 
+    planned_for = target_date or level_reading.target_date
+    lead_days = max((planned_for - level_reading.target_date).days, 0)
+
     evaluation = climatology.evaluation
-    miscoverage = evaluation.supported_miscoverage
-    if not evaluation.day_scores_c:
-        raise InsufficientHistoryError(
-            "the trained model carries no calibration scores"
-        )
-    quantile = finite_sample_absolute_residual_quantile(
-        list(evaluation.day_scores_c), miscoverage=miscoverage
-    )
+    if lead_days:
+        if not evaluation.day_ahead_scores_c:
+            raise InsufficientHistoryError(
+                "this model has no day-ahead calibration, so a plan made the "
+                "evening before cannot state an honest interval"
+            )
+        scores = list(evaluation.day_ahead_scores_c)
+        miscoverage = evaluation.day_ahead_miscoverage
+    else:
+        if not evaluation.day_scores_c:
+            raise InsufficientHistoryError(
+                "the trained model carries no calibration scores"
+            )
+        scores = list(evaluation.day_scores_c)
+        miscoverage = evaluation.supported_miscoverage
+    quantile = finite_sample_absolute_residual_quantile(scores, miscoverage=miscoverage)
     radius = quantile.absolute_residual_quantile_c
     conservative = _shift_conservative(expected, radius)
 
@@ -329,13 +352,14 @@ def build_same_day_plan(
         **scheduler_options,  # type: ignore[arg-type]
     )
     return SameDayPlan(
-        target_date=level_reading.target_date,
+        target_date=planned_for,
         area_label=climatology.label,
         comparison=comparison,
         expected_profiles=expected,
         conservative_profiles=conservative,
         interval_radius_c=radius,
         coverage=1 - miscoverage,
+        lead_days=lead_days,
         level_reading=level_reading,
         climatology=climatology,
         efficient_plan=plans[ScheduleStrategy.EFFICIENCY],

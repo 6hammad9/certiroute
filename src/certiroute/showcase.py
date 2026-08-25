@@ -56,6 +56,11 @@ class GradeSummary:
     best_reduction: float | None
     lowest_reduction: float | None
     mean_absolute_error_c: float | None
+    # The same record for plans made the evening before. Counted separately,
+    # because adding them to the same-day tally would double every figure
+    # while describing the same nine days.
+    day_ahead_days: int = 0
+    day_ahead_best_start: int = 0
 
     @property
     def chose_best_every_time(self) -> bool:
@@ -99,6 +104,8 @@ def load_grade_summary(root: Path | None = None) -> GradeSummary | None:
     areas: list[str] = []
     days = 0
     best = 0
+    ahead_days = 0
+    ahead_best = 0
     regrets: list[float] = []
     reductions: list[float] = []
     errors: list[float] = []
@@ -107,6 +114,10 @@ def load_grade_summary(root: Path | None = None) -> GradeSummary | None:
             payload = json.loads(path.read_text(encoding="utf-8"))
             summary = payload["summary"]
         except (json.JSONDecodeError, KeyError):
+            continue
+        if payload.get("planned_the_evening_before"):
+            ahead_days += int(summary["graded_day_count"])
+            ahead_best += int(summary["picked_best_start"])
             continue
         areas.append(str(payload.get("area_id", path.stem)))
         days += int(summary["graded_day_count"])
@@ -131,6 +142,8 @@ def load_grade_summary(root: Path | None = None) -> GradeSummary | None:
         best_reduction=max(reductions) if reductions else None,
         lowest_reduction=min(reductions) if reductions else None,
         mean_absolute_error_c=(sum(errors) / len(errors) if errors else None),
+        day_ahead_days=ahead_days,
+        day_ahead_best_start=ahead_best,
     )
 
 

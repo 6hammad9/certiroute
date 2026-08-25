@@ -81,3 +81,46 @@ def test_an_unknown_icon_is_refused_rather_than_rendered_empty() -> None:
 
 def test_icon_class_is_extendable_for_targeted_styling() -> None:
     assert 'class="icon route-mark"' in icon("route", extra_class="route-mark")
+
+
+# --- The graded record must not count the same days twice --------------------
+
+
+def test_evening_before_grades_are_counted_separately(tmp_path) -> None:
+    """Both files describe the same nine days from two different vantage points.
+
+    Globbing them together would advertise eighteen graded days across six
+    cities, which is the same evidence claimed twice.
+    """
+
+    import json
+
+    from certiroute.showcase import load_grade_summary
+
+    def write(name: str, *, evening_before: bool) -> None:
+        (tmp_path / name).write_text(
+            json.dumps(
+                {
+                    "area_id": "phoenix",
+                    "planned_the_evening_before": evening_before,
+                    "model": {"held_out_mae_c": 0.77},
+                    "graded_days": [{"realized_reduction": 0.25}],
+                    "summary": {
+                        "graded_day_count": 4,
+                        "picked_best_start": 4,
+                        "worst_regret_units": 0.0,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    write("recommendation_grades_phoenix.json", evening_before=False)
+    write("recommendation_grades_phoenix_day_ahead.json", evening_before=True)
+
+    summary = load_grade_summary(tmp_path)
+
+    assert summary.graded_days == 4
+    assert summary.areas == ("phoenix",)
+    assert summary.day_ahead_days == 4
+    assert summary.day_ahead_best_start == 4

@@ -349,6 +349,15 @@ def render_hero() -> None:
                 "with zero regret",
             )
         ]
+        if summary.day_ahead_days:
+            rows.append(
+                (
+                    f"{summary.day_ahead_best_start}/{summary.day_ahead_days}",
+                    "",
+                    "of those decided the evening before",
+                    "same start as planning on the morning, every time",
+                )
+            )
         if summary.lowest_reduction is not None and summary.best_reduction:
             rows.append(
                 (
@@ -1695,16 +1704,17 @@ def render_workday_settings(
     with st.expander("Change the day or shift (optional)"):
         reviewable = today - timedelta(days=HOURLY_HISTORY_LAG_DAYS)
         st.caption(
-            "Today is planned from this morning's measured heat. To review a "
-            "finished day against what actually happened, pick "
-            f"{reviewable:%d %b %Y} or earlier — FortyGuard publishes "
+            "Today is planned from this morning's measured heat, and tomorrow "
+            "from today's — the decision a dispatcher makes the evening "
+            "before. To review a finished day against what actually happened, "
+            f"pick {reviewable:%d %b %Y} or earlier; FortyGuard publishes "
             f"hourly history about {HOURLY_HISTORY_LAG_DAYS} days behind."
         )
         selected_date = st.date_input(
             "Workday",
             value=default_date,
             min_value=date(2021, 1, 1),
-            max_value=today,
+            max_value=today + timedelta(days=1),
             key=f"workday_date_{scenario_token}",
         )
         start_column, end_column = st.columns(2)
@@ -1727,8 +1737,12 @@ def render_workday_settings(
                 key=f"shift_end_{scenario_token}",
             )
 
-    is_today = selected_date >= today
-    mode_label = "Planning today" if is_today else "Reviewing a finished day"
+    if selected_date > today:
+        mode_label = "Planning tomorrow"
+    elif selected_date == today:
+        mode_label = "Planning today"
+    else:
+        mode_label = "Reviewing a finished day"
     st.markdown(
         f'<div class="workday-chip"><span><strong>{mode_label}</strong></span>'
         f"<span>{selected_date.strftime('%d %b %Y')} · usual shift "
@@ -2136,10 +2150,11 @@ def render_model_provenance(plan: SameDayPlan) -> None:
     st.markdown("#### What this prediction is built on")
     columns = st.columns(4)
     columns[0].metric(
-        "Today's measured level",
+        "Anchor reading" if plan.lead_days else "Today's measured level",
         f"{reading.area_mean_c:.1f} °C",
         help=(
-            "FortyGuard's whole-day aggregate for this area, read "
+            "FortyGuard's whole-day aggregate for "
+            f"{reading.target_date:%d %b}, read "
             f"{reading.collected_at_utc:%d %b %H:%M} UTC. This is the only "
             "same-day signal the API returns; hourly data is historical only."
         ),
@@ -2389,7 +2404,17 @@ def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
     """Crew view first; the model's workings stay one click away."""
 
     st.markdown('<div id="certiroute-plan"></div>', unsafe_allow_html=True)
-    section(3, "Today's plan")
+    section(3, "Tomorrow's plan" if plan.lead_days else "Today's plan")
+    if plan.lead_days:
+        st.caption(
+            f"Planned for {plan.target_date:%A %d %B} from "
+            f"{plan.level_reading.target_date:%d %B}'s reading. Across the days "
+            "measured, planning the evening before picked the same start as "
+            "planning on the morning — an error in the day's level moves "
+            "the whole curve without reordering its hours. The temperatures "
+            "below carry the wider day-ahead interval and are indicative; the "
+            "start time is the recommendation."
+        )
     view = st.segmented_control(
         "Result view",
         options=["Crew route", "Planner details"],
@@ -2548,14 +2573,30 @@ depot = GeoPoint(
     longitude=map_state.depot.longitude,
 )
 planning_today = selected_date >= date.today()
+# Tomorrow is anchored on today's reading: the decision a dispatcher
+# actually makes, the evening before. The start it picks matched the
+# morning-of plan on every day tested across three cities, because an
+# error in the day's level shifts the whole curve without reordering it.
+lead_days = max((selected_date - date.today()).days, 0)
+anchor_date = date.today() if lead_days else selected_date
 area_model = trained_model(map_state.operating_area_id)
 
 if planning_today:
-    section(
-        2,
-        "Plan today's shift",
-        blurb="One reading of today's heat decides when the crew starts.",
-    )
+    if lead_days:
+        section(
+            2,
+            "Plan tomorrow's shift",
+            blurb=(
+                "Today's reading decides when the crew starts tomorrow — "
+                "the call you make the evening before."
+            ),
+        )
+    else:
+        section(
+            2,
+            "Plan today's shift",
+            blurb="One reading of today's heat decides when the crew starts.",
+        )
     if area_model is None:
         st.warning(
             f"CertiRoute has no trained heat model for "
@@ -2582,7 +2623,7 @@ if planning_today:
     )
     key_available = api_key_available()
     plan_clicked = st.button(
-        "Plan today's shift",
+        "Plan tomorrow's shift" if lead_days else "Plan today's shift",
         type="primary",
         width="stretch",
         disabled=not key_available,
@@ -2634,7 +2675,7 @@ if planning_today:
                 reading = read_today_level(
                     domain_jobs,
                     HeatmapSnapshotStore(cache_path()),
-                    target_date=selected_date,
+                    target_date=anchor_date,
                     granularity=area_model.granularity_m,
                 )
                 step_done(
@@ -2654,8 +2695,10 @@ if planning_today:
                     uncertainty_penalty=0.0,
                     heat_weight=HEAT_WEIGHT,
                     # A crew cannot be sent into a morning that has gone, so
-                    # the plan is made against the clock it has to be acted on.
-                    now=current_time(),
+                    # today is planned against the clock. Tomorrow is entirely
+                    # ahead, so every hour of it is still available.
+                    now=None if lead_days else current_time(),
+                    target_date=selected_date,
                 )
                 step_done("Compared every start time the crew could still work")
                 status.update(label="Today's plan is ready", state="complete")

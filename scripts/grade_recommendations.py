@@ -99,6 +99,12 @@ def main() -> None:
         action="store_true",
         help="Keep the sample's demo access windows instead of ignoring them.",
     )
+    parser.add_argument(
+        "--day-ahead",
+        action="store_true",
+        help="Plan each day from the previous day's reading, as the "
+        "evening before would have to.",
+    )
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
 
@@ -165,19 +171,20 @@ def main() -> None:
                 # graded, and must not be silently treated as a pass.
                 print(f"  {target}  unusable measurements: {exc}")
                 continue
+            anchor = target - timedelta(days=1) if args.day_ahead else target
             try:
                 reading = collect_daily_level(
                     jobs,
                     polygon,
                     store,
-                    target_date=target,
+                    target_date=anchor,
                     granularity=model.granularity_m,
                     client=client,
                     poll_interval_seconds=settings.fortyguard_poll_interval_seconds,
                     max_attempts=settings.fortyguard_max_poll_attempts,
                 )
             except LookupError as exc:
-                print(f"  {target}  no aggregate: {exc}")
+                print(f"  {target}  no aggregate for {anchor}: {exc}")
                 continue
 
             plan = build_same_day_plan(
@@ -188,6 +195,7 @@ def main() -> None:
                 baseline_start=baseline,
                 candidate_starts=candidates,
                 shift_end=shift_end,
+                target_date=target,
                 **SCHEDULER,
             )
             try:
@@ -242,7 +250,8 @@ def main() -> None:
     )
 
     # Committed so the claim can be audited without rerunning the API.
-    evidence_path = EVIDENCE_ROOT / f"recommendation_grades_{args.area}.json"
+    suffix = "_day_ahead" if args.day_ahead else ""
+    evidence_path = EVIDENCE_ROOT / f"recommendation_grades_{args.area}{suffix}.json"
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     evidence_path.write_text(
         json.dumps(
@@ -262,6 +271,7 @@ def main() -> None:
                 "baseline_start": baseline.isoformat(),
                 "candidate_starts": [c.isoformat() for c in candidates],
                 "honoured_job_windows": args.honour_windows,
+                "planned_the_evening_before": args.day_ahead,
                 "graded_days": [
                     {
                         "date": day.isoformat(),

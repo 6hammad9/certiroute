@@ -116,6 +116,25 @@ class ClimatologyEvaluation:
     # the number that says whether that is honest, and it is recorded even
     # when it is unflattering.
     unseen_site_mae_c: float | None = None
+    # The same scores for a plan made the evening before, where the anchor is
+    # the previous day's level rather than the target day's. They are wider,
+    # and a day-ahead plan has to be widened with them rather than borrowing
+    # the same-day interval it has not earned.
+    day_ahead_scores_c: tuple[float, ...] = ()
+
+    @property
+    def day_ahead_miscoverage(self) -> float:
+        """The tightest miscoverage the day-ahead scores can support."""
+
+        count = len(self.day_ahead_scores_c)
+        if count < 1:
+            raise InsufficientHistoryError("no day-ahead score was recorded")
+        for candidate in (0.05, 0.1, 0.2, 0.25, 0.5):
+            if ceil((count + 1) * (1 - candidate)) <= count:
+                return candidate
+        raise InsufficientHistoryError(
+            f"{count} day-ahead score(s) cannot support any usable interval"
+        )
 
     @property
     def supported_miscoverage(self) -> float:
@@ -239,6 +258,7 @@ class DiurnalClimatology:
                 "reading_count": self.evaluation.reading_count,
                 "day_scores_c": list(self.evaluation.day_scores_c),
                 "unseen_site_mae_c": self.evaluation.unseen_site_mae_c,
+                "day_ahead_scores_c": list(self.evaluation.day_ahead_scores_c),
             },
         }
 
@@ -276,6 +296,9 @@ class DiurnalClimatology:
                     None
                     if evaluation.get("unseen_site_mae_c") is None
                     else float(evaluation["unseen_site_mae_c"])
+                ),
+                day_ahead_scores_c=tuple(
+                    float(v) for v in evaluation.get("day_ahead_scores_c", [])
                 ),
             ),
             trained_at_utc=datetime.fromisoformat(payload["trained_at_utc"]),
@@ -428,6 +451,31 @@ def rolling_origin_day_scores(
     return scores
 
 
+def rolling_day_ahead_scores(
+    history: Sequence[TrainingDay], *, min_train_days: int = 4
+) -> list[float]:
+    """Score each day as the evening before would have: on yesterday's level.
+
+    The offsets come from the days before, exactly as in the same-day case, but
+    the anchor is the previous day's reading because that is all a plan made
+    the night before can have. Days that do not directly follow their
+    predecessor are skipped rather than anchored on a stale one.
+    """
+
+    ordered = sorted(history, key=lambda item: item[0])
+    scores: list[float] = []
+    for index in range(min_train_days, len(ordered)):
+        target_date, _, day = ordered[index]
+        previous_date, previous_levels, _ = ordered[index - 1]
+        if (target_date - previous_date).days != 1:
+            continue
+        shape = _learn_offsets(ordered[:index])
+        residuals = _residuals(shape, [(target_date, previous_levels, day)])
+        if residuals:
+            scores.append(max(abs(value) for value in residuals))
+    return scores
+
+
 def train_climatology_rolling(
     history: Sequence[TrainingDay],
     *,
@@ -466,6 +514,9 @@ def train_climatology_rolling(
             day_scores_c=tuple(day_scores),
             unseen_site_mae_c=unseen_site_error(
                 ordered, holdout_days=max(1, len(ordered) // 4)
+            ),
+            day_ahead_scores_c=tuple(
+                rolling_day_ahead_scores(ordered, min_train_days=min_train_days)
             ),
         ),
         trained_at_utc=trained_at_utc or datetime.now(UTC),
@@ -587,6 +638,7 @@ __all__ = [
     "available_areas",
     "unseen_site_error",
     "load_climatology",
+    "rolling_day_ahead_scores",
     "rolling_origin_day_scores",
     "save_climatology",
     "train_climatology",

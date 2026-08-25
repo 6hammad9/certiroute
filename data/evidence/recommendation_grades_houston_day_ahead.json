@@ -1,0 +1,62 @@
+{
+  "area_id": "houston",
+  "baseline_start": "08:00:00",
+  "candidate_starts": [
+    "05:00:00",
+    "06:00:00",
+    "07:00:00",
+    "08:00:00"
+  ],
+  "generated_at_utc": "2026-08-25T08:28:27.320595+00:00",
+  "graded_days": [
+    {
+      "best_start_in_hindsight": "05:00:00",
+      "chose_the_best_start": true,
+      "date": "2026-08-17",
+      "helped": true,
+      "realized_reduction": 0.5860739296161688,
+      "recommended_start": "05:00:00",
+      "regret_units": 0.0
+    },
+    {
+      "best_start_in_hindsight": "05:00:00",
+      "chose_the_best_start": true,
+      "date": "2026-08-18",
+      "helped": true,
+      "realized_reduction": 0.47658676893576224,
+      "recommended_start": "05:00:00",
+      "regret_units": 0.0
+    }
+  ],
+  "honoured_job_windows": false,
+  "model": {
+    "calibration_dates": [
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16"
+    ],
+    "granularity_m": 60,
+    "held_out_mae_c": 0.7908061513024011,
+    "trained_dates": [
+      "2026-08-09",
+      "2026-08-10",
+      "2026-08-11",
+      "2026-08-12",
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16"
+    ],
+    "unseen_site_mae_c": 0.9905180341880342
+  },
+  "planned_the_evening_before": true,
+  "schema_version": 1,
+  "summary": {
+    "beat_the_usual_start": 2,
+    "graded_day_count": 2,
+    "mean_exposure_avoided": 0.5313303492759656,
+    "picked_best_start": 2,
+    "worst_regret_units": 0.0
+  }
+}
