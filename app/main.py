@@ -328,64 +328,65 @@ def inject_styles() -> None:
     st.markdown(STYLESHEET, unsafe_allow_html=True)
 
 
-def render_hero() -> None:
-    """State the premise and show what backs it, side by side.
+def render_masthead(area_label: str) -> None:
+    """A drawing gets a title block, and the boundary belongs in it.
 
-    Streamlit wraps each markdown call in its own element, so the whole band is
-    emitted at once; split across calls the container would not enclose
-    anything. The claim sits left and the measured record sits right, because a
-    hero that asserts something with half its width empty is asking to be
-    believed rather than showing why it should be.
+    The safety line is the one sentence that must never be scrolled past, so
+    it sits with the wordmark rather than in a footer nobody reaches.
     """
 
+    st.markdown(
+        f"""
+        <div class="masthead">
+          <div class="masthead-row">
+            <span class="wordmark">CertiRoute</span>
+            <span class="masthead-tag">Heat-aware shift timing</span>
+            <span class="masthead-area">
+              <span class="kicker">Area</span>
+              <span class="value">{escape(area_label)}</span>
+            </span>
+          </div>
+          <div class="safety-strip">Planning aid &mdash; not safety clearance.
+          Confirm live site conditions and follow your heat-safety policy
+          before dispatch.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_hero() -> None:
+    """The claim, and the record that backs it, side by side."""
+
     summary = load_grade_summary(PROJECT_ROOT / DEFAULT_EVIDENCE_ROOT)
-    proof = ""
+    stats = ""
     if summary is not None and summary.chose_best_every_time:
         rows = [
             (
                 f"{summary.picked_best_start}/{summary.graded_days}",
-                "",
                 "days it chose the best possible start",
-                f"across {len(summary.areas)} cities, on days it had never seen, "
-                "with zero regret",
             )
         ]
-        if summary.day_ahead_days:
-            rows.append(
-                (
-                    f"{summary.day_ahead_best_start}/{summary.day_ahead_days}",
-                    "",
-                    "of those decided the evening before",
-                    "same start as planning on the morning, every time",
-                )
-            )
         if summary.lowest_reduction is not None and summary.best_reduction:
             rows.append(
                 (
                     f"{summary.lowest_reduction:.0%}–{summary.best_reduction:.0%}",
-                    "",
                     "of the day's heat avoided",
-                    "same crew, same jobs, a different starting hour",
                 )
             )
         if summary.mean_absolute_error_c is not None:
             rows.append(
                 (
-                    f"{summary.mean_absolute_error_c:.2f}",
-                    "°C",
+                    f"{summary.mean_absolute_error_c:.2f} °C",
                     "mean error against measured heat",
-                    "including the week the weather turned under it",
                 )
             )
-        proof = (
-            '<div class="hero-proofs">'
+        stats = (
+            '<div class="hero-stats">'
             + "".join(
-                f'<div class="hero-stat"><div class="hero-figure">{figure}'
-                + (f'<span class="hero-unit">{unit}</span>' if unit else "")
-                + "</div>"
-                f'<div class="hero-stat-label">{escape(label)}</div>'
-                f'<div class="hero-stat-note">{escape(note)}</div></div>'
-                for figure, unit, label, note in rows
+                f'<div><div class="stat-figure">{figure}</div>'
+                f'<div class="stat-note">{escape(note)}</div></div>'
+                for figure, note in rows
             )
             + "</div>"
         )
@@ -393,31 +394,20 @@ def render_hero() -> None:
     st.markdown(
         f"""
         <div class="hero-band">
-          <div class="wordmark">
-            {icon("sunrise", size=20)}<span>CertiRoute</span>
-            <span class="wordmark-tag">{icon("thermometer", size=13)}
-              Heat-aware field operations</span>
-          </div>
-          <div class="hero-grid">
-            <div>
-              <h1 class="hero-heading">Start the shift before the heat does.</h1>
-              <div class="hero-copy">
-              Outdoor crews work the hottest hours by default, because the shift
-              was set long before anyone knew what the day would do.
-              </div>
-              <div class="hero-lede">
-                CertiRoute reads today's street-level heat and tells you what
-                time to begin &mdash; with the visit order already worked out.
-              </div>
-              <div class="hero-proof">
-                <span class="heat">{icon("thermometer", size=15)}
-                  Today's real measurements</span>
-                <span>{icon("gauge", size=15)} Calibrated interval</span>
-                <span>{icon("shield", size=15)} No synthetic fallback</span>
-              </div>
+          <div>
+            <h1 class="hero-heading">Start the shift before the heat does.</h1>
+            <p class="hero-copy">Outdoor crews work the hottest hours by
+            default, because the shift was set long before anyone knew what the
+            day would do. CertiRoute reads today's street-level heat and tells
+            you what time to begin &mdash; with the visit order already worked
+            out.</p>
+            <div class="hero-proof">
+              <span>Today's real measurements</span>
+              <span>Calibrated interval</span>
+              <span>No synthetic fallback</span>
             </div>
-            {proof}
           </div>
+          {stats}
         </div>
         """,
         unsafe_allow_html=True,
@@ -429,9 +419,8 @@ def section(number: int, title: str, *, blurb: str = "") -> None:
 
     st.markdown(
         f'<div class="section-head"><span class="section-index">'
-        f"[{number:02d}]</span><h2>{escape(title)}</h2>"
-        + (f"<p>{escape(blurb)}</p>" if blurb else "")
-        + "</div>",
+        f"{number:02d}</span><h2>{escape(title)}</h2></div>"
+        + (f'<p class="section-blurb">{escape(blurb)}</p>' if blurb else ""),
         unsafe_allow_html=True,
     )
 
@@ -505,61 +494,37 @@ def render_result_mode_styles() -> None:
 
 
 def render_three_steps(state: MapScenarioState, *, planned: bool) -> None:
-    """A guide that tracks real progress rather than describing the ideal path.
-
-    A static three-step strip tells a first-time user what the product does but
-    never what to do *now*. Each step here reports whether it is finished, in
-    progress, or still ahead, and carries a hover note explaining it, so the
-    guide keeps working after the first minute.
-    """
+    """A guide that reports progress rather than describing the ideal path."""
 
     depot_done = state.depot is not None
     sites_done = state.job_count >= MIN_MANIFEST_JOBS
     steps = (
+        ("Place the crew base", "Where the crew signs on and returns.", depot_done),
         (
-            "map",
-            "Place the crew base",
-            depot_done,
-            "Click once on the map. This is where the shift starts and ends.",
-        ),
-        (
-            "pin",
             "Add work sites",
+            f"Between {MIN_MANIFEST_JOBS} and {MAX_MANIFEST_JOBS} places to visit.",
             sites_done,
-            f"Click each place the crew must visit - at least "
-            f"{MIN_MANIFEST_JOBS}, up to {MAX_MANIFEST_JOBS}.",
         ),
         (
-            "sunrise",
             "Plan the shift",
+            "One reading, then the start time and the order.",
             planned,
-            "CertiRoute reads today's heat and picks the coolest start time "
-            "that still fits every job.",
         ),
     )
-    active_index = next(
-        (index for index, step in enumerate(steps) if not step[2]), len(steps)
-    )
+    active = next((i for i, step in enumerate(steps) if not step[2]), len(steps))
 
-    arrow = f'<span class="process-arrow">{icon("arrow-right", size=15)}</span>'
-    rendered: list[str] = []
-    for index, (name, text, done, hint) in enumerate(steps):
-        if done:
-            status, mark = "done", icon("check", size=13)
-        elif index == active_index:
-            status, mark = "active", str(index + 1)
-        else:
-            status, mark = "pending", str(index + 1)
-        rendered.append(
-            f'<span class="process-step {status}" title="{escape(hint)}">'
-            f'<span class="process-number">{mark}</span>'
-            f"{icon(name, size=15)}{escape(text)}</span>"
+    cells = []
+    for index, (title, note, done) in enumerate(steps):
+        state_class = "done" if done else ("" if index == active else "pending")
+        mark = icon("check", size=13) if done else f"{index + 1:02d}"
+        cells.append(
+            f'<div class="step {state_class}">'
+            f'<span class="step-index">{mark}</span>'
+            f'<div><div class="step-title">{escape(title)}</div>'
+            f'<div class="step-note">{escape(note)}</div></div></div>'
         )
     st.markdown(
-        '<div class="process-strip" aria-label="Setup progress">'
-        + arrow.join(rendered)
-        + "</div>",
-        unsafe_allow_html=True,
+        '<div class="steps">' + "".join(cells) + "</div>", unsafe_allow_html=True
     )
 
 
@@ -1962,50 +1927,45 @@ def render_start_decision(plan: SameDayPlan) -> None:
         direction = "earlier" if plan.minutes_earlier > 0 else "later"
         label = "Move the shift"
         title = f"Start at {start}"
-        explanation = (
+        body = (
             f"Beginning {amount} {direction} than your usual {baseline} cuts "
-            f"modelled heat exposure by <strong>{reduction:.0%}</strong> for the "
-            f"same work. First stop is <strong>{first_site}</strong>."
+            f"modelled heat exposure by {reduction:.0%} for the same work. "
+            f"First stop is {first_site}."
         )
     else:
         label = "Keep the shift"
         title = f"Start at {start} as usual"
-        explanation = (
-            "No earlier start meaningfully reduces exposure on today's predicted "
-            f"heat, so there is no reason to move the crew. First stop is "
-            f"<strong>{first_site}</strong>."
+        body = (
+            "No earlier start meaningfully reduces exposure today, so there is "
+            f"no reason to move the crew. First stop is {first_site}."
         )
 
     finish = minute_label(plan.crew_plan.route_finish_minute)
     peak = max(stop.temperature_c for stop in plan.crew_plan.stops)
+    cells = (
+        ("Shift window", f"{start} &ndash; {finish}"),
+        ("Hottest working moment", f"{peak:.1f} &deg;C"),
+        (
+            "Predicted within",
+            f"&plusmn; {plan.interval_radius_c:.1f} &deg;C at {plan.coverage:.0%}",
+        ),
+    )
     st.markdown(
         f"""
-        <div class="bento">
-          <div class="bento-hero decision-card">
-            <div class="decision-label">{icon("sunrise", size=13)}{label}</div>
-            <h2>{title}</h2>
-            <p>{explanation}</p>
+        <div class="decision">
+          <div class="decision-main">
+            <div class="decision-label">{escape(label)}</div>
+            <h3>{escape(title)}</h3>
+            <p>{body}</p>
           </div>
-          <div class="bento-tile route-fact time">
-            <div class="route-fact-label">{icon("clock", size=13)}Shift window</div>
-            <div class="route-fact-value">{start}&nbsp;&ndash;&nbsp;{finish}</div>
-          </div>
-          <div class="bento-tile route-fact stop">
-            <div class="route-fact-label">
-              {icon("thermometer", size=13)}Hottest working moment
-            </div>
-            <div class="route-fact-value">{peak:.1f} &deg;C</div>
-          </div>
-          <div class="bento-tile route-fact status">
-            <div class="route-fact-label">
-              {icon("gauge", size=13)}Predicted within
-            </div>
-            <div class="route-fact-value">
-              &plusmn;{plan.interval_radius_c:.1f} &deg;C at {plan.coverage:.0%}
-            </div>
-          </div>
-        </div>
-        """,
+          <div class="decision-side">
+        """
+        + "".join(
+            f'<div class="decision-cell"><div class="kicker">{escape(name)}</div>'
+            f'<div class="value">{value}</div></div>'
+            for name, value in cells
+        )
+        + "</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -2065,90 +2025,104 @@ def render_day_playback(plan: SameDayPlan) -> None:
     )
 
 
-def render_passed_hours(plan: SameDayPlan) -> None:
-    """Say which hours were ruled out by the clock rather than by heat.
+def _aside(text: str) -> str:
+    return (
+        '<div class="bar-aside"><span class="mark">&middot;</span>'
+        f"<span>{text}</span></div>"
+    )
 
-    This has to stand on its own, because the case where it matters most is
-    the one where so few starts remain that there is no comparison left to
-    draw - and silently offering one option explains nothing.
-    """
+
+def _passed_aside(plan: SameDayPlan) -> str:
+    """Hours ruled out by the clock rather than by heat."""
 
     passed = [option for option in plan.comparison.options if option.already_past]
     if not passed:
-        return
+        return ""
     hours = ", ".join(option.shift_start.strftime("%H:%M") for option in passed)
-    st.caption(
-        f"{hours} already passed today, so they were not offered. Cooler hours "
-        "than the one recommended may exist earlier in the day; they are not "
-        "hours a crew can still be sent into."
+    return _aside(f"{hours} already passed today, so they were not offered as starts.")
+
+
+def _windows_aside(plan: SameDayPlan) -> str:
+    """Sites whose own access windows keep the crew out of the cool hours."""
+
+    held = plan.windows.held_job_ids
+    if not held:
+        return ""
+    blocking = plan.windows.earliest_held_start
+    when = blocking.strftime("%H:%M") if blocking else "their access window"
+    return _aside(
+        f"{len(held)} site(s) cannot be visited before {when} because of their "
+        "own access windows &mdash; the route works around them rather than "
+        "waiting at the gate."
     )
 
 
 def render_start_options(plan: SameDayPlan) -> None:
-    """Show every start time considered, so the choice is legible."""
+    """Every start considered, folded away until the choice is questioned.
+
+    The decision is the answer; this is the working. It opens on demand so the
+    result stays one screen rather than four stacked blocks.
+    """
 
     feasible = [
         option
         for option in plan.comparison.options
         if option.feasible and option.exposure_units is not None
     ]
-    if len(feasible) < 2:
-        render_passed_hours(plan)
-        return
+    asides = _passed_aside(plan) + _windows_aside(plan)
     by_start = {option.shift_start: option.exposure_units for option in feasible}
     usual = by_start.get(plan.baseline_start)
-    worst = max(by_start.values())
-    if not usual or worst <= 0:
-        render_passed_hours(plan)
+    if len(feasible) < 2 or not usual or max(by_start.values()) <= 0:
+        if asides:
+            st.markdown(f'<div class="why-body">{asides}</div>', unsafe_allow_html=True)
         return
 
-    # Exposure never approaches zero across these options, so a zero-based bar
-    # would make every start look alike. The bar shows heat avoided against the
-    # crew's usual start, which is the quantity the decision actually turns on,
-    # and the usual start is drawn as the empty baseline it is.
+    # Bar length is heat avoided against the usual start, not absolute
+    # exposure: exposure never approaches zero, so a zero-based bar would make
+    # every option look the same.
     savings = {start: max(usual - units, 0.0) for start, units in by_start.items()}
-    best_saving = max(savings.values())
+    best = max(savings.values())
 
-    rows: list[str] = []
+    rows = []
     for option in feasible:
         saving = savings[option.shift_start]
-        share = 0.0 if best_saving <= 0 else saving / best_saving
-        is_pick = option.shift_start == plan.recommended_start
-        is_usual = option.shift_start == plan.baseline_start
-        if is_usual:
-            value = "your usual"
+        share = 0.0 if best <= 0 else saving / best
+        picked = option.shift_start == plan.recommended_start
+        if option.shift_start == plan.baseline_start:
+            note = "your usual start"
         elif saving <= 0:
-            value = "no gain"
+            note = "no gain"
         else:
-            value = f"{saving / usual:.0%} cooler"
+            note = f"{saving / usual:.0%} cooler"
         rows.append(
-            f'<div class="timing-row{" picked" if is_pick else ""}">'
-            f'<div class="timing-label">{option.shift_start.strftime("%H:%M")}</div>'
-            '<div class="timing-track">'
-            f'<div class="timing-bar" style="width:{max(share, 0.015):.1%}"></div>'
-            "</div>"
-            f'<div class="timing-tag">{escape(value)}</div>'
-            "</div>"
+            f'<div class="bar-row{" picked" if picked else ""}">'
+            f'<span class="bar-time">{option.shift_start:%H:%M}</span>'
+            f'<div class="bar-track"><div class="bar-fill" '
+            f'style="width:{max(share, 0.015):.1%}"></div></div>'
+            f'<span class="bar-note">{escape(note)}</span></div>'
         )
-    st.markdown(
-        "### Why this start\n"
-        "Same jobs, same shift length, different starting hour. Longer bars mean "
-        "more heat avoided against your usual start."
+
+    reduction = plan.exposure_reduction
+    headline = (
+        f"{reduction:.0%} cooler than your usual {plan.baseline_start:%H:%M}"
+        if reduction
+        else "compared against your usual start"
     )
+    ruled_out = sum(1 for o in plan.comparison.options if not o.feasible)
     st.markdown(
-        '<div class="timing-bars">' + "".join(rows) + "</div>",
+        '<details class="why"><summary>'
+        '<span class="why-label">Why this start</span>'
+        f"<span>{headline} &middot; {len(feasible)} starts compared"
+        + (f" &middot; {ruled_out} ruled out" if ruled_out else "")
+        + "</span>"
+        '<span class="why-toggle">Show</span></summary>'
+        '<div class="why-body">'
+        '<p class="why-note">Bar length is heat <em>avoided</em> against the '
+        "crew's usual start, not absolute exposure &mdash; exposure never "
+        "approaches zero, so a zero-based bar would make every option look the "
+        "same.</p>" + "".join(rows) + asides + "</div></details>",
         unsafe_allow_html=True,
     )
-    render_passed_hours(plan)
-    held = plan.windows.held_job_ids
-    if held:
-        blocking = plan.windows.earliest_held_start
-        st.caption(
-            f"{len(held)} site(s) cannot be visited before "
-            f"{blocking.strftime('%H:%M') if blocking else 'their access window'} "
-            "because of their own access windows, so those hours were not "
-            "available to move: " + ", ".join(escape(job_id) for job_id in held) + "."
-        )
 
 
 def render_model_provenance(plan: SameDayPlan) -> None:
@@ -2521,8 +2495,9 @@ st.set_page_config(
     layout="wide",
 )
 inject_styles()
-render_hero()
 opening_state = load_map_scenario()
+render_masthead(opening_state.operating_area.label)
+render_hero()
 render_landing_proof(opening_state)
 render_three_steps(
     opening_state,

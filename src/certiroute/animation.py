@@ -27,20 +27,20 @@ from certiroute.optimization import SchedulePlan, TemperatureProfile
 
 # Matches the palette in theme.py: the recommended path is mint, heat is
 # orange. Nothing here introduces a colour the rest of the product does not use.
-ROUTE_COLOR = "#70FFD2"
-ROUTE_INK = "#05372A"
-HEAT_COLOR = "#FF9137"
-HEAT_INK = "#8A3B00"
-INK = "#0C1116"
-MUTED = "#5C6873"
-FAINT = "#8A949E"
-RULE = "#E5E9EC"
-SURFACE = "#FFFFFF"
-CANVAS = "#F7F8FA"
+ROUTE_COLOR = "#5980a6"
+ROUTE_INK = "#1d2d3d"
+HEAT_COLOR = "#2b2b2d"
+HEAT_INK = "#2b2b2d"
+INK = "#1d1f20"
+MUTED = "#5d5d60"
+FAINT = "#7a7a7d"
+RULE = "color-mix(in srgb, #1d1f20 16%, transparent)"
+SURFACE = "#f2f2f3"
+CANVAS = "#e9e9ea"
 
 VIEW_WIDTH = 760
 VIEW_HEIGHT = 330
-PADDING = 96
+PADDING = 118
 
 
 @dataclass(frozen=True)
@@ -233,8 +233,8 @@ _TEMPLATE = """
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--surface); color: var(--ink);
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  border: 1px solid var(--rule); border-radius: 16px; overflow: hidden;
+  font-family: Barlow, system-ui, -apple-system, "Segoe UI", sans-serif;
+  border: 1px solid var(--rule); overflow: hidden;
 }
 .wrap { padding: 14px 16px 16px; }
 .head {
@@ -242,22 +242,22 @@ body {
   gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
 }
 .clock {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-variant-numeric: tabular-nums; font-size: 1.5rem; font-weight: 600;
   letter-spacing: -.02em;
 }
 .controls { display: flex; gap: 8px; align-items: center; }
 button {
-  font: 500 .82rem/1 Inter, system-ui, sans-serif; cursor: pointer;
+  font: 600 .82rem/1 'Barlow Condensed', system-ui, sans-serif; cursor: pointer;
   border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
-  border-radius: 10px; padding: .5rem .85rem;
+  border-radius: 0; padding: .5rem .85rem;
 }
 button:hover { border-color: var(--ink); }
 button.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
-.stage { background: var(--canvas); border-radius: 12px; }
+.stage { background: color-mix(in srgb, var(--route) 4%, transparent); }
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .card {
-  border: 1px solid var(--rule); border-radius: 12px; padding: .7rem .85rem;
+  border: 1px solid var(--rule); border-radius: 0; padding: .7rem .85rem;
   background: var(--surface);
 }
 .card .label {
@@ -269,16 +269,16 @@ button.primary { background: var(--ink); border-color: var(--ink); color: #fff; 
   gap: .5rem; margin-top: .3rem;
 }
 .card .temp {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 600;
 }
 .card .state { font-size: .76rem; color: var(--muted); }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; }
 .track {
-  height: 5px; background: var(--canvas); border-radius: 999px;
+  height: 5px; background: var(--canvas); border-radius: 0;
   margin-top: .5rem; overflow: hidden;
 }
-.fill { height: 100%; border-radius: 999px; width: 0%; }
+.fill { height: 100%; border-radius: 0; width: 0%; }
 .done { opacity: .55; }
 </style>
 <div class="wrap">
@@ -341,7 +341,7 @@ base.stops.forEach((s) => {
   const t = make("text", {
     x: s.x, y: s.y + 4.5, "text-anchor": "middle",
     "font-size": 12, "font-weight": 600, fill: "#5C6873",
-    "font-family": "JetBrains Mono, ui-monospace, monospace",
+    "font-family": "IBM Plex Mono, ui-monospace, monospace",
   });
   t.textContent = s.seq;
   stage.appendChild(t);

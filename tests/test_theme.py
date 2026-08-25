@@ -6,6 +6,7 @@ from certiroute.theme import (
     RESULT_MODE_STYLES,
     STYLESHEET,
     as_markup,
+    corners,
     icon,
 )
 
@@ -47,17 +48,22 @@ def test_stylesheet_opens_with_markup_and_closes_the_style_element() -> None:
     assert STYLESHEET.count("<style>") == STYLESHEET.count("</style>")
 
 
-def test_the_chosen_palette_survives_restyling() -> None:
-    for colour in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"):
-        assert colour in STYLESHEET
+def test_the_industrial_palette_is_present_and_complete() -> None:
+    """One accent and two full ramps; nothing else may creep in as colour."""
+
+    assert "--color-accent: #5980a6" in STYLESHEET
+    assert "--color-bg: #f2f2f3" in STYLESHEET
+    for step in (100, 300, 500, 700, 900):
+        assert f"--n{step}:" in STYLESHEET
+        assert f"--a{step}:" in STYLESHEET
 
 
 def test_every_declared_font_names_a_system_fallback() -> None:
     """The app must never wait on a network font to render text."""
 
     for stack, fallback in (
-        ("--font-display", "sans-serif"),
-        ("--font-ui", "sans-serif"),
+        ("--font-heading", "sans-serif"),
+        ("--font-body", "sans-serif"),
         ("--font-mono", "monospace"),
     ):
         line = next(ln for ln in STYLESHEET.splitlines() if ln.startswith(f"  {stack}"))
@@ -81,6 +87,24 @@ def test_an_unknown_icon_is_refused_rather_than_rendered_empty() -> None:
 
 def test_icon_class_is_extendable_for_targeted_styling() -> None:
     assert 'class="icon route-mark"' in icon("route", extra_class="route-mark")
+
+
+def test_registration_marks_come_as_a_set_of_four() -> None:
+    """A blueprint panel reads as a drawing only with all four corners."""
+
+    marks = corners()
+
+    for position in ("tl", "tr", "bl", "br"):
+        assert f'class="corner {position}"' in marks
+
+
+def test_the_system_draws_square_rather_than_rounded() -> None:
+    """Rounded corners would undo the drawing the rest of it is imitating."""
+
+    assert "border-radius: 0" in STYLESHEET
+    # No leftover soft radii from the previous system.
+    for stale in ("--r-sm", "--r-md", "--r-lg", "--r-xl"):
+        assert stale not in STYLESHEET
 
 
 # --- The graded record must not count the same days twice --------------------

@@ -344,9 +344,9 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     app = rendered_states.empty
     text = _all_text(app)
 
-    # The product name is a wordmark; the headline is the page's only h1, so
-    # nothing competes with it to be read first.
-    assert '<div class="wordmark">' in text
+    # The product name is a wordmark in the title block; the headline is the
+    # page's only h1, so nothing competes with it to be read first.
+    assert '<span class="wordmark">' in text
     assert "CertiRoute" in text
     assert not app.title
     assert '<h1 class="hero-heading">' in text
@@ -354,19 +354,20 @@ def test_first_run_is_guided_map_first_and_makes_no_network_request(
     # The hero states the premise before the promise.
     assert "work the hottest hours by default" in text
     # The hero shows the graded record beside the claim, not only the claim.
-    assert '<div class="hero-proofs">' in text
+    assert '<div class="hero-stats">' in text
     assert '<div class="hero-band">' in text
-    assert all(color in text for color in ("#70FFD2", "#FFFC8C", "#FFCC4D", "#FF9137"))
+    assert "--color-accent: #5980a6" in text
     assert "color-scheme: light" in text
     # The chosen palette must survive restyling, and type must be explicit.
-    assert "--canvas: #F7F8FA" in text
-    assert "Instrument Sans" in text
-    assert "JetBrains Mono" in text
+    assert "--color-bg: #f2f2f3" in text
+    assert "Barlow Condensed" in text
+    assert "IBM Plex Mono" in text
     # The guide reports progress, so on a first run every step is still ahead.
     assert "Place the crew base" in text
     assert "Add work sites" in text
     assert "Plan the shift" in text
-    assert 'class="process-step active"' in text
+    # Nothing is done yet, so no step is marked complete.
+    assert 'class="step done"' not in text
     assert "First, click where the crew starts and returns" in text
     assert app.selectbox[0].label == (
         "Start near a U.S. city — pan anywhere in the U.S."
@@ -721,23 +722,24 @@ def test_the_guide_marks_finished_steps_and_points_at_the_next(
     first_run = _all_text(rendered_states.empty)
     with_sites = _all_text(rendered_states.map_ready)
 
-    # Nothing done yet: placing the base is the active step.
-    assert first_run.count('class="process-step done"') == 0
-    assert 'class="process-step active"' in first_run
+    # Nothing done yet: no step is complete.
+    assert first_run.count('class="step done"') == 0
 
     # Base placed and sites added: the first two steps are finished.
-    assert with_sites.count('class="process-step done"') == 2
-    assert 'class="process-step active"' in with_sites
+    assert with_sites.count('class="step done"') == 2
+    assert 'class="step pending"' not in with_sites
 
 
-def test_every_guide_step_carries_a_hover_explanation(
+def test_every_guide_step_explains_itself_in_place(
     rendered_states: RenderedStates,
 ) -> None:
+    """A hover note is invisible until hovered; this one is always readable."""
+
     text = _all_text(rendered_states.empty)
 
-    assert 'title="Click once on the map.' in text
-    assert 'title="Click each place the crew must visit' in text
-    assert 'title="CertiRoute reads today&#x27;s heat' in text
+    assert "Where the crew signs on and returns." in text
+    assert "places to visit." in text
+    assert "One reading, then the start time and the order." in text
 
 
 def test_the_map_is_told_where_the_trained_model_applies(

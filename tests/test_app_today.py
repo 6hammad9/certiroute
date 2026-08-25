@@ -237,7 +237,7 @@ def test_the_app_opens_ready_to_plan_today(today_states) -> None:
 
     assert "Planning today" in text
     # Sections are numbered, and the heading escapes its apostrophe.
-    assert '<span class="section-index">[02]</span>' in text
+    assert '<span class="section-index">02</span>' in text
     assert "Plan today&#x27;s shift" in text
     assert _button(app, "Plan today's shift").disabled is False
     assert today_states["network_calls"] == []
@@ -268,12 +268,12 @@ def test_every_candidate_start_is_shown_with_the_chosen_one_marked(
     text = _all_text(today_states["planned"])
 
     for label in ("05:00", "06:00", "07:00", "08:00"):
-        assert f'<div class="timing-label">{label}</div>' in text
+        assert f'<span class="bar-time">{label}</span>' in text
     # Each option is labelled with the heat it avoids against the usual start,
     # which is the quantity the decision turns on.
     assert "cooler" in text
-    assert "your usual" in text
-    assert 'class="timing-row picked"' in text
+    assert "your usual start" in text
+    assert 'class="bar-row picked"' in text
 
 
 def test_the_crew_view_keeps_model_detail_out_of_the_way(today_states) -> None:

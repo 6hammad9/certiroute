@@ -1,22 +1,19 @@
-"""The visual system: type, colour, spacing, and an inline icon set.
+"""The visual system: an industrial blueprint, drawn in tokens.
 
-The reference class for this product is operational software - the tools a
-dispatcher already has open - not a marketing page. Typewolf's survey of
-well-regarded design work shows the same convention repeatedly: a neo-grotesque
-carrying the interface (Apercu, Basis Grotesque, Graphik, GT America) paired
-with a monospace for anything numeric. Those faces are commercial, so this uses
-their closest well-made equivalents on Google Fonts.
+The product is a planning instrument for depot dispatchers, so the interface is
+built like a technical drawing rather than a consumer card layout: square
+corners, hairline rules, transparent panels, and registration marks at the
+corners of anything that matters. Barlow Condensed carries the headings, Barlow
+the prose, IBM Plex Mono every number a dispatcher compares down a column.
 
-* Instrument Sans - display and headings. Slightly warm grotesque, close in
-  character to Apercu, and reads as chosen rather than defaulted-to.
-* Inter - interface text. Still unmatched below 14px, with true tabular figures.
-* JetBrains Mono - times, temperatures, degree-hours. Numbers a dispatcher
-  compares down a column must sit in the same place on every row.
+Colour is almost entirely neutral. One blue-grey accent marks the recommended
+path and the live state; nothing else is coloured, so when something is, it
+means something. Both ramps run on one shared lightness scale, so the same step
+of any role matches the others in visual value.
 
-Colour is deliberately neutral-dominant. The palette carries meaning rather
-than decoration: mint is the recommended path, orange is heat. Icons are inline
-SVG on a 24px grid at 1.75 stroke, never emoji, because an emoji renders as a
-different picture on every operating system and cannot inherit text colour.
+Icons are inline SVG on a 24px grid at 1.75 stroke, inheriting text colour.
+Never emoji: an emoji renders as a different picture on every operating system
+and cannot take a colour.
 """
 
 from __future__ import annotations
@@ -25,9 +22,18 @@ from html import escape
 
 FONT_IMPORT = (
     "@import url('https://fonts.googleapis.com/css2"
-    "?family=Instrument+Sans:wght@400;500;600;700"
-    "&family=Inter:wght@400;500;600;700"
-    "&family=JetBrains+Mono:wght@400;500;600&display=swap');"
+    "?family=Barlow:wght@400;500;600;700"
+    "&family=Barlow+Condensed:wght@400;500;600;700"
+    "&family=IBM+Plex+Mono:wght@400;500;600&display=swap');"
+)
+
+FONT_LINKS = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2'
+    "?family=Barlow:wght@400;500;600;700"
+    "&family=Barlow+Condensed:wght@400;500;600;700"
+    '&family=IBM+Plex+Mono:wght@400;500;600&display=swap">'
 )
 
 # Lucide-style geometry: 24px grid, 1.75 stroke, round caps and joins. Paths
@@ -71,7 +77,7 @@ _ICON_PATHS: dict[str, str] = {
         '<rect x="3" y="5" width="18" height="16" rx="2"/>'
         '<path d="M3 10h18M8 3v4M16 3v4"/>'
     ),
-    "download": ('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>'),
+    "download": '<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>',
     "map": (
         '<path d="m2 6 6.5-3 7 3L22 3v15l-6.5 3-7-3L2 21V6Z"/>'
         '<path d="M8.5 3v15M15.5 6v15"/>'
@@ -94,17 +100,13 @@ def icon(name: str, *, size: int = 18, extra_class: str = "") -> str:
     )
 
 
-# Some Streamlit versions strip @import from injected style blocks, so the
-# faces are also requested with a link element. Both are harmless together, and
-# every stack still names a system fallback so the app never waits on a font.
-FONT_LINKS = (
-    '<link rel="preconnect" href="https://fonts.googleapis.com">'
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2'
-    "?family=Instrument+Sans:wght@400;500;600;700"
-    "&family=Inter:wght@400;500;600;700"
-    '&family=JetBrains+Mono:wght@400;500;600&display=swap">'
-)
+def corners() -> str:
+    """The four registration marks that make a panel read as a drawing."""
+
+    return (
+        '<i class="corner tl"></i><i class="corner tr"></i>'
+        '<i class="corner bl"></i><i class="corner br"></i>'
+    )
 
 
 def as_markup(*blocks: str) -> str:
@@ -113,8 +115,8 @@ def as_markup(*blocks: str) -> str:
     CommonMark ends a raw-HTML block at the first blank line. A stylesheet
     written with blank lines between its sections therefore stops being a
     stylesheet at the first section break, and every rule after it is rendered
-    onto the page as paragraph text. That is not a subtle failure - the whole
-    design system appears as visible source above the interface.
+    onto the page as paragraph text - the whole design system appears as
+    visible source above the interface.
 
     Blank lines are stripped here so the CSS can still be authored with the
     spacing that makes it readable.
@@ -129,552 +131,480 @@ _CSS = f"""
 {FONT_IMPORT}
 
 :root {{
-  /* Neutrals carry the interface; the palette carries meaning. */
-  --ink:        #0C1116;
-  --ink-2:      #333D47;
-  --muted:      #5C6873;
-  --faint:      #8A949E;
-  --rule:       #E5E9EC;
-  --rule-firm:  #CFD6DC;
-  --canvas:     #F7F8FA;
-  --surface:    #FFFFFF;
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
 
-  --route:      #70FFD2;
-  --route-ink:  #05372A;
-  --route-soft: #E8FFF7;
-  --route-line: #9DF4DC;
+  /* Tonal ramps on one shared lightness scale, so the same step of any role
+     matches the others in visual value. */
+  --n100: #f5f5f8; --n200: #e7e7ea; --n300: #d4d4d7; --n400: #b7b7ba;
+  --n500: #98989b; --n600: #7a7a7d; --n700: #5d5d60; --n800: #424244;
+  --n900: #2b2b2d;
 
-  --heat:       #FF9137;
-  --heat-ink:   #8A3B00;
-  --heat-soft:  #FFF3E9;
-  --gold:       #FFCC4D;
-  --caution:    #FFFC8C;
+  --a100: #eef6ff; --a200: #d6ebff; --a300: #b5d9fd; --a400: #94bce3;
+  --a500: #749dc4; --a600: #597ea3; --a700: #416180; --a800: #2c455d;
+  --a900: #1d2d3d;
 
-  --font-display: "Instrument Sans", "Inter", system-ui, sans-serif;
-  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px;
-  --shadow: 0 1px 2px rgba(12,17,22,.04), 0 8px 24px -16px rgba(12,17,22,.18);
+  --space-1: 3.4px; --space-2: 6.8px; --space-3: 10.2px;
+  --space-4: 13.6px; --space-6: 20.4px; --space-8: 27.2px;
 }}
 
 html {{ color-scheme: light; }}
 .stApp, [data-testid="stAppViewContainer"], .main {{
-  background: var(--canvas) !important;
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-feature-settings: "cv05" 1, "ss01" 1;
+  background: var(--color-bg) !important;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
 }}
 [data-testid="stHeader"] {{ background: transparent; }}
-.block-container {{ max-width: 1180px; padding-top: 1.5rem; padding-bottom: 4rem; }}
+.block-container {{ max-width: 1180px; padding-top: .6rem; padding-bottom: 3rem; }}
 
-/* --- Type ------------------------------------------------------------- */
+/* --- Type -------------------------------------------------------------- */
 
-h1, h2, h3, h4 {{ font-family: var(--font-display); color: var(--ink); }}
-h1 {{
-  font-size: 2.6rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.04;
+h1, h2, h3, h4, h5, h6 {{
+  font-family: var(--font-heading); font-weight: 600; line-height: 1.12;
+  letter-spacing: -.015em; color: var(--color-text); margin: 0 0 var(--space-2);
 }}
-h2 {{
-  font-size: 1.45rem; font-weight: 600; letter-spacing: -.022em;
-  margin-top: 2.4rem;
-}}
-h3 {{
-  font-size: 1.1rem; font-weight: 600; letter-spacing: -.016em;
-  margin-top: 1.6rem;
-}}
-h4 {{ font-size: .95rem; font-weight: 600; letter-spacing: -.01em; }}
-p, li, label, .stMarkdown {{ font-family: var(--font-ui); }}
-
+h1 {{ font-size: 44px; line-height: 1.02; }}
+h2 {{ font-size: 28px; margin-top: 0; }}
+h3 {{ font-size: 24px; margin-top: 0; }}
+h4 {{ font-size: 20px; }}
+p, li, label, .stMarkdown {{ font-family: var(--font-body); }}
 .icon {{ flex: none; vertical-align: -.18em; }}
 
-/* Numbers a dispatcher scans down a column must not shift between rows. */
-.mono, .route-fact-value, .route-stop-time, .timing-label,
+/* Every number a dispatcher compares down a column sits in the same place. */
+.mono, .stat-figure, .fact-v, .rail-window, .bar-time,
 [data-testid="stMetricValue"] {{
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  letter-spacing: -.02em;
+}}
+.kicker {{
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--n600);
 }}
 
-.eyebrow {{
-  display: inline-flex; align-items: center; gap: .4rem;
-  color: var(--heat-ink); font-size: .7rem; font-weight: 600;
-  letter-spacing: .13em; text-transform: uppercase;
-}}
+/* --- Blueprint frame --------------------------------------------------- */
 
-/* A dark band for the pitch, light below it for the tool. A dispatcher
-   works in the light interface; the argument for the product does not have to
-   be made in the same register as the controls. */
-.hero-band {{
-  background: var(--ink); color: #FFFFFF;
-  border-radius: var(--r-xl); padding: 2rem 2.3rem 1.9rem;
-  margin: 0 0 1.4rem;
+.blueprint {{ position: relative; border: 1px solid var(--color-divider); }}
+.blueprint > .corner {{
+  position: absolute; width: 11px; height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }}
-.hero-band .wordmark {{ border-bottom-color: rgba(255,255,255,.14); }}
-.hero-band .wordmark > span:first-of-type {{ color: #FFFFFF; }}
-.hero-band .wordmark > .icon {{ color: var(--route); }}
-.hero-band .wordmark-tag {{
-  border-left-color: rgba(255,255,255,.16); color: rgba(255,255,255,.55);
+.blueprint > .corner::before, .blueprint > .corner::after {{
+  content: ""; position: absolute; background: currentColor;
 }}
-.hero-band h1.hero-heading {{ color: #FFFFFF; }}
-.hero-band .hero-copy {{ color: rgba(255,255,255,.66); }}
-.hero-band .hero-proof {{
-  border-top-color: rgba(255,255,255,.14); color: rgba(255,255,255,.62);
-}}
-.hero-band .hero-proof .heat {{ color: var(--gold); }}
-.hero-band .hero-lede {{
-  color: var(--route); font-size: .97rem; font-weight: 500;
-  margin: .9rem 0 0; max-width: 46ch; line-height: 1.55;
-}}
-.hero-grid {{
-  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  gap: 3rem; align-items: start; margin-top: 1.7rem;
-}}
-.hero-proofs {{
-  display: flex; flex-direction: column; gap: 1rem;
-  padding-left: 2.4rem; border-left: 1px solid rgba(255,255,255,.14);
-}}
-.hero-figure {{
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 2rem; font-weight: 600; letter-spacing: -.045em;
-  color: var(--route); line-height: 1;
-}}
-/* A unit set in the mono face leaves a gap the size of a digit. */
-.hero-unit {{
-  font-family: var(--font-ui); font-size: .95rem; font-weight: 500;
-  letter-spacing: 0; margin-left: .18rem;
-}}
-.hero-stat-label {{
-  color: #FFFFFF; font-size: .84rem; font-weight: 500; margin-top: .3rem;
-}}
-.hero-stat-note {{
-  color: rgba(255,255,255,.45); font-size: .76rem; line-height: 1.45;
-  margin-top: .15rem;
-}}
+.blueprint > .corner::before {{ left: 5px; top: 0; width: 1px; height: 100%; }}
+.blueprint > .corner::after {{ top: 5px; left: 0; width: 100%; height: 1px; }}
+.blueprint > .corner.tl {{ top: -6px; left: -6px; }}
+.blueprint > .corner.tr {{ top: -6px; right: -6px; }}
+.blueprint > .corner.bl {{ bottom: -6px; left: -6px; }}
+.blueprint > .corner.br {{ bottom: -6px; right: -6px; }}
 
-/* The product name sits at label scale so the headline owns the page. */
+/* --- Masthead ---------------------------------------------------------- */
+
+.masthead {{
+  border-bottom: 1px solid var(--color-divider);
+  padding: 2px 0 8px; margin-bottom: 2px;
+}}
+.masthead-row {{ display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }}
 .wordmark {{
-  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
-  padding-bottom: 1.1rem; margin-bottom: 1.4rem;
-  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-heading); font-weight: 600; font-size: 20px;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--color-text);
 }}
-.wordmark > span:first-of-type {{
-  font-family: var(--font-display); font-size: 1.02rem; font-weight: 700;
-  letter-spacing: -.02em; color: var(--ink);
+.masthead-tag {{
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--n600);
 }}
-.wordmark > .icon {{ color: var(--route-ink); }}
-.wordmark-tag {{
-  display: inline-flex; align-items: center; gap: .35rem;
-  margin-left: .35rem; padding-left: .75rem;
-  border-left: 1px solid var(--rule);
-  color: var(--faint); font-size: .74rem; font-weight: 500;
+.masthead-area {{ margin-left: auto; display: flex; align-items: baseline; gap: 8px; }}
+.masthead-area .value {{ font-size: 13px; color: var(--color-text); }}
+.safety-strip {{
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  font-size: 11.5px; color: var(--n700);
 }}
-.wordmark-tag .icon {{ color: var(--heat); }}
+.safety-strip::before {{
+  content: ""; width: 6px; height: 6px; background: var(--color-accent);
+  display: block; flex: none;
+}}
 
-h1.hero-heading {{
-  font-family: var(--font-display); color: var(--ink);
-  font-size: 2.75rem; font-weight: 700; letter-spacing: -.038em;
-  line-height: 1.03; margin: 0 0 .9rem; max-width: 15ch;
+/* --- Hero -------------------------------------------------------------- */
+
+.hero-band {{
+  display: grid; grid-template-columns: 1.35fr 1fr; gap: 40px;
+  align-items: start; padding: 20px 0 22px;
+  border-bottom: 1px solid var(--color-divider);
 }}
+h1.hero-heading {{ margin: 0 0 10px; max-width: 22ch; }}
 .hero-copy {{
-  color: var(--muted); font-size: 1.02rem; line-height: 1.6;
-  max-width: 62ch; margin: 0;
+  font-size: 15px; line-height: 1.5; color: var(--n700);
+  max-width: 52ch; margin: 0 0 12px;
 }}
 .hero-proof {{
-  display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap;
-  margin-top: 1.3rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
-  color: var(--muted); font-size: .8rem; font-weight: 500;
+  display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--n600);
 }}
-.hero-proof span {{ display: inline-flex; align-items: center; gap: .45rem; }}
-.hero-proof .heat {{ color: var(--heat-ink); }}
-.hero-proof .heat .icon {{ color: var(--heat); }}
-
-/* --- Sections --------------------------------------------------------- */
-
-.section-head {{ margin: 2.4rem 0 1rem; }}
-.section-index {{
-  font-family: var(--font-mono); font-size: .74rem; font-weight: 500;
-  letter-spacing: .04em; color: var(--faint); display: block;
-  margin-bottom: .35rem;
+.hero-stats {{
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--color-divider);
 }}
-.section-head h2 {{
-  margin: 0; font-size: 1.62rem; font-weight: 600; letter-spacing: -.026em;
+.hero-stats > div {{
+  padding: 12px 12px 14px;
+  border-right: 1px solid var(--color-divider);
 }}
-.section-head p {{
-  margin: .35rem 0 0; color: var(--muted); font-size: .92rem;
-  line-height: 1.55; max-width: 56ch;
+.hero-stats > div:last-child {{ border-right: 0; }}
+.stat-figure {{ font-size: 22px; letter-spacing: -.02em; }}
+.stat-note {{
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--n700);
+  margin-top: 4px;
 }}
-
-/* --- Landing proof ---------------------------------------------------- */
 
 .proof-head {{
-  margin: 1.5rem 0 .7rem; padding-top: 1.2rem;
-  border-top: 1px solid var(--rule);
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  margin: 24px 0 2px;
 }}
 .proof-kicker {{
-  display: inline-flex; align-items: center; gap: .4rem;
-  color: var(--faint); font-size: .68rem; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--n600);
 }}
-.proof-title {{
-  font-family: var(--font-display); color: var(--ink); font-size: 1.5rem;
-  font-weight: 600; letter-spacing: -.024em; margin-top: .25rem;
-}}
+.proof-title {{ font-family: var(--font-heading); font-size: 26px; font-weight: 600; }}
 .proof-note {{
-  color: var(--muted); font-size: .89rem; line-height: 1.55;
-  max-width: 62ch; margin-top: .3rem;
-}}
-.proof-facts {{
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px; margin: .9rem 0 .4rem;
-}}
-.proof-fact {{
-  display: flex; align-items: center; gap: .7rem;
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: var(--r-lg); padding: .9rem 1.1rem;
-}}
-.proof-fact .icon {{ color: var(--route-ink); }}
-.proof-figure {{
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 1.3rem; font-weight: 600; letter-spacing: -.03em; color: var(--ink);
-}}
-.proof-caption {{ color: var(--muted); font-size: .78rem; margin-top: .1rem; }}
-
-/* --- Steps ------------------------------------------------------------ */
-
-.process-strip {{
-  display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
-  margin: 1.2rem 0 .4rem; color: var(--muted);
-}}
-.process-step {{
-  display: inline-flex; align-items: center; gap: .5rem;
-  font-size: .8rem; font-weight: 500; color: var(--faint);
-  cursor: help;
-}}
-.process-number {{
-  display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem;
-  border-radius: 50%; background: var(--surface);
-  border: 1px solid var(--rule-firm);
-  font-family: var(--font-mono); font-size: .7rem; font-weight: 500;
-  color: var(--faint);
-}}
-/* Finished, in progress, and still ahead must be tellable apart at a glance. */
-.process-step.done {{ color: var(--muted); }}
-.process-step.done .process-number {{
-  background: var(--route); border-color: var(--route); color: var(--route-ink);
-}}
-.process-step.active {{ color: var(--ink); font-weight: 600; }}
-.process-step.active .process-number {{
-  background: var(--ink); border-color: var(--ink); color: #FFFFFF;
-}}
-.process-step.active .icon {{ color: var(--heat); }}
-.process-step.pending {{ opacity: .65; }}
-.process-arrow {{ color: var(--rule-firm); display: inline-flex; }}
-
-/* --- Surfaces --------------------------------------------------------- */
-
-.picker-instruction, .journey-panel, .empty-state, .build-summary,
-.timing-bars, .route-rail, .safety-note {{
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: var(--r-lg);
+  font-size: 13px; line-height: 1.5; color: var(--n700);
+  max-width: 74ch; margin: 2px 0 12px;
 }}
 
-.picker-instruction {{ padding: 1rem 1.15rem; margin-bottom: 1rem; }}
-.picker-instruction strong {{
-  display: block; font-family: var(--font-display); font-size: .98rem;
-  font-weight: 600; color: var(--ink); margin-bottom: .15rem;
+/* --- Section headers --------------------------------------------------- */
+
+.section-head {{ display: flex; align-items: baseline; gap: 12px; margin: 26px 0 4px; }}
+.section-index {{
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .04em;
+  color: var(--a700); border-bottom: 1px solid var(--a300); padding-bottom: 1px;
 }}
-.picker-instruction span {{ color: var(--muted); font-size: .87rem; }}
-.picker-instruction.ready {{
-  border-color: var(--route-line); background: var(--route-soft);
+.section-blurb {{
+  font-size: 13.5px; color: var(--n700); max-width: 74ch; margin: 0 0 14px;
 }}
 
-.build-summary {{
-  padding: 1.05rem 1.2rem; margin: .9rem 0 1.1rem;
-  color: var(--muted); font-size: .9rem; line-height: 1.55;
-}}
-.build-summary strong {{
-  display: block; font-family: var(--font-display); color: var(--ink);
-  font-size: 1rem; font-weight: 600; margin-bottom: .25rem;
-}}
+/* --- Steps ------------------------------------------------------------- */
 
-.workday-chip {{
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem; flex-wrap: wrap; margin: .85rem 0 .4rem;
-  padding: .6rem .9rem; border: 1px solid var(--rule);
-  border-radius: var(--r-md); background: var(--surface);
-  font-size: .82rem; color: var(--muted);
+.steps {{
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--color-divider); margin-bottom: 22px;
 }}
-.workday-chip strong {{ color: var(--ink); font-weight: 600; }}
-.workday-chip span:last-child {{
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: .78rem;
+.step {{
+  padding: 12px 14px; border-right: 1px solid var(--color-divider);
+  display: flex; gap: 10px; align-items: flex-start;
 }}
+.step:last-child {{ border-right: 0; }}
+.step-index {{ font-family: var(--font-mono); font-size: 11px; color: var(--a700); }}
+.step-title {{ font-family: var(--font-heading); font-size: 16px; }}
+.step-note {{ font-size: 11.5px; color: var(--n600); }}
+.step.done {{ background: color-mix(in srgb, var(--color-accent) 6%, transparent); }}
+.step.pending {{ opacity: .55; }}
+.step.pending .step-index {{ color: var(--n500); }}
 
-.empty-state {{ padding: 2.2rem 1.6rem; text-align: center; }}
-.empty-state h3 {{ margin: 0 0 .5rem; font-size: 1.15rem; }}
-.empty-state p {{
-  color: var(--muted); font-size: .92rem; line-height: 1.6;
-  max-width: 54ch; margin: 0 auto;
-}}
+/* --- Decision ---------------------------------------------------------- */
 
-.safety-note {{
-  padding: .85rem 1rem; margin-top: 1.4rem;
-  color: var(--muted); font-size: .82rem; line-height: 1.55;
-  border-left: 3px solid var(--gold);
+.decision {{
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  border: 1px solid var(--color-divider);
 }}
-.safety-note strong {{ color: var(--ink); font-weight: 600; }}
-
-/* --- The decision ----------------------------------------------------- */
-
-.bento {{
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px; margin: .5rem 0 1.8rem;
-}}
-.bento > * {{
-  border: 1px solid var(--rule); border-radius: var(--r-lg);
-  padding: 1.25rem 1.35rem; min-width: 0; background: var(--surface);
-}}
-.bento-hero {{
-  grid-column: span 4; grid-row: span 3;
-  display: flex; flex-direction: column; justify-content: center;
-}}
-.bento-tile {{
-  grid-column: span 2; display: flex; flex-direction: column;
-  justify-content: center;
-}}
-.decision-card {{
-  background: var(--route); border-color: var(--route);
-  box-shadow: var(--shadow);
+.decision-main {{
+  grid-column: span 4; padding: 24px 26px 22px;
+  background: var(--color-accent); color: var(--color-bg);
+  border-right: 1px solid var(--color-divider);
 }}
 .decision-label {{
-  display: inline-flex; align-items: center; gap: .4rem;
-  color: var(--route-ink); font-size: .68rem; font-weight: 600;
-  letter-spacing: .13em; text-transform: uppercase; opacity: .78;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .16em;
+  margin-bottom: 8px; opacity: .9; text-transform: uppercase;
 }}
-.decision-card h2 {{
-  margin: .5rem 0 .45rem; font-size: 2.15rem; font-weight: 700;
-  letter-spacing: -.035em; color: var(--route-ink); line-height: 1.05;
+.decision-main h3 {{
+  margin: 0 0 10px;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--color-bg);
 }}
-.decision-card p {{
-  margin: 0; color: #0A4234; font-size: .93rem; line-height: 1.6; max-width: 46ch;
+.decision-main p {{ margin: 0; font-size: 14.5px; line-height: 1.5; max-width: 46ch; }}
+.decision-side {{ grid-column: span 2; display: flex; flex-direction: column; }}
+.decision-cell {{
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-divider);
+  flex: 1;
 }}
-.decision-card strong {{ font-weight: 600; }}
-
-.route-fact {{ background: var(--surface); border-radius: var(--r-lg); }}
-.route-fact-label {{
-  display: flex; align-items: center; gap: .4rem;
-  color: var(--faint); font-size: .68rem; font-weight: 600;
-  letter-spacing: .09em; text-transform: uppercase; margin-bottom: .45rem;
-}}
-.route-fact-value {{
-  color: var(--ink); font-size: 1.15rem; font-weight: 500;
-  overflow-wrap: anywhere; line-height: 1.25;
-}}
-.bento-tile.stop .route-fact-label .icon {{ color: var(--heat); }}
-.bento-tile.time .route-fact-label .icon {{ color: var(--route-ink); }}
-.bento-tile.status .route-fact-label .icon {{ color: var(--muted); }}
-.route-summary {{
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px; margin: 0 0 1.35rem;
+.decision-cell:last-child {{ border-bottom: 0; }}
+.decision-cell .value {{
+  font-family: var(--font-mono); font-size: 22px; font-variant-numeric: tabular-nums;
+  margin-top: 3px;
 }}
 
-/* --- Start-time comparison -------------------------------------------- */
+/* --- Why this start ---------------------------------------------------- */
 
-.timing-bars {{
-  padding: 1.15rem 1.3rem; margin: .3rem 0 1.5rem;
-  display: flex; flex-direction: column; gap: .5rem;
+.why {{ border: 1px solid var(--color-divider); border-top: 0; }}
+.why > summary {{
+  display: flex; align-items: center; gap: 14px; padding: 12px 18px;
+  cursor: pointer; list-style: none; font-size: 13px; color: var(--n800);
 }}
-.timing-row {{
-  display: grid; grid-template-columns: 3.6rem 1fr 7.2rem;
-  align-items: center; gap: .9rem;
+.why > summary::-webkit-details-marker {{ display: none; }}
+.why > summary:hover {{
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
 }}
-.timing-label {{ color: var(--muted); font-size: .84rem; font-weight: 500; }}
-.timing-track {{
-  background: var(--canvas); border-radius: 999px; height: 10px;
-  overflow: hidden; border: 1px solid var(--rule);
+.why-label {{
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--a700);
 }}
-.timing-bar {{
-  background: var(--rule-firm); height: 100%; border-radius: 999px;
-  min-width: 4px;
+.why-toggle {{
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--n600);
 }}
-.timing-tag {{
-  color: var(--faint); font-size: .76rem; font-weight: 500; text-align: right;
+.why-body {{ padding: 4px 18px 18px; border-top: 1px solid var(--color-divider); }}
+.why-note {{
+  font-size: 12.5px;
+  color: var(--n700);
+  margin: 12px 0 14px;
+  max-width: 78ch;
 }}
-.timing-row.picked .timing-label {{ color: var(--ink); font-weight: 600; }}
-.timing-row.picked .timing-bar {{ background: var(--route); }}
-.timing-row.picked .timing-tag {{ color: var(--route-ink); font-weight: 600; }}
+.bar-row {{
+  display: grid; grid-template-columns: 62px 1fr 150px; gap: 12px;
+  align-items: center; padding: 5px 0;
+}}
+.bar-time {{ font-size: 13px; color: var(--n800); }}
+.bar-track {{
+  height: 16px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}}
+.bar-fill {{ height: 100%; background: var(--a300); }}
+.bar-row.picked .bar-fill {{ background: var(--color-accent); }}
+.bar-note {{ font-size: 12px; color: var(--n700); }}
+.bar-row.picked .bar-note {{ color: var(--a800); font-weight: 600; }}
+.bar-aside {{
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--n700);
+  margin-top: 6px;
+}}
+.bar-aside .mark {{ font-family: var(--font-mono); color: var(--a700); }}
 
-/* --- Route hand-off --------------------------------------------------- */
+/* --- Route rail -------------------------------------------------------- */
 
-.route-rail {{ position: relative; padding: 1.1rem 1.2rem; }}
-.route-stop, .route-endpoint, .route-return {{
-  display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) auto;
-  align-items: center; gap: .85rem; padding: .7rem 0;
-  border-bottom: 1px solid var(--rule);
+.rail-node {{
+  display: flex; gap: 12px; padding: 11px 12px;
+  border: 1px solid var(--color-divider); border-top: 0;
 }}
-.route-rail > *:last-child {{ border-bottom: 0; }}
-.route-endpoint, .route-return {{ grid-template-columns: 2.4rem minmax(0, 1fr); }}
-.route-stop-number {{
-  display: grid; place-items: center; width: 2.15rem; height: 2.15rem;
-  border-radius: 50%; background: var(--heat-soft); color: var(--heat-ink);
-  border: 1px solid var(--gold);
-  font-family: var(--font-mono); font-size: .92rem; font-weight: 600;
+.rail-node:first-child {{ border-top: 1px solid var(--color-divider); }}
+.rail-node.base {{
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }}
-.route-endpoint-node, .route-return-node {{
-  width: .85rem; height: .85rem; border-radius: 50%;
-  background: var(--route); border: 1px solid var(--route-line);
-  margin-left: .65rem;
+.rail-index {{
+  font-family: var(--font-mono);
+  font-size: 13px;
+  width: 20px;
+  color: var(--n800);
 }}
-.route-return-node {{ background: var(--surface); }}
-.route-stop-kicker {{
-  color: var(--faint); font-size: .66rem; font-weight: 600;
-  letter-spacing: .09em; text-transform: uppercase;
+.rail-node.base .rail-index {{ color: var(--a800); font-size: 11px; }}
+.rail-kicker {{
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--a700);
 }}
-.route-stop-name {{
-  font-family: var(--font-display); color: var(--ink); font-size: .97rem;
-  font-weight: 600; letter-spacing: -.012em; margin-top: .08rem;
-}}
-.route-stop-task {{ color: var(--ink-2); font-size: .83rem; }}
-.route-stop-travel {{ color: var(--muted); font-size: .78rem; margin-top: .12rem; }}
-.route-stop-time {{
-  color: var(--ink); font-size: .82rem; font-weight: 500; white-space: nowrap;
-}}
-.map-note {{
-  color: var(--faint); font-size: .78rem; line-height: 1.5; margin-top: .6rem;
+.rail-node.base .rail-kicker {{ color: var(--a800); }}
+.rail-name {{ font-size: 13.5px; line-height: 1.3; }}
+.rail-note {{ font-size: 11.5px; color: var(--n600); }}
+.rail-window {{
+  font-size: 11.5px; white-space: nowrap; color: var(--n800); margin-left: auto;
 }}
 
-/* --- Setup journey ---------------------------------------------------- */
+/* --- Refusal plates ---------------------------------------------------- */
 
-.journey-panel {{ padding: 1.1rem 1.2rem; }}
-.journey-eyebrow {{
-  color: var(--faint); font-size: .68rem; font-weight: 600;
-  letter-spacing: .11em; text-transform: uppercase; margin-bottom: .5rem;
+.gate {{
+  display: grid; grid-template-columns: 1.3fr 1fr;
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
 }}
-.journey-list {{ position: relative; }}
-.journey-row {{
-  display: grid; grid-template-columns: 1.4rem minmax(0, 1fr);
-  gap: .8rem; align-items: start;
+.gate-main {{ padding: 24px 26px; }}
+.gate-tags {{ display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }}
+.gate-code {{
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  padding: 3px 7px; background: var(--n900); color: var(--n100);
 }}
-.journey-copy {{ padding: .55rem 0; border-bottom: 1px solid var(--rule); }}
-.journey-row:last-child .journey-copy {{ border-bottom: 0; }}
-.journey-node {{
-  width: .8rem; height: .8rem; border-radius: 50%; margin-top: .95rem;
-  background: var(--heat); border: 1px solid var(--gold);
-  display: grid; place-items: center;
-  font-family: var(--font-mono); font-size: .58rem; color: var(--heat-ink);
+.gate-kind {{
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--n600);
 }}
-.journey-node.depot {{ background: var(--route); border-color: var(--route-line); }}
-.journey-node.depot.pending, .journey-node.pending {{
-  background: var(--surface); border: 1px dashed var(--rule-firm);
+.gate-main h2 {{ margin: 0 0 10px; font-size: 32px; max-width: 24ch; }}
+.gate-body {{
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--n800);
+  max-width: 58ch;
+  margin: 0 0 14px;
 }}
-.journey-node.return {{ background: var(--surface); border-color: var(--route-line); }}
-.journey-kicker {{
-  color: var(--faint); font-size: .64rem; font-weight: 600;
-  letter-spacing: .09em; text-transform: uppercase;
+.gate-consequence {{
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--n700);
+  max-width: 58ch;
+  margin: 0;
 }}
-.journey-title {{
-  font-family: var(--font-display); color: var(--ink); font-size: .92rem;
-  font-weight: 600;
+.gate-facts {{ padding: 24px 26px; border-left: 1px solid var(--color-divider); }}
+.fact {{
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  font-size: 12.5px;
 }}
-.journey-meta {{ color: var(--muted); font-size: .8rem; margin-top: .08rem; }}
+.fact-k {{ color: var(--n700); }}
+.fact-v {{ text-align: right; }}
+.gate-reassure {{
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--n600);
+  margin: 14px 0 0;
+}}
 
-/* Each map click costs a server round trip of roughly 600ms, during which
-   the map cannot accept another one. That is streamlit-folium's nature, not
-   something the page can buffer away - so the wait is made obvious instead,
-   because a click that vanishes with no sign of work reads as a broken map. */
-[data-testid="stStatusWidget"] {{
-  background: var(--ink) !important; color: #FFFFFF !important;
-  border-radius: 999px !important; border: 0 !important;
-  padding: .3rem .85rem .3rem .5rem !important;
-  box-shadow: 0 6px 20px -8px rgba(12,17,22,.5) !important;
+/* --- Panels and strips ------------------------------------------------- */
+
+.summary-strip {{
+  display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: center;
+  border: 1px solid var(--color-divider); padding: 16px 18px; margin-top: 12px;
 }}
-[data-testid="stStatusWidget"] * {{ color: #FFFFFF !important; }}
-[data-testid="stStatusWidget"] svg {{ fill: var(--route) !important; }}
+.summary-line {{
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}}
+.summary-note {{ font-size: 12px; color: var(--n600); margin-top: 4px; }}
+.result-strip {{
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 12px; border: 1px solid var(--color-divider); padding: 10px 14px;
+  font-size: 12px; color: var(--n600);
+}}
+.result-strip .mono {{ font-size: 11.5px; color: var(--color-text); }}
+.instruction {{
+  border: 1px solid var(--color-divider);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}}
+.instruction.ready {{
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}}
+.instruction strong {{
+  display: block; font-family: var(--font-heading); font-size: 17px;
+  font-weight: 600; margin-bottom: 2px;
+}}
+.instruction span {{ font-size: 12.5px; color: var(--n700); }}
+.empty-state {{ border: 1px solid var(--color-divider); padding: 26px 22px; }}
+.empty-state h3 {{ margin: 0 0 6px; }}
+.empty-state p {{ font-size: 13px; color: var(--n700); margin: 0; max-width: 60ch; }}
+.map-note {{ font-size: 11.5px; color: var(--n600); margin-top: 6px; }}
+.step-done {{
+  display: flex; align-items: center; gap: .5rem; color: var(--n800);
+  font-size: 13px; padding: .1rem 0;
+}}
+.step-done .icon {{ color: var(--a700); }}
 
-/* --- Streamlit widgets ------------------------------------------------ */
+/* --- Colophon ---------------------------------------------------------- */
 
-.stButton > button {{
-  font-family: var(--font-ui); font-size: .9rem; font-weight: 600;
-  border-radius: var(--r-md); border: 1px solid var(--rule-firm);
-  padding: .62rem 1.1rem; transition: none;
+.colophon {{
+  margin-top: 30px; border-top: 1px solid var(--color-divider);
+  padding: 18px 0 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+}}
+.colophon p {{ font-size: 13px; line-height: 1.55; margin: 0; max-width: 60ch; }}
+.colophon-rows {{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--n700);
+}}
+.colophon-row {{
+  display: flex; justify-content: space-between;
+  border-bottom: 1px solid var(--color-divider); padding-bottom: 5px;
+}}
+.colophon-row:last-child {{ border-bottom: 0; }}
+
+/* --- Streamlit widgets ------------------------------------------------- */
+
+.stButton > button, .stDownloadButton > button, .stLinkButton > a {{
+  font-family: var(--font-heading); font-weight: 600; font-size: 14px;
+  border-radius: 0; border: 1px solid var(--color-divider);
+  padding: 9px 16px; transition: none; color: var(--color-text);
+  background: transparent;
 }}
 .stButton > button[kind="primary"] {{
-  background: var(--ink); border-color: var(--ink); color: #FFFFFF;
+  background: var(--color-accent); border-color: var(--color-accent);
+  color: var(--color-bg);
 }}
 .stButton > button[kind="primary"]:hover:not(:disabled) {{
-  background: #000; border-color: #000; color: #FFFFFF;
+  background: var(--a600); border-color: var(--a600); color: var(--color-bg);
 }}
-.stButton > button[kind="primary"]:disabled {{ opacity: .38; }}
-.stButton > button:not([kind="primary"]) {{
-  background: var(--surface); color: var(--ink);
-}}
+.stButton > button[kind="primary"]:disabled {{ opacity: .45; }}
 .stButton > button:not([kind="primary"]):hover:not(:disabled) {{
-  border-color: var(--ink); color: var(--ink);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  border-color: var(--color-divider); color: var(--color-text);
 }}
-.stDownloadButton > button, .stLinkButton > a {{
-  font-family: var(--font-ui); font-size: .88rem; font-weight: 500;
-  border-radius: var(--r-md); border: 1px solid var(--rule-firm);
-  background: var(--surface); color: var(--ink);
-}}
-
 [data-testid="stMetric"] {{
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: var(--r-md); padding: .9rem 1rem;
+  background: transparent; border: 1px solid var(--color-divider);
+  border-radius: 0; padding: 14px 16px;
 }}
 [data-testid="stMetricLabel"] {{
-  color: var(--faint); font-size: .68rem !important; font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase;
+  font-family: var(--font-mono); color: var(--n600);
+  font-size: 9.5px !important; letter-spacing: .12em; text-transform: uppercase;
 }}
-[data-testid="stMetricValue"] {{ font-size: 1.4rem !important; font-weight: 500; }}
-
+[data-testid="stMetricValue"] {{ font-size: 26px !important; font-weight: 400; }}
 [data-testid="stExpander"] details {{
-  border: 1px solid var(--rule); border-radius: var(--r-md);
-  background: var(--surface);
+  border: 1px solid var(--color-divider); border-radius: 0; background: transparent;
 }}
-[data-testid="stExpander"] summary {{ font-size: .87rem; font-weight: 500; }}
-
-.step-done {{
-  display: flex; align-items: center; gap: .5rem;
-  color: var(--ink-2); font-size: .87rem; padding: .12rem 0;
-}}
-.step-done .icon {{ color: var(--route-ink); }}
-
+[data-testid="stExpander"] summary {{ font-size: 13px; font-family: var(--font-body); }}
 [data-testid="stCaptionContainer"], .stCaption {{
-  color: var(--faint) !important; font-size: .79rem; line-height: 1.55;
+  color: var(--n600) !important; font-size: 11.5px; line-height: 1.5;
 }}
-
 div[data-baseweb="input"] input, div[data-baseweb="select"] > div {{
-  font-family: var(--font-ui); border-radius: var(--r-sm);
+  font-family: var(--font-body); border-radius: 0; background: var(--color-surface);
 }}
 [data-testid="stDataFrame"] {{
-  border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
 }}
-[data-testid="stAlert"] {{ border-radius: var(--r-md); font-size: .87rem; }}
-hr {{ border-color: var(--rule); margin: 2.2rem 0; }}
+[data-testid="stAlert"] {{ border-radius: 0; font-size: 13px; }}
+hr {{ border-color: var(--color-divider); margin: 1.6rem 0; }}
+/* A map click costs a server round trip of roughly 600ms, during which the map
+   cannot accept another. That wait is made obvious rather than mysterious. */
+[data-testid="stStatusWidget"] {{
+  background: var(--n900) !important; color: var(--n100) !important;
+  border-radius: 0 !important; border: 0 !important;
+}}
+[data-testid="stStatusWidget"] * {{ color: var(--n100) !important; }}
 
-/* --- Narrow screens --------------------------------------------------- */
+/* --- Narrow screens ---------------------------------------------------- */
 
-@media (max-width: 760px) {{
+@media (max-width: 820px) {{
   .block-container {{ padding-left: 1rem; padding-right: 1rem; }}
-  h1 {{ font-size: 2rem; }}
-  h1.hero-heading {{ font-size: 2.05rem; max-width: 100%; }}
-  .hero-band {{ padding: 1.6rem 1.4rem 1.5rem; }}
-  .hero-grid {{ grid-template-columns: 1fr; gap: 1.8rem; }}
-  .hero-proofs {{
-    padding-left: 0; border-left: 0; padding-top: 1.4rem;
-    border-top: 1px solid rgba(255,255,255,.14);
+  h1 {{ font-size: 34px; }}
+  .hero-band, .colophon {{ grid-template-columns: 1fr; gap: 20px; }}
+  .decision {{ grid-template-columns: 1fr; }}
+  .decision-main, .decision-side {{ grid-column: span 1; }}
+  .decision-main {{ border-right: 0; border-bottom: 1px solid var(--color-divider); }}
+  .decision-main h3 {{ font-size: 30px; }}
+  .gate {{ grid-template-columns: 1fr; }}
+  .gate-facts {{ border-left: 0; border-top: 1px solid var(--color-divider); }}
+  .steps {{ grid-template-columns: 1fr; }}
+  .step {{ border-right: 0; border-bottom: 1px solid var(--color-divider); }}
+  .hero-stats {{ grid-template-columns: 1fr; }}
+  .hero-stats > div {{
+    border-right: 0;
+    border-bottom: 1px solid var(--color-divider);
   }}
-  .wordmark-tag {{ margin-left: 0; padding-left: 0; border-left: 0; }}
-  .process-arrow {{ display: none; }}
-  .proof-note {{ text-align: left; }}
-  .proof-facts {{ grid-template-columns: 1fr; }}
-  .bento {{ grid-template-columns: 1fr; }}
-  .bento-hero, .bento-tile {{ grid-column: span 1; grid-row: auto; }}
-  .decision-card h2 {{ font-size: 1.75rem; }}
-  .route-summary {{ grid-template-columns: 1fr; }}
-  .timing-row {{ grid-template-columns: 3.2rem 1fr; }}
-  .timing-tag {{ grid-column: 2; text-align: left; }}
-  .route-stop {{ grid-template-columns: 2.4rem minmax(0, 1fr); }}
-  .route-stop-time {{ grid-column: 2; }}
+  .bar-row {{ grid-template-columns: 54px 1fr; }}
+  .bar-note {{ grid-column: 2; }}
+  .summary-strip {{ grid-template-columns: 1fr; }}
 }}
 </style>
 """
@@ -684,8 +614,8 @@ STYLESHEET = as_markup(FONT_LINKS, _CSS)
 RESULT_MODE_STYLES = as_markup(
     """
 <style>
-.hero-heading, .hero-copy, .hero-proof, .process-strip { display: none; }
-.wordmark { margin-bottom: 1rem; }
+.hero-band { display: none; }
+.masthead { margin-bottom: 0; }
 </style>
 """
 )
@@ -696,5 +626,6 @@ __all__ = [
     "RESULT_MODE_STYLES",
     "STYLESHEET",
     "as_markup",
+    "corners",
     "icon",
 ]
