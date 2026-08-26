@@ -24,15 +24,18 @@ def test_picker_keeps_dynamic_selection_out_of_the_base_map() -> None:
     )
 
     assert base_map.location == pytest.approx([33.4484, -112.0740])
-    assert map_picker.DEPOT_COLOR == "#70FFD2"
-    assert map_picker.JOB_COLOR == "#FF9137"
-    assert map_picker.MARKER_TEXT_COLOR == "#0B1524"
+    # The map is part of the same drawing, so it takes the same accent.
+    assert map_picker.DEPOT_COLOR == "#5980a6"
+    assert map_picker.JOB_COLOR == "#2b2b2d"
+    assert map_picker.MARKER_TEXT_COLOR == "#f2f2f3"
     tile_layer = next(
         child
         for child in base_map._children.values()
         if isinstance(child, folium.TileLayer)
     )
-    assert "light_all" in tile_layer.tiles
+    # CartoDB now stamps "API KEY REQUIRED" across every tile; the
+    # OpenStreetMap standard layer needs no key.
+    assert "openstreetmap.org" in tile_layer.tiles
     assert not any(
         isinstance(child, folium.Marker) for child in base_map._children.values()
     )

@@ -502,33 +502,36 @@ def test_crew_route_leads_with_one_plain_language_decision(
     decision_markup = next(
         str(element.value)
         for element in app.markdown
-        if 'class="bento-hero decision-card"' in str(element.value)
+        if 'class="decision-main"' in str(element.value)
     )
-    assert 'class="bento-tile route-fact stop"' in decision_markup
-    assert 'class="bento-tile route-fact time"' in decision_markup
-    assert 'class="bento-tile route-fact status"' in decision_markup
+    # The finding leads; the three facts sit beside it rather than under it.
+    assert decision_markup.count('class="decision-cell"') == 3
+    assert '<div class="decision-label">' in decision_markup
     assert rendered_states.network_calls == []
 
 
-def test_crew_route_has_six_ordered_instruction_cards(
+def test_crew_route_has_six_ordered_instruction_rows(
     rendered_states: RenderedStates,
 ) -> None:
+    """The run sheet is read top to bottom, so its order is the visit order."""
+
     route_markup = next(
-        element.value
+        str(element.value)
         for element in rendered_states.crew.markdown
-        if 'data-route-stop="1"' in str(element.value)
+        if 'class="rail-node base"' in str(element.value)
     )
     positions = [
-        route_markup.index(f'data-route-stop="{stop}"') for stop in range(1, 7)
+        route_markup.index(f'<span class="rail-index">{stop}</span>')
+        for stop in range(1, 7)
     ]
 
     assert positions == sorted(positions)
-    assert route_markup.count('class="route-stop"') == 6
-    assert route_markup.count('class="route-stop-number"') == 6
+    # Six stops, plus the base row and the return row.
+    assert route_markup.count('class="rail-node"') == 7
+    assert route_markup.count('class="rail-node base"') == 1
     assert route_markup.count("Start here") == 1
     assert route_markup.count("Next stop") == 5
     assert "Return to crew base" in route_markup
-    assert "\n" not in route_markup
 
 
 def test_crew_route_map_makes_the_visit_order_visible(

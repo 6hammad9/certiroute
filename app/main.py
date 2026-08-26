@@ -735,57 +735,46 @@ def render_route(plan: SchedulePlan, depot: GeoPoint) -> None:
 
 
 def render_crew_itinerary(plan: SchedulePlan) -> None:
-    """List only the instructions a crew needs to follow the sequence."""
+    """The stop list as a run sheet: one bordered row per node, in order."""
 
-    cards: list[str] = [
-        (
-            '<div class="route-endpoint">'
-            '<div class="route-endpoint-node"></div>'
-            "<div>"
-            '<div class="route-stop-kicker">Start</div>'
-            '<div class="route-stop-name">Crew base</div>'
-            "</div>"
-            "</div>"
-        )
+    first = plan.stops[0]
+    sign_on = minute_label(first.arrival_minute - first.inbound_travel_minutes)
+    rows = [
+        '<div class="rail-node base">'
+        '<span class="rail-index">&#9670;</span>'
+        '<div><div class="rail-kicker">Crew base</div>'
+        f'<div class="rail-name">Sign on at {sign_on}</div></div></div>'
     ]
     for stop in plan.stops:
         site, task = site_and_task(stop.job_name)
-        instruction = "Start here" if stop.sequence == 1 else "Next stop"
         travel = (
-            "Depot and first site share this location"
+            "depot and first site share this location"
             if stop.sequence == 1 and stop.inbound_travel_minutes == 0
-            else f"{stop.inbound_travel_minutes} min estimated travel from prior stop"
+            else f"{stop.inbound_travel_minutes} min estimated travel"
         )
-        cards.append(
-            f'<div class="route-stop" data-route-stop="{stop.sequence}">'
-            f'<div class="route-stop-number">{stop.sequence}</div>'
-            '<div class="route-stop-copy">'
-            f'<div class="route-stop-kicker">{instruction}</div>'
-            f'<div class="route-stop-name">{escape(site)}</div>'
-            f'<div class="route-stop-task">{escape(task)}</div>'
-            f'<div class="route-stop-travel">{escape(travel)}</div>'
+        rows.append(
+            f'<div class="rail-node">'
+            f'<span class="rail-index">{stop.sequence}</span>'
+            '<div style="flex:1">'
+            f'<div class="rail-kicker">'
+            f"{'Start here' if stop.sequence == 1 else 'Next stop'}</div>"
+            f'<div class="rail-name">{escape(site)}</div>'
+            f'<div class="rail-note">{escape(task)} &middot; {escape(travel)}</div>'
             "</div>"
-            '<div class="route-stop-time">'
-            f"{minute_label(stop.start_minute)}&ndash;"
-            f"{minute_label(stop.finish_minute)}"
-            "</div>"
-            "</div>"
+            f'<span class="rail-window">{minute_label(stop.start_minute)}'
+            f"&ndash;{minute_label(stop.finish_minute)}</span></div>"
         )
     inbound = sum(stop.inbound_travel_minutes for stop in plan.stops)
-    return_minutes = max(0, plan.total_travel_minutes - inbound)
-    cards.append(
-        '<div class="route-return"><div class="route-return-node"></div><div>'
-        '<div class="route-stop-kicker">Finish</div>'
-        '<div class="route-stop-name">Return to crew base</div>'
-        f'<div class="route-stop-travel">{return_minutes} min '
-        "estimated travel &middot; "
-        f"back by <strong>{minute_label(plan.route_finish_minute)}</strong>"
-        "</div></div></div>"
+    home = max(0, plan.total_travel_minutes - inbound)
+    rows.append(
+        '<div class="rail-node">'
+        '<span class="rail-index">&#9670;</span>'
+        '<div style="flex:1"><div class="rail-name">Return to crew base</div>'
+        f'<div class="rail-note">{home} min estimated travel</div></div>'
+        f'<span class="rail-window">'
+        f"{minute_label(plan.route_finish_minute)}</span></div>"
     )
-    st.markdown(
-        '<div class="route-rail">' + "".join(cards) + "</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("".join(rows), unsafe_allow_html=True)
 
 
 def render_run_sheet(plan: SchedulePlan, depot: GeoPoint) -> None:
@@ -880,7 +869,7 @@ def render_crew_decision(
     recommendation: SchedulePlan,
     reduction: float | None,
 ) -> SchedulePlan:
-    """State one decision and return the plan the crew should actually follow."""
+    """State one finding about a finished day, and return the plan to show."""
 
     order_changed = [stop.job_id for stop in baseline.stops] != [
         stop.job_id for stop in recommendation.stops
@@ -890,64 +879,53 @@ def render_crew_decision(
     first_site = escape(site_and_task(crew_plan.stops[0].job_name)[0])
 
     if use_heat_order:
-        extra_travel = (
-            recommendation.total_travel_minutes - baseline.total_travel_minutes
-        )
+        extra = recommendation.total_travel_minutes - baseline.total_travel_minutes
         travel_copy = (
             "without adding estimated travel"
-            if extra_travel <= 0
-            else f"with {extra_travel} added estimated travel minutes"
+            if extra <= 0
+            else f"with {extra} added estimated travel minutes"
         )
-        decision_label = "Heat-aware order"
+        label = "Heat-aware order"
         title = "The order that ran coolest"
-        explanation = (
+        body = (
             f"On this day's measured temperatures, this order avoided "
             f"{reduction:.1%} of modelled heat exposure {travel_copy} while "
-            "keeping every job on time. It begins at "
-            f"<strong>{first_site}</strong> at "
-            f"<strong>{minute_label(crew_plan.stops[0].start_minute)}</strong>."
+            f"keeping every job on time. It begins at {first_site}."
         )
     else:
-        decision_label = "Efficient order"
+        label = "Efficient order"
         title = "Reordering would not have helped"
-        explanation = (
+        body = (
             "On this day's measured temperatures the heat-aware search found no "
             "sequence worth changing, so the efficient order stands. It begins "
-            f"at <strong>{first_site}</strong> at "
-            f"<strong>{minute_label(crew_plan.stops[0].start_minute)}</strong>."
+            f"at {first_site}."
         )
 
+    cells = (
+        ("First stop", f"1 &middot; {first_site}"),
+        (
+            "Shift window",
+            f"{minute_label(crew_plan.stops[0].start_minute)} &ndash; "
+            f"{minute_label(crew_plan.route_finish_minute)}",
+        ),
+        ("Jobs on time", f"{len(crew_plan.stops)} of {len(baseline.stops)}"),
+    )
     st.markdown(
         f"""
-        <div class="bento">
-          <div class="bento-hero decision-card">
-            <div class="decision-label">
-              {icon("route", size=13)}{decision_label}
-            </div>
-            <h2>{title}</h2>
-            <p>{explanation}</p>
+        <div class="decision">
+          <div class="decision-main">
+            <div class="decision-label">{escape(label)}</div>
+            <h3>{escape(title)}</h3>
+            <p>{body}</p>
           </div>
-          <div class="bento-tile route-fact stop">
-            <div class="route-fact-label">{icon("pin", size=13)}First stop</div>
-            <div class="route-fact-value">1 · {first_site}</div>
-          </div>
-          <div class="bento-tile route-fact time">
-            <div class="route-fact-label">{icon("clock", size=13)}Shift route</div>
-            <div class="route-fact-value">
-              {minute_label(crew_plan.stops[0].start_minute)} →
-              {minute_label(crew_plan.route_finish_minute)}
-            </div>
-          </div>
-          <div class="bento-tile route-fact status">
-            <div class="route-fact-label">
-              {icon("check", size=13)}Jobs on time
-            </div>
-            <div class="route-fact-value">
-              {len(crew_plan.stops)} of {len(baseline.stops)}
-            </div>
-          </div>
-        </div>
-        """,
+          <div class="decision-side">
+        """
+        + "".join(
+            f'<div class="decision-cell"><div class="kicker">{escape(name)}</div>'
+            f'<div class="value">{value}</div></div>'
+            for name, value in cells
+        )
+        + "</div></div>",
         unsafe_allow_html=True,
     )
     return crew_plan
@@ -1379,7 +1357,7 @@ def render_picker_instruction(state: MapScenarioState) -> None:
             "trained ground."
         )
     st.markdown(
-        f'<div class="picker-instruction{style}"><strong>{title}</strong>'
+        f'<div class="instruction{style}"><strong>{title}</strong>'
         f"<span>{detail}</span></div>",
         unsafe_allow_html=True,
     )
@@ -1806,7 +1784,7 @@ def hint_for(state: MapScenarioState) -> map_picker.MapHint | None:
             longitude=state.depot.longitude + 0.016,
             text="Click anywhere to add a work site",
             color=map_picker.JOB_COLOR,
-            ink="#8A3B00",
+            ink="#f2f2f3",
         )
     return None
 
@@ -2110,12 +2088,12 @@ def render_start_options(plan: SameDayPlan) -> None:
     )
     ruled_out = sum(1 for o in plan.comparison.options if not o.feasible)
     st.markdown(
-        '<details class="why"><summary>'
+        '<details class="why" open><summary>'
         '<span class="why-label">Why this start</span>'
         f"<span>{headline} &middot; {len(feasible)} starts compared"
         + (f" &middot; {ruled_out} ruled out" if ruled_out else "")
         + "</span>"
-        '<span class="why-toggle">Show</span></summary>'
+        '<span class="why-toggle">Hide</span></summary>'
         '<div class="why-body">'
         '<p class="why-note">Bar length is heat <em>avoided</em> against the '
         "crew's usual start, not absolute exposure &mdash; exposure never "

@@ -510,6 +510,66 @@ h1.hero-heading {{ margin: 0 0 10px; max-width: 22ch; }}
 }}
 .step-done .icon {{ color: var(--a700); }}
 
+/* --- Setup journey ------------------------------------------------------ */
+
+.journey-panel {{ border: 1px solid var(--color-divider); padding: 14px 16px; }}
+.journey-eyebrow {{
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--n600); margin-bottom: 8px;
+}}
+.journey-list {{ display: flex; flex-direction: column; }}
+.journey-row {{
+  display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;
+  align-items: start;
+}}
+.journey-copy {{
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}}
+.journey-row:last-child .journey-copy {{ border-bottom: 0; }}
+.journey-node {{
+  width: 8px; height: 8px; margin-top: 15px;
+  background: var(--color-accent); border: 1px solid var(--a700);
+}}
+.journey-node.pending {{ background: transparent; border-style: dashed; }}
+.journey-node.return {{ background: var(--color-bg); }}
+.journey-kicker {{
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--a700);
+}}
+.journey-title {{
+  font-family: var(--font-heading); font-size: 16px; font-weight: 600;
+}}
+.journey-meta {{ font-size: 11.5px; color: var(--n600); }}
+
+/* --- Small blocks ------------------------------------------------------- */
+
+.build-summary {{
+  border: 1px solid var(--color-divider); padding: 14px 16px; margin: 10px 0 12px;
+  font-size: 12.5px; line-height: 1.5; color: var(--n700);
+}}
+.build-summary strong {{
+  display: block; font-family: var(--font-mono); font-size: 13px;
+  color: var(--color-text); font-weight: 500; margin-bottom: 4px;
+}}
+.workday-chip {{
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; border: 1px solid var(--color-divider); padding: 8px 12px;
+  margin: 10px 0 4px; font-size: 12px; color: var(--n700);
+}}
+.workday-chip strong {{
+  font-family: var(--font-heading); font-size: 15px; font-weight: 600;
+  color: var(--color-text);
+}}
+.workday-chip span:last-child {{
+  font-family: var(--font-mono); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}}
+.safety-note {{
+  border-left: 2px solid var(--color-accent); padding: 8px 0 8px 12px;
+  margin-top: 14px; font-size: 12px; line-height: 1.55; color: var(--n700);
+}}
+.safety-note strong {{ color: var(--color-text); font-weight: 600; }}
+
 /* --- Colophon ---------------------------------------------------------- */
 
 .colophon {{

@@ -19,10 +19,10 @@ from streamlit_folium import st_folium
 
 from certiroute.map_scenario import MapPoint, OperatingAreaPreset
 
-DEPOT_COLOR: Final = "#70FFD2"
-JOB_COLOR: Final = "#FF9137"
-MARKER_TEXT_COLOR: Final = "#0B1524"
-COVERAGE_COLOR: Final = "#0A7D5E"
+DEPOT_COLOR: Final = "#5980a6"
+JOB_COLOR: Final = "#2b2b2d"
+MARKER_TEXT_COLOR: Final = "#f2f2f3"
+COVERAGE_COLOR: Final = "#416180"
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class MapHint:
     longitude: float
     text: str
     color: str = DEPOT_COLOR
-    ink: str = "#05372A"
+    ink: str = "#f2f2f3"
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def build_map_picker(
             else [operating_area.center.latitude, operating_area.center.longitude]
         ),
         zoom_start=operating_area.zoom,
-        tiles="CartoDB positron",
+        tiles="OpenStreetMap",
         control_scale=True,
         prefer_canvas=True,
         # Two clicks in quick succession are a double-click, and Leaflet turns
@@ -298,8 +298,8 @@ def _hint_html(hint: MapHint) -> str:
 def _depot_marker_html() -> str:
     return f"""
     <div aria-label="Crew start and finish" style="
-      width:54px;height:34px;border-radius:4px;background:{DEPOT_COLOR};
-      border:3px solid white;box-shadow:0 3px 10px rgba(112,255,210,.28);
+      width:54px;height:34px;border-radius:0;background:{DEPOT_COLOR};
+      border:3px solid white;box-shadow:0 2px 6px rgba(29,31,32,.3);
       color:{MARKER_TEXT_COLOR};font:800 10px/28px sans-serif;letter-spacing:.06em;
       text-align:center;box-sizing:border-box;">START</div>
     """
@@ -308,8 +308,8 @@ def _depot_marker_html() -> str:
 def _job_marker_html(sequence: int) -> str:
     return f"""
     <div aria-label="Work location {sequence}" style="
-      width:34px;height:34px;border-radius:50%;background:{JOB_COLOR};
-      border:3px solid white;box-shadow:0 3px 10px rgba(255,145,55,.3);
+      width:34px;height:34px;border-radius:0;background:{JOB_COLOR};
+      border:3px solid white;box-shadow:0 2px 6px rgba(29,31,32,.3);
       color:{MARKER_TEXT_COLOR};font:900 15px/28px sans-serif;text-align:center;
       box-sizing:border-box;">{sequence}</div>
     """
