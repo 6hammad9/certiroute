@@ -2640,14 +2640,37 @@ if planning_today:
                     "their heaviest call and usually takes three to five "
                     "minutes — leave this tab open."
                 )
-                reading = read_today_level(
-                    domain_jobs,
-                    HeatmapSnapshotStore(cache_path()),
-                    target_date=anchor_date,
-                    granularity=area_model.granularity_m,
-                )
+                store = HeatmapSnapshotStore(cache_path())
+                try:
+                    reading = read_today_level(
+                        domain_jobs,
+                        store,
+                        target_date=anchor_date,
+                        granularity=area_model.granularity_m,
+                    )
+                except DailyLevelUnavailableError:
+                    # Before the reading lands there is still yesterday's, and
+                    # a day-old anchor is exactly the case the model is
+                    # calibrated for: across nine graded days it picked the
+                    # same start as the morning-of plan every time, because an
+                    # error in the level shifts the whole curve without
+                    # reordering its hours. Better than a dead end, provided
+                    # the wider interval is stated rather than hidden.
+                    reading = read_today_level(
+                        domain_jobs,
+                        store,
+                        target_date=anchor_date - timedelta(days=1),
+                        granularity=area_model.granularity_m,
+                    )
+                    st.warning(
+                        f"Today's reading has not landed yet, so this is "
+                        f"planned from {reading.target_date:%d %b}'s instead. "
+                        "The start time holds up a day out; the temperatures "
+                        "carry a wider interval, and the plan says which."
+                    )
                 step_done(
-                    f"Today measures {reading.area_mean_c:.1f} °C across this area"
+                    f"{reading.target_date:%d %b} measures "
+                    f"{reading.area_mean_c:.1f} °C across this area"
                 )
                 same_day_plan = build_same_day_plan(
                     domain_jobs,
@@ -2701,18 +2724,18 @@ if planning_today:
             )
         except DailyLevelUnavailableError:
             same_day_plan = None
-            # Both plans anchor on today's reading, so before it lands neither
-            # today nor tomorrow can be planned. Saying only "try later" would
-            # send someone to a second dead end.
+            # Today has not landed and yesterday is not on hand either, so
+            # there is no measurement within a day of the target. Anything
+            # older is outside what the model was calibrated to reach.
             st.warning(
                 f"FortyGuard has not published a reading for "
-                f"{selected_date:%d %b %Y} yet. It usually lands mid-morning, "
+                f"{selected_date:%d %b %Y}, and there is no reading from the "
+                "day before to fall back on. Today's usually lands mid-morning, "
                 "and CertiRoute will not substitute an average for it."
             )
             st.info(
-                "Tomorrow is anchored on today's reading too, so it is waiting "
-                "on the same call. Review a finished day below in the meantime "
-                "— that runs entirely on measurements already collected."
+                "Review a finished day below in the meantime — that runs "
+                "entirely on measurements already collected."
             )
         except OutsideTrainedAreaError as exc:
             same_day_plan = None
