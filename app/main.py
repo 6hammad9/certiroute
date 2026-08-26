@@ -2699,12 +2699,20 @@ if planning_today:
                 "— it keeps computing in the background and no second "
                 "request is sent."
             )
-        except DailyLevelUnavailableError as exc:
+        except DailyLevelUnavailableError:
             same_day_plan = None
+            # Both plans anchor on today's reading, so before it lands neither
+            # today nor tomorrow can be planned. Saying only "try later" would
+            # send someone to a second dead end.
             st.warning(
-                f"FortyGuard has not published today's reading for this area "
-                f"yet, so there is nothing measured to plan from. {exc} Try "
-                "again later in the morning, or review a finished day below."
+                f"FortyGuard has not published a reading for "
+                f"{selected_date:%d %b %Y} yet. It usually lands mid-morning, "
+                "and CertiRoute will not substitute an average for it."
+            )
+            st.info(
+                "Tomorrow is anchored on today's reading too, so it is waiting "
+                "on the same call. Review a finished day below in the meantime "
+                "— that runs entirely on measurements already collected."
             )
         except OutsideTrainedAreaError as exc:
             same_day_plan = None

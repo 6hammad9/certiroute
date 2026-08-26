@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from certiroute.collection import HeatmapSnapshotStore
+from certiroute.collection import HeatmapSnapshotStore, SnapshotTemporalScope
 from certiroute.domain import Job
 from certiroute.fortyguard.client import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardTaskTimeout
@@ -124,11 +124,23 @@ def collect_daily_level(
     # A finished day is immutable; today's aggregate still moves as the day
     # completes, so it is stored under the live scope and re-read each session.
     is_finished_day = target_date < now.date()
-    cached = (
-        store.lookup_historical(request)
-        if is_finished_day
-        else store.lookup_current_or_forecast(request, ttl=live_ttl, now_utc=now)
-    )
+    if is_finished_day:
+        cached = store.lookup_historical(request)
+        if cached is None:
+            # A reading taken while that day was still current was filed under
+            # the live scope. The day is over now, so its aggregate can no
+            # longer move and the record is ordinary history. Ignoring it would
+            # mean paying twice for the same immutable number.
+            settled = [
+                snapshot
+                for snapshot in store.list_for_request(
+                    request, temporal_scope=SnapshotTemporalScope.CURRENT_OR_FORECAST
+                )
+                if snapshot.collected_at_utc.date() >= target_date
+            ]
+            cached = settled[-1] if settled else None
+    else:
+        cached = store.lookup_current_or_forecast(request, ttl=live_ttl, now_utc=now)
     # A record written before empty results were rejected, or by another tool,
     # must not be trusted just because it exists. Treating it as absent lets
     # the date recover instead of failing for as long as the record survives.

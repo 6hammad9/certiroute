@@ -435,3 +435,66 @@ def test_clustered_reading_needs_at_least_one_job(tmp_path) -> None:
         collect_clustered_daily_level(
             [], store, target_date=TODAY, client=FakeClient(), now_utc=NOW
         )
+
+
+def test_a_finished_day_is_read_back_whatever_scope_it_was_filed_under(
+    tmp_path,
+) -> None:
+    """A reading taken while that day was current is still that day's reading.
+
+    Today's aggregate is filed under the live scope because it is still moving.
+    Once the day ends it cannot move again, so refusing to see that record
+    would mean paying a second time for the same immutable number.
+    """
+
+    from certiroute.collection import SnapshotTemporalScope
+
+    store = HeatmapSnapshotStore(tmp_path)
+    past = date(2026, 8, 10)
+    store.publish(
+        build_daily_level_request(POLYGON, target_date=past, granularity=60),
+        raw_result=result(35.5),
+        activity_id="taken-while-current",
+        temporal_scope=SnapshotTemporalScope.CURRENT_OR_FORECAST,
+        collected_at_utc=datetime(2026, 8, 10, 18, tzinfo=UTC),
+    )
+
+    reading = collect_daily_level(
+        JOBS,
+        POLYGON,
+        store,
+        target_date=past,
+        granularity=60,
+        client=None,
+        now_utc=NOW,
+    )
+
+    assert reading.cache_hit
+    assert reading.level_by_job["A"] == pytest.approx(35.5)
+
+
+def test_a_live_record_from_before_its_date_is_not_trusted(tmp_path) -> None:
+    """Only a reading taken on or after the day describes that whole day."""
+
+    from certiroute.collection import SnapshotTemporalScope
+
+    store = HeatmapSnapshotStore(tmp_path)
+    past = date(2026, 8, 10)
+    store.publish(
+        build_daily_level_request(POLYGON, target_date=past, granularity=60),
+        raw_result=result(35.5),
+        activity_id="taken-too-early",
+        temporal_scope=SnapshotTemporalScope.CURRENT_OR_FORECAST,
+        collected_at_utc=datetime(2026, 8, 9, 12, tzinfo=UTC),
+    )
+
+    with pytest.raises(LookupError, match="no cached whole-day aggregate"):
+        collect_daily_level(
+            JOBS,
+            POLYGON,
+            store,
+            target_date=past,
+            granularity=60,
+            client=None,
+            now_utc=NOW,
+        )
