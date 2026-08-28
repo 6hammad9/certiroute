@@ -2093,6 +2093,7 @@ def assess_limit(plan: SameDayPlan, limit_c: float) -> DayLimitAssessment | None
         plan.conservative_profiles,
         limit_c=limit_c,
         baseline_minute=baseline_minute,
+        expected_profiles=plan.expected_profiles,
     )
 
 
@@ -2156,7 +2157,7 @@ def render_limit_verdict(
         '<div class="limit-row {state}{base}">'
         '<span class="lr-start">{start}</span>'
         '<span class="lr-note">{note}</span>'
-        '<span class="lr-peak">{peak:.1f} &deg;C</span>'
+        '<span class="lr-peak">{expected}{peak:.1f} &deg;C</span>'
         "</div>".format(
             state="is-clear" if check.clear else "is-over",
             base=" is-baseline"
@@ -2172,12 +2173,35 @@ def render_limit_verdict(
                 else f"over at {check.sites_over} "
                 f"site{'s' if check.sites_over != 1 else ''}"
             ),
+            # The expected peak leads, because it is what the model believes.
+            # The figure the verdict rests on follows it, so the reader can see
+            # how much of an alarming number is uncertainty.
+            expected=(
+                ""
+                if check.expected_peak_c is None
+                else f'<span class="lr-expected">{check.expected_peak_c:.1f} '
+                f"&rarr;</span> "
+            ),
             peak=check.peak_c,
         )
         for check in assessment.checks
     )
 
-    basis = "measured hours" if measured else "top of the predicted interval"
+    margin = baseline.margin_c
+    if measured:
+        basis = "measured hours"
+        footnote = ""
+    else:
+        basis = "top of the predicted interval"
+        footnote = (
+            ""
+            if not margin
+            else f'<p class="limit-foot">Each row shows what the model expects, '
+            f"then the figure the verdict is judged on &mdash; the expected "
+            f"peak plus the full &plusmn;{margin:.1f} &deg;C interval. A limit "
+            "is a safety question, so the test is the worst case the interval "
+            "admits rather than the midpoint.</p>"
+        )
     st.markdown(
         f'<div class="limit {tone}">'
         f'<div class="limit-head">'
@@ -2186,6 +2210,7 @@ def render_limit_verdict(
         f'<span class="limit-flag">{escape(flag)}</span></div>'
         f'<div class="limit-body"><h4>{title}</h4><p>{body}</p></div>'
         f'<div class="limit-rows">{rows}</div>'
+        f"{footnote}"
         "</div>",
         unsafe_allow_html=True,
     )

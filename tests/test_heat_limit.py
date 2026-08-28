@@ -231,3 +231,42 @@ def test_the_verdict_changes_with_the_day_not_just_the_start_time() -> None:
         DayVerdict.MOVE_EARLIER,
         DayVerdict.NO_SAFE_START,
     }
+
+
+def test_the_expected_peak_is_reported_but_never_judged_against() -> None:
+    """Planning a day ahead widens the interval to several degrees, and a panel
+    showing only the top of it reads as a forecast of disaster rather than the
+    conservative test it is. Both figures are carried; only one decides.
+    """
+
+    conservative = profile("A", {5 * 60: 39.0, 17 * 60: 45.0})
+    expected = profile("A", {5 * 60: 34.0, 17 * 60: 40.0})
+
+    check = check_stops_against_limit(
+        [stop("A", 5 * 60, 7 * 60)],
+        {"A": conservative},
+        limit_c=40.0,
+        shift_start_minute=5 * 60,
+        expected_profiles={"A": expected},
+    )
+
+    assert check.expected_peak_c == pytest.approx(35.0, abs=0.1)
+    assert check.peak_c == pytest.approx(40.0, abs=0.1)
+    assert check.margin_c == pytest.approx(5.0, abs=0.1)
+    # The verdict rests on the conservative curve, which reaches the limit.
+    assert not check.clear
+
+
+def test_a_check_without_expected_profiles_reports_no_margin() -> None:
+    """Reviewing a finished day runs on measurements, where there is no
+    interval to show and no margin to report."""
+
+    check = check_stops_against_limit(
+        [stop("A", 5 * 60, 7 * 60)],
+        {"A": profile("A", RISING)},
+        limit_c=40.0,
+        shift_start_minute=5 * 60,
+    )
+
+    assert check.expected_peak_c is None
+    assert check.margin_c is None

@@ -64,10 +64,24 @@ class ShiftLimitCheck:
     peak_c: float
     peak_job_name: str
     peak_minute: int
+    # What the model actually expects, alongside the worst case it is judged
+    # on. Planning a day ahead widens the interval to several degrees, and a
+    # panel showing only the top of it reads as a forecast of disaster rather
+    # than as the conservative test it is. The verdict still uses the worst
+    # case; the reader gets to see how much of it is margin.
+    expected_peak_c: float | None = None
 
     @property
     def clear(self) -> bool:
         return not self.breaches
+
+    @property
+    def margin_c(self) -> float | None:
+        """How much of the peak is uncertainty rather than expected heat."""
+
+        if self.expected_peak_c is None:
+            return None
+        return round(self.peak_c - self.expected_peak_c, 1)
 
     @property
     def minutes_over(self) -> int:
@@ -122,6 +136,7 @@ def check_stops_against_limit(
     limit_c: float,
     shift_start_minute: int,
     step_minutes: int = SAMPLE_STEP_MINUTES,
+    expected_profiles: Mapping[str, TemperatureProfile] | None = None,
 ) -> ShiftLimitCheck:
     """Walk each stop's working interval and record where it sits over the limit.
 
@@ -129,6 +144,10 @@ def check_stops_against_limit(
     out deliberately: a crew in a moving vehicle is not the exposure this is
     about, and counting it would inflate every number without changing any
     ranking.
+
+    ``expected_profiles`` is reported but never judged against. The verdict is
+    always the worst case the interval admits; carrying the expected peak too
+    only lets a reader see how much of a frightening number is margin.
     """
 
     if step_minutes <= 0:
@@ -136,6 +155,7 @@ def check_stops_against_limit(
 
     breaches: list[SiteBreach] = []
     peak_c = float("-inf")
+    expected_peak_c = float("-inf")
     peak_job_name = ""
     peak_minute = shift_start_minute
 
@@ -144,6 +164,9 @@ def check_stops_against_limit(
         if profile is None:
             raise LookupError(f"no temperature profile for {stop.job_id!r}")
 
+        expected = (
+            None if expected_profiles is None else expected_profiles.get(stop.job_id)
+        )
         over_minutes: list[int] = []
         site_peak = float("-inf")
         minute = stop.start_minute
@@ -154,6 +177,8 @@ def check_stops_against_limit(
             site_peak = max(site_peak, temperature)
             if temperature >= limit_c:
                 over_minutes.append(minute)
+            if expected is not None:
+                expected_peak_c = max(expected_peak_c, expected.condition_at(minute)[0])
             minute += step_minutes
 
         if over_minutes:
@@ -181,6 +206,9 @@ def check_stops_against_limit(
         peak_c=round(peak_c, 1),
         peak_job_name=peak_job_name,
         peak_minute=peak_minute,
+        expected_peak_c=(
+            None if expected_peak_c == float("-inf") else round(expected_peak_c, 1)
+        ),
     )
 
 
@@ -191,6 +219,7 @@ def assess_day_against_limit(
     limit_c: float,
     baseline_minute: int,
     step_minutes: int = SAMPLE_STEP_MINUTES,
+    expected_profiles: Mapping[str, TemperatureProfile] | None = None,
 ) -> DayLimitAssessment:
     """Test every candidate start, and say what the day asks of a dispatcher."""
 
@@ -206,6 +235,7 @@ def assess_day_against_limit(
             limit_c=limit_c,
             shift_start_minute=start_minute,
             step_minutes=step_minutes,
+            expected_profiles=expected_profiles,
         )
         for start_minute, stops in sorted(plans_by_start_minute.items())
     )

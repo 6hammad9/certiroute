@@ -505,6 +505,11 @@ h1.hero-heading {{ margin: 0 0 10px; max-width: 22ch; }}
 .limit-row.is-clear .lr-peak {{ color: var(--a700); }}
 .limit-row.is-over .lr-peak {{ color: var(--alert-deep); }}
 .limit-row.is-baseline .lr-start {{ font-weight: 600; }}
+.lr-expected {{ color: var(--n500); }}
+.limit-foot {{
+  margin: 0; padding: 0 20px 18px;
+  font-size: 11.5px; line-height: 1.5; color: var(--n600); max-width: 68ch;
+}}
 
 .limit.v-clear {{
   background: color-mix(in srgb, var(--color-accent) 4%, transparent);
