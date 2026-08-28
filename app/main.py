@@ -77,6 +77,11 @@ from certiroute.map_scenario import (
     select_operating_area,
     undo_last_point,
 )
+from certiroute.measured import (
+    DEFAULT_PROFILE_PATH,
+    MeasuredProfilesUnavailableError,
+    load_measured_profiles,
+)
 from certiroute.optimization import (
     ConditionPoint,
     InfeasibleScheduleError,
@@ -2436,8 +2441,34 @@ def collect_batch(
     jobs: list[Job],
     plan: ClusteredHeatmapCollectionPlan,
     store: HeatmapSnapshotStore,
+    *,
+    area_id: str | None = None,
+    target_date: date | None = None,
 ) -> RealTemperatureBatch:
-    """Collect the exact missing set, or rebuild profiles entirely from cache."""
+    """Collect the exact missing set, or rebuild profiles entirely from cache.
+
+    A deployed instance has no snapshot cache - it is 1.8 GB of whole heatmaps
+    and cannot travel with the repository - but it does carry the measurements
+    those heatmaps were read for. When the hours are missing locally and the
+    committed readings cover the day, they are used rather than buying the same
+    numbers again at thousands of credits a request.
+    """
+
+    if plan.new_task_count and area_id and target_date:
+        try:
+            profiles = load_measured_profiles(
+                area_id, target_date, path=PROJECT_ROOT / DEFAULT_PROFILE_PATH
+            )
+        except (MeasuredProfilesUnavailableError, ValueError):
+            profiles = {}
+        if profiles and set(profiles) >= {job.job_id for job in jobs}:
+            return RealTemperatureBatch(
+                profiles={job.job_id: profiles[job.job_id] for job in jobs},
+                samples=(),
+                target_date=target_date,
+                granularity=GRANULARITY_METRES,
+                aoi_count=plan.aoi_count,
+            )
 
     if plan.new_task_count == 0:
         return collect_clustered_real_temperature_batch_from_plan(
@@ -2934,7 +2965,13 @@ if build_clicked:
                 collection_plan.cache_hit_count / collection_plan.request_count,
                 text=("Checking real FortyGuard temperatures for every work hour"),
             )
-            batch = collect_batch(domain_jobs, collection_plan, store)
+            batch = collect_batch(
+                domain_jobs,
+                collection_plan,
+                store,
+                area_id=map_state.operating_area_id,
+                target_date=selected_date,
+            )
             progress.progress(
                 1.0,
                 text="Real temperature evidence is ready",

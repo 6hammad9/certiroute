@@ -1,0 +1,15 @@
+# Streamlit Community Cloud installs from this file. It mirrors the runtime
+# dependencies in pyproject.toml; the dev extras are deliberately absent.
+altair>=5,<7
+folium>=0.20,<1
+httpx>=0.27,<1
+pandas>=2.2,<3
+pydeck>=0.9,<1
+pydantic>=2.8,<3
+pydantic-settings>=2.4,<3
+streamlit>=1.37,<2
+streamlit-folium>=0.27,<0.28
+
+# The app imports certiroute from src/; installing the project itself puts it
+# on the path without any sys.path manipulation in app/main.py.
+-e .

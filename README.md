@@ -51,6 +51,41 @@ window that includes the disturbance rather than one that avoids it.
 
 Committed evidence: `data/evidence/recommendation_grades_*.json`.
 
+## Deploying it
+
+The app runs on Streamlit Community Cloud with no changes.
+
+1. Push this repository to GitHub.
+2. Point Streamlit Cloud at `app/main.py`. `requirements.txt` and
+   `.python-version` are committed, so the build needs no configuration.
+3. Add the API key under **Settings -> Secrets**:
+
+   ```toml
+   FORTYGUARD_API_KEY = "your-key"
+   ```
+
+   Streamlit exposes secrets as environment variables, which is where the app
+   already reads it from. `.env` is for local work only and is never committed.
+
+### What a deployed instance can do without spending a credit
+
+`data/raw/` is 1.8 GB of whole heatmaps and is deliberately not committed. What
+the product reads from them is the temperature at each work site, so those are
+distilled into `data/evidence/measured_profiles.json` - the same measurements,
+around 82 KB - and committed.
+
+So a fresh deployment can, with no API call at all:
+
+- play the landing showcase, a real day the model had never seen;
+- review and grade any collected day against its measured hours.
+
+Planning today or tomorrow needs one live reading, which is the only part that
+spends credits. Rebuild the distilled file after collecting more days with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_measured_profiles.py
+```
+
 The working product and research brief is in
 [`docs/PROJECT_IDEA.md`](docs/PROJECT_IDEA.md).
 
@@ -58,7 +93,7 @@ The working product and research brief is in
 
 - Python 3.11–3.13 (Python 3.12 is used for local development)
 - Streamlit for the operator interface, with a hand-built visual system in
-  `src/certiroute/theme.py` (Instrument Sans / Inter / JetBrains Mono, inline
+  `src/certiroute/theme.py` (Barlow Condensed / Barlow / IBM Plex Mono, inline
   SVG icons, no emoji)
 - `httpx` for the FortyGuard API integration
 - Pure-Python beam-search scheduling (heavier solvers such as OR-Tools are
