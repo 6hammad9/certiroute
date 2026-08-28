@@ -504,6 +504,35 @@ def render_landing_proof(state: MapScenarioState) -> None:
     )
 
 
+def coverage_remedy(exc: Exception) -> str | None:
+    """Name the shift change that would bring this plan inside the model.
+
+    The model is only honest about hours it was trained on, so a shift running
+    past them is refused. Which end overran is knowable, so it is said rather
+    than left for the dispatcher to work out by trial.
+    """
+
+    covered_to = getattr(exc, "covered_to_minute", None)
+    covered_from = getattr(exc, "covered_from_minute", None)
+    needed_to = getattr(exc, "needed_to_minute", None)
+    needed_from = getattr(exc, "needed_from_minute", None)
+    if covered_to is None or covered_from is None:
+        return None
+
+    remedies = []
+    if needed_to is not None and needed_to > covered_to:
+        remedies.append(f"finish by {minute_label(covered_to)} or earlier")
+    if needed_from is not None and needed_from < covered_from:
+        remedies.append(f"start no earlier than {minute_label(covered_from)}")
+    if not remedies:
+        return None
+    return (
+        "Set the crew to " + " and ".join(remedies) + ". The model was trained "
+        f"on {minute_label(covered_from)}-{minute_label(covered_to)} in this "
+        "area and will not estimate hours it has never measured."
+    )
+
+
 def render_result_mode_styles() -> None:
     """Collapse onboarding copy once the customer has a finished route."""
 
@@ -3008,6 +3037,11 @@ if planning_today:
         except (PlanningCoverageError, ProfileCoverageError) as exc:
             same_day_plan = None
             st.error(f"This shift reaches beyond what the trained model covers: {exc}")
+            # A refusal is only useful if the dispatcher can act on it, and the
+            # fix is always one end of the shift rather than both.
+            fix = coverage_remedy(exc)
+            if fix:
+                st.caption(fix)
         except HeatmapCoverageError as exc:
             same_day_plan = None
             st.error(

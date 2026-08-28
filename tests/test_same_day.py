@@ -663,3 +663,28 @@ def test_reaching_further_than_the_calibration_is_refused(jobs) -> None:
             candidate_starts=CANDIDATES,
             target_date=TODAY + timedelta(days=3),
         )
+
+
+def test_a_coverage_refusal_carries_the_hours_so_a_fix_can_be_named(jobs) -> None:
+    """Refusing is right; refusing without saying what to change is not.
+
+    The model only speaks to hours it was trained on, so a shift running past
+    them has to be turned away. Which end overran is knowable, and carrying it
+    on the error lets the interface name the one change that would work.
+    """
+
+    with pytest.raises(PlanningCoverageError) as caught:
+        build_same_day_plan(
+            jobs,
+            climatology(),
+            reading(jobs),
+            depot=DEPOT,
+            baseline_start=time(11, 0),
+            candidate_starts=(time(11, 0),),
+            shift_end=time(19, 0),
+        )
+
+    error = caught.value
+    assert error.covered_to_minute is not None
+    assert error.needed_to_minute == 19 * 60
+    assert error.needed_to_minute > error.covered_to_minute

@@ -72,7 +72,27 @@ class PlanningLeadError(ValueError):
 
 
 class PlanningCoverageError(ValueError):
-    """The trained model does not reach the hours this shift needs."""
+    """The trained model does not reach the hours this shift needs.
+
+    The covered hours travel with the error so a caller can name the change
+    that would work. A refusal that only says no leaves the dispatcher to
+    guess which end of the shift was the problem.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        covered_from_minute: int | None = None,
+        covered_to_minute: int | None = None,
+        needed_from_minute: int | None = None,
+        needed_to_minute: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.covered_from_minute = covered_from_minute
+        self.covered_to_minute = covered_to_minute
+        self.needed_from_minute = needed_from_minute
+        self.needed_to_minute = needed_to_minute
 
 
 @dataclass(frozen=True)
@@ -310,7 +330,11 @@ def build_same_day_plan(
             f"{min(covered) // 60:02d}:{min(covered) % 60:02d}-"
             f"{max(covered) // 60:02d}:{max(covered) % 60:02d}; this shift needs "
             f"{first_minute // 60:02d}:{first_minute % 60:02d}-"
-            f"{last_minute // 60:02d}:{last_minute % 60:02d}"
+            f"{last_minute // 60:02d}:{last_minute % 60:02d}",
+            covered_from_minute=min(covered),
+            covered_to_minute=max(covered),
+            needed_from_minute=first_minute,
+            needed_to_minute=last_minute,
         )
 
     expected = climatology.predict_profiles(
