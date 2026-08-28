@@ -24,6 +24,7 @@ from pathlib import Path
 from certiroute.optimization import ConditionPoint, TemperatureProfile
 
 DEFAULT_PROFILE_PATH = Path("data/evidence/measured_profiles.json")
+DEFAULT_LEVEL_PATH = Path("data/evidence/measured_levels.json")
 SCHEMA_VERSION = 1
 
 # Matches the sentinel the live path uses: no hidden certainty penalty, because
@@ -117,6 +118,85 @@ def daily_peaks(area_id: str, *, path: Path | None = None) -> dict[date, float]:
     }
 
 
+class MeasuredLevelUnavailableError(LookupError):
+    """No committed whole-day level exists for this area and date."""
+
+
+def load_measured_level(
+    area_id: str, target_date: date, *, path: Path | None = None
+) -> dict[str, float]:
+    """Return each site's committed whole-day level for a shipped day.
+
+    This is the one number a plan is built from, carried across from the
+    FortyGuard aggregate exactly as it arrived. It is committed rather than
+    derived because the aggregate is a same-day signal: a day not captured
+    while it was current can never be bought again, and a level computed some
+    other way would not mean what the trained offsets were learned against.
+    """
+
+    source = path if path is not None else DEFAULT_LEVEL_PATH
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise MeasuredLevelUnavailableError(
+            "no committed whole-day levels have been built"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("committed levels are not readable JSON") from exc
+
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported level payload version {payload.get('schema_version')!r}"
+        )
+    day = payload.get("areas", {}).get(area_id, {}).get(target_date.isoformat())
+    if not day:
+        raise MeasuredLevelUnavailableError(
+            f"no committed level for {area_id} on {target_date.isoformat()}"
+        )
+    return {job_id: float(value) for job_id, value in day.items()}
+
+
+def level_days(area_id: str, *, path: Path | None = None) -> tuple[date, ...]:
+    """Every day this area can be planned offline."""
+
+    source = path if path is not None else DEFAULT_LEVEL_PATH
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ()
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        return ()
+    return tuple(
+        sorted(
+            date.fromisoformat(day) for day in payload.get("areas", {}).get(area_id, {})
+        )
+    )
+
+
+def build_level_payload(
+    levels_by_area_day: Mapping[str, Mapping[date, Mapping[str, float]]],
+) -> dict:
+    """Shape the committed whole-day levels for writing."""
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "note": (
+            "Whole-day FortyGuard aggregates at each work site - the single "
+            "reading a plan is built from. Carried across unchanged; the "
+            "aggregate is a same-day signal and cannot be re-bought later."
+        ),
+        "areas": {
+            area_id: {
+                day.isoformat(): {
+                    job_id: round(level, 2) for job_id, level in levels.items()
+                }
+                for day, levels in sorted(days.items())
+            }
+            for area_id, days in levels_by_area_day.items()
+        },
+    }
+
+
 def build_payload(
     profiles_by_area_day: Mapping[str, Mapping[date, Mapping[str, TemperatureProfile]]],
 ) -> dict:
@@ -146,6 +226,11 @@ def build_payload(
 
 
 __all__ = [
+    "load_measured_level",
+    "level_days",
+    "build_level_payload",
+    "MeasuredLevelUnavailableError",
+    "DEFAULT_LEVEL_PATH",
     "DEFAULT_PROFILE_PATH",
     "SCHEMA_VERSION",
     "MeasuredProfilesUnavailableError",

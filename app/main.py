@@ -95,8 +95,13 @@ from certiroute.map_scenario import (
     undo_last_point,
 )
 from certiroute.measured import (
+    DEFAULT_LEVEL_PATH,
     DEFAULT_PROFILE_PATH,
+    MeasuredLevelUnavailableError,
     MeasuredProfilesUnavailableError,
+    available_days,
+    level_days,
+    load_measured_level,
     load_measured_profiles,
 )
 
@@ -1830,6 +1835,9 @@ def render_workday_settings(
     """Use useful defaults while keeping the historical mode explicit."""
 
     today = date.today()
+    # The app opens on the day the crew is actually working. When no reading
+    # can be had for it, a day this repository ships is offered instead -
+    # answering the product's own question first, rather than pre-empting it.
     default_date = today
     if manifest_hint is None:
         default_start = DEFAULT_SHIFT_START
@@ -2037,6 +2045,75 @@ PENDING_LEVEL_KEY = "certiroute_pending_level_activity"
 # times out and reports as pending, which reads as a failure. The task is
 # resumable, so a longer wait costs nothing but patience.
 DAILY_LEVEL_POLL_ATTEMPTS = 180
+
+
+def offer_a_shipped_day(area_id: str) -> None:
+    """Turn a dead end into a day that works.
+
+    The whole-day aggregate is a same-day signal, so a reading missed is a
+    reading gone; and a hosted deployment starts every restart with an empty
+    cache. Someone opening this on a date nobody anticipated should be handed
+    a day the repository can actually plan, not left with an apology.
+    """
+
+    days = [
+        day
+        for day in level_days(area_id, path=PROJECT_ROOT / DEFAULT_LEVEL_PATH)
+        if day in set(available_days(area_id, path=PROJECT_ROOT / DEFAULT_PROFILE_PATH))
+    ]
+    if not days:
+        st.info(
+            "Review a finished day below — that runs entirely on measurements "
+            "already collected."
+        )
+        return
+
+    newest = max(days)
+    st.info(
+        f"This build ships {len(days)} days of measured heat for this area, "
+        f"{min(days):%d %b}–{max(days):%d %b}. They plan and grade with no "
+        "request at all, so they work whatever today's reading is doing."
+    )
+    if st.button(f"Plan {newest:%d %b %Y} instead", width="stretch"):
+        # Writing the widget's own key moves the date picker itself, so the
+        # rest of the page follows without a second thing to keep in step.
+        for key in list(st.session_state):
+            if str(key).startswith("workday_date_"):
+                st.session_state[key] = newest
+        st.rerun()
+
+
+def committed_level_reading(
+    jobs: list[Job], area_id: str, target_date: date, granularity: int
+) -> DailyLevelReading | None:
+    """The whole-day level for a shipped day, without touching the API.
+
+    The aggregate is a same-day signal: a day not captured while it was current
+    can never be bought again, and a deployment starts with an empty cache
+    every time it restarts. Committing the levels that were captured means a
+    reviewer opening the live link on any later date still sees the product
+    plan a real day from a real reading, rather than an apology for a number
+    that has since become unbuyable.
+    """
+
+    try:
+        levels = load_measured_level(
+            area_id, target_date, path=PROJECT_ROOT / DEFAULT_LEVEL_PATH
+        )
+    except (MeasuredLevelUnavailableError, ValueError):
+        return None
+    if not set(levels) >= {job.job_id for job in jobs}:
+        # Committed levels are keyed to the sites they were read for, so a
+        # different set of map points is not covered by them.
+        return None
+    return DailyLevelReading(
+        target_date=target_date,
+        granularity_m=granularity,
+        level_by_job={job.job_id: levels[job.job_id] for job in jobs},
+        activity_id="committed",
+        collected_at_utc=datetime.combine(target_date, time(12), tzinfo=UTC),
+        cache_hit=True,
+    )
 
 
 def read_today_level(
@@ -2617,14 +2694,17 @@ def render_hindsight(
     candidates = candidate_starts_for(shift_start, shift_end)
     if not st.button("Grade this day", width="stretch"):
         st.caption(
-            "One FortyGuard request: this day's whole-day reading. The hourly "
-            "temperatures above are already collected."
+            "Grades the start this model would have chosen against the hours "
+            "that were actually measured. Days this repository ships need no "
+            "request at all."
         )
         return
 
     try:
         with st.spinner("Rebuilding the morning's recommendation…"):
-            reading = read_today_level(
+            reading = committed_level_reading(
+                jobs, model.area_id, target_date, model.granularity_m
+            ) or read_today_level(
                 jobs,
                 HeatmapSnapshotStore(cache_path()),
                 target_date=target_date,
@@ -3038,13 +3118,24 @@ if planning_today:
                     "minutes — leave this tab open."
                 )
                 store = HeatmapSnapshotStore(cache_path())
+                # A day this repository already carries needs no request at
+                # all, and asking for one would fail anyway: the aggregate is
+                # a same-day signal that cannot be re-bought once the day has
+                # passed.
+                reading = committed_level_reading(
+                    domain_jobs,
+                    map_state.operating_area_id,
+                    anchor_date,
+                    area_model.granularity_m,
+                )
                 try:
-                    reading = read_today_level(
-                        domain_jobs,
-                        store,
-                        target_date=anchor_date,
-                        granularity=area_model.granularity_m,
-                    )
+                    if reading is None:
+                        reading = read_today_level(
+                            domain_jobs,
+                            store,
+                            target_date=anchor_date,
+                            granularity=area_model.granularity_m,
+                        )
                 except DailyLevelUnavailableError:
                     # Before the reading lands there is still yesterday's, and
                     # a day-old anchor is exactly the case the model is
@@ -3053,10 +3144,16 @@ if planning_today:
                     # error in the level shifts the whole curve without
                     # reordering its hours. Better than a dead end, provided
                     # the wider interval is stated rather than hidden.
-                    reading = read_today_level(
+                    yesterday = anchor_date - timedelta(days=1)
+                    reading = committed_level_reading(
+                        domain_jobs,
+                        map_state.operating_area_id,
+                        yesterday,
+                        area_model.granularity_m,
+                    ) or read_today_level(
                         domain_jobs,
                         store,
-                        target_date=anchor_date - timedelta(days=1),
+                        target_date=yesterday,
                         granularity=area_model.granularity_m,
                     )
                     st.warning(
@@ -3130,10 +3227,7 @@ if planning_today:
                 "day before to fall back on. Today's usually lands mid-morning, "
                 "and CertiRoute will not substitute an average for it."
             )
-            st.info(
-                "Review a finished day below in the meantime — that runs "
-                "entirely on measurements already collected."
-            )
+            offer_a_shipped_day(map_state.operating_area_id)
         except OutsideTrainedAreaError as exc:
             same_day_plan = None
             st.error(
