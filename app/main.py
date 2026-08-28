@@ -54,6 +54,11 @@ from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardError, FortyGuardHTTPError
 from certiroute.fortyguard.heatmap_profiles import HeatmapCoverageError
+from certiroute.heat_limit import (
+    DayLimitAssessment,
+    DayVerdict,
+    assess_day_against_limit,
+)
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
     MIN_MANIFEST_JOBS,
@@ -105,6 +110,7 @@ from certiroute.same_day import (
     PlanningLeadError,
     SameDayPlan,
     build_same_day_plan,
+    relax_windows_to,
     score_plan_against_measurements,
 )
 from certiroute.shift_timing import (
@@ -128,6 +134,12 @@ CLIMATOLOGY_ROOT = PROJECT_ROOT / "data" / "climatology"
 # day before that was complete. Offering a date inside that window means
 # sending a request that can only fail, after the operator has waited for it.
 HOURLY_HISTORY_LAG_DAYS = 2
+
+# A default ceiling, not a standard. Heat-safety thresholds are set by an
+# employer's own policy and by jurisdiction, and vary with humidity, workload
+# and whether the work is shaded, so this is offered as a starting figure the
+# dispatcher is expected to replace with their own.
+DEFAULT_HEAT_LIMIT_C = 40.0
 
 EXAMPLE_DEPOT = GeoPoint(latitude=33.44855, longitude=-112.07391)
 EXAMPLE_SHIFT_START = time(8)
@@ -976,6 +988,57 @@ def render_planner_panel(
     render_detail_sections(batch, jobs_frame, plans, is_example=is_example)
 
 
+def review_limit_assessment(
+    jobs: list[Job],
+    profiles: dict[str, TemperatureProfile],
+    *,
+    depot: GeoPoint,
+    shift_start: time,
+    shift_end: time,
+    limit_c: float,
+) -> DayLimitAssessment | None:
+    """Test a finished day's measured hours against the crew's heat ceiling.
+
+    Nothing here is predicted. These are the temperatures FortyGuard recorded,
+    so the verdict is a fact about the day rather than a claim about it - which
+    is what makes reviewing a finished day worth doing at all.
+    """
+
+    candidates = candidate_starts_for(shift_start, shift_end)
+    if not candidates:
+        return None
+
+    # Windows inherited from the shift have to move with it, or every earlier
+    # start is silently infeasible and the comparison collapses to one row.
+    relaxed = relax_windows_to(
+        jobs, baseline_start=shift_start, earliest_start=min(candidates)
+    )
+
+    stops_by_start: dict[int, tuple] = {}
+    for candidate in candidates:
+        try:
+            plans = optimized_plans(
+                list(relaxed.jobs),
+                profiles,
+                depot=depot,
+                shift_start=candidate,
+                shift_end=shift_end,
+            )
+        except (InfeasibleScheduleError, ScheduleSearchLimitError):
+            # A start the crew could not actually work is not a start.
+            continue
+        stops = plans[ScheduleStrategy.HEAT_AWARE].stops
+        if stops:
+            stops_by_start[minutes_of_day(candidate)] = stops
+
+    baseline_minute = minutes_of_day(shift_start)
+    if baseline_minute not in stops_by_start:
+        return None
+    return assess_day_against_limit(
+        stops_by_start, profiles, limit_c=limit_c, baseline_minute=baseline_minute
+    )
+
+
 def render_result(
     batch: RealTemperatureBatch,
     manifest: JobManifest,
@@ -984,6 +1047,7 @@ def render_result(
     shift_start: time,
     shift_end: time,
     is_example: bool,
+    heat_limit_c: float,
     model: DiurnalClimatology | None = None,
     target_date: date | None = None,
 ) -> None:
@@ -1045,6 +1109,16 @@ def render_result(
             target_date=target_date,
         )
     crew_plan = render_crew_decision(baseline, recommendation, reduction)
+    assessment = review_limit_assessment(
+        jobs,
+        batch.profiles,
+        depot=depot,
+        shift_start=shift_start,
+        shift_end=shift_end,
+        limit_c=heat_limit_c,
+    )
+    if assessment is not None:
+        render_limit_verdict(assessment, site_count=len(jobs), measured=True)
     render_run_sheet(crew_plan, depot)
     render_safety_boundary(compact=True)
 
@@ -1634,7 +1708,7 @@ def render_workday_settings(
     scenario_token: str,
     is_example: bool,
     manifest_hint: JobManifest | None,
-) -> tuple[date, time, time]:
+) -> tuple[date, time, time, float]:
     """Use useful defaults while keeping the historical mode explicit."""
 
     today = date.today()
@@ -1685,6 +1759,19 @@ def render_workday_settings(
                 step=timedelta(minutes=15),
                 key=f"shift_end_{scenario_token}",
             )
+        heat_limit_c = st.number_input(
+            "Heat limit for this crew (°C)",
+            min_value=25.0,
+            max_value=55.0,
+            value=DEFAULT_HEAT_LIMIT_C,
+            step=0.5,
+            help=(
+                "The temperature your heat-safety policy treats as the ceiling. "
+                "CertiRoute checks every candidate start against it, using the "
+                "top of its predicted interval rather than the midpoint."
+            ),
+            key=f"heat_limit_{scenario_token}",
+        )
 
     if selected_date > today:
         mode_label = "Planning tomorrow"
@@ -1698,7 +1785,7 @@ def render_workday_settings(
         f"{shift_start.strftime('%H:%M')}–{shift_end.strftime('%H:%M')}</span></div>",
         unsafe_allow_html=True,
     )
-    return selected_date, shift_start, shift_end
+    return selected_date, shift_start, shift_end, heat_limit_c
 
 
 def build_map_manifest(
@@ -1949,6 +2036,128 @@ def render_start_decision(plan: SameDayPlan) -> None:
             for name, value in cells
         )
         + "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def assess_limit(plan: SameDayPlan, limit_c: float) -> DayLimitAssessment | None:
+    """Test every feasible start against the crew's own heat ceiling.
+
+    The conservative profiles are used rather than the expected ones. A limit
+    is a safety question, so the honest test is the top of the calibrated
+    interval: a shift reported clear here is clear across the whole interval,
+    not merely at its midpoint.
+    """
+
+    stops_by_start = {
+        option.start_minute: option.plan.stops
+        for option in plan.comparison.options
+        if option.feasible and option.plan is not None and option.plan.stops
+    }
+    baseline_minute = plan.comparison.baseline.start_minute
+    if baseline_minute not in stops_by_start:
+        # Without the crew's usual shift there is nothing to compare against,
+        # and "your current start breaches the limit" is the whole point.
+        return None
+    return assess_day_against_limit(
+        stops_by_start,
+        plan.conservative_profiles,
+        limit_c=limit_c,
+        baseline_minute=baseline_minute,
+    )
+
+
+def render_limit_verdict(
+    assessment: DayLimitAssessment, *, site_count: int, measured: bool = False
+) -> None:
+    """Say whether this shift can be run under the crew's own heat ceiling.
+
+    Ranking start times is nearly free - in summer the earliest feasible start
+    is always coolest. Whether any of them clears an absolute limit is not:
+    across 24 measured Phoenix days it came out three different ways, and that
+    turns on the day's level, which is what the FortyGuard reading supplies.
+    """
+
+    limit = (
+        f"{assessment.limit_c:.0f}"
+        if assessment.limit_c.is_integer()
+        else f"{assessment.limit_c:.1f}"
+    )
+    baseline = assessment.baseline
+    usual = minute_label(baseline.shift_start_minute)
+
+    if assessment.verdict is DayVerdict.NO_ACTION:
+        tone, flag = "v-clear", "Within limit"
+        title = f"The usual {usual} start already holds"
+        body = (
+            f"Every stop stays under {limit} &deg;C for the whole shift, peaking "
+            f"at {baseline.peak_c:.1f} &deg;C at "
+            f"{escape(site_and_task(baseline.peak_job_name)[0])} around "
+            f"{minute_label(baseline.peak_minute)}. There is no heat reason to "
+            "move this crew today."
+        )
+    elif assessment.verdict is DayVerdict.MOVE_EARLIER:
+        clear = assessment.earliest_clear
+        assert clear is not None
+        hours, minutes = divmod(baseline.minutes_over, 60)
+        spent = f"{hours}h {minutes:02d}m" if hours else f"{minutes} minutes"
+        tone, flag = "v-move", f"Clears at {minute_label(clear.shift_start_minute)}"
+        title = (
+            f"Starting at {minute_label(clear.shift_start_minute)} keeps the "
+            f"crew under {limit} &deg;C"
+        )
+        body = (
+            f"The usual {usual} start puts the crew over {limit} &deg;C for {spent} "
+            f"across {baseline.sites_over} of {site_count} sites, peaking at "
+            f"{baseline.peak_c:.1f} &deg;C. Moving to "
+            f"{minute_label(clear.shift_start_minute)} clears every stop."
+        )
+    else:
+        tone, flag = "v-none", "No start clears"
+        title = f"No start in this window keeps the crew under {limit} &deg;C"
+        body = (
+            f"Even the earliest start available reaches "
+            f"{min(check.peak_c for check in assessment.checks):.1f} &deg;C. "
+            "Moving the shift will not solve this day on its own - it needs "
+            "shorter exposure, shade or rest cycles, or standing the work "
+            "down. Timing alone is not enough."
+        )
+
+    rows = "".join(
+        '<div class="limit-row {state}{base}">'
+        '<span class="lr-start">{start}</span>'
+        '<span class="lr-note">{note}</span>'
+        '<span class="lr-peak">{peak:.1f} &deg;C</span>'
+        "</div>".format(
+            state="is-clear" if check.clear else "is-over",
+            base=" is-baseline"
+            if check.shift_start_minute == baseline.shift_start_minute
+            else "",
+            start=minute_label(check.shift_start_minute),
+            note=(
+                "usual start &mdash; clears"
+                if check.clear
+                and check.shift_start_minute == baseline.shift_start_minute
+                else "clears"
+                if check.clear
+                else f"over at {check.sites_over} "
+                f"site{'s' if check.sites_over != 1 else ''}"
+            ),
+            peak=check.peak_c,
+        )
+        for check in assessment.checks
+    )
+
+    basis = "measured hours" if measured else "top of the predicted interval"
+    st.markdown(
+        f'<div class="limit {tone}">'
+        f'<div class="limit-head">'
+        f"<span>Heat limit &middot; {limit} &deg;C &middot; "
+        f"{basis}</span>"
+        f'<span class="limit-flag">{escape(flag)}</span></div>'
+        f'<div class="limit-body"><h4>{title}</h4><p>{body}</p></div>'
+        f'<div class="limit-rows">{rows}</div>'
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -2372,7 +2581,9 @@ def render_hindsight(
         )
 
 
-def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
+def render_same_day_result(
+    plan: SameDayPlan, depot: GeoPoint, *, heat_limit_c: float
+) -> None:
     """Crew view first; the model's workings stay one click away."""
 
     st.markdown('<div id="certiroute-plan"></div>', unsafe_allow_html=True)
@@ -2407,6 +2618,9 @@ def render_same_day_result(plan: SameDayPlan, depot: GeoPoint) -> None:
         return
 
     render_start_decision(plan)
+    assessment = assess_limit(plan, heat_limit_c)
+    if assessment is not None:
+        render_limit_verdict(assessment, site_count=len(plan.crew_plan.stops))
     render_day_playback(plan)
     render_start_options(plan)
     render_run_sheet(plan.crew_plan, depot)
@@ -2533,7 +2747,7 @@ if manifest_hint is not None and len(manifest_hint.jobs) != map_state.job_count:
 generation = int(st.session_state.get(MAP_GENERATION_KEY, 0))
 widget_token = f"{source_token}_{generation}"
 is_example = source_token == "example"
-selected_date, shift_start, shift_end = render_workday_settings(
+selected_date, shift_start, shift_end, heat_limit_c = render_workday_settings(
     scenario_token=widget_token,
     is_example=is_example,
     manifest_hint=manifest_hint,
@@ -2831,7 +3045,7 @@ if planning_today:
         st.session_state["certiroute_today_plan"] = same_day_plan
         with route_result_slot:
             render_result_mode_styles()
-            render_same_day_result(same_day_plan, depot)
+            render_same_day_result(same_day_plan, depot, heat_limit_c=heat_limit_c)
         if plan_clicked:
             scroll_to("certiroute-plan")
     else:
@@ -3006,6 +3220,7 @@ if batch is not None:
             shift_start=shift_start,
             shift_end=shift_end,
             is_example=is_example,
+            heat_limit_c=heat_limit_c,
             model=area_model,
             target_date=selected_date,
         )

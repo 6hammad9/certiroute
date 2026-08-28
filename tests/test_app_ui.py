@@ -429,6 +429,8 @@ def test_map_clicks_create_a_ready_route_setup_with_plain_defaults(
     assert {widget.label for widget in app.number_input} == {
         "Minutes at job 1",
         "Minutes at job 2",
+        # The crew's own heat ceiling, which the plan is then tested against.
+        "Heat limit for this crew (°C)",
     }
     assert {widget.label for widget in app.time_input} == {
         "Crew normally starts",
@@ -463,7 +465,12 @@ def test_csv_import_is_optional_and_only_asks_for_one_map_click(
     assert "Ready — 2 work sites selected" in ready_text
     assert _button(ready, "Plan today's shift").disabled is False
     assert not ready.text_input
-    assert not ready.number_input
+    # An import brings its own durations and coordinates, so nothing about the
+    # sites is retyped. The crew's heat ceiling is a property of the crew, not
+    # of the import, so it stays.
+    assert {widget.label for widget in ready.number_input} == {
+        "Heat limit for this crew (°C)"
+    }
     assert "Depot latitude" not in ready_text
     assert "Depot longitude" not in ready_text
     assert rendered_states.network_calls == []

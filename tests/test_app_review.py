@@ -367,3 +367,25 @@ def test_a_day_inside_the_publishing_lag_is_refused_before_any_request(
     finally:
         patch.undo()
         get_settings.cache_clear()
+
+
+def test_the_plan_is_tested_against_the_crew_heat_limit(review_states) -> None:
+    """The part of the decision a rule of thumb cannot make.
+
+    Which start is coolest is monotonic in summer, so "go earlier" reproduces
+    it. Whether any start clears the crew's own ceiling is not: it depends on
+    how hot the day itself is, which is what the reading supplies. The verdict
+    must therefore reach the page alongside the recommendation.
+    """
+
+    text = _all_text(review_states["clean"])
+
+    assert "Heat limit" in text
+    assert any(
+        verdict in text
+        for verdict in (
+            "already holds",
+            "keeps the crew under",
+            "No start in this window",
+        )
+    ), "the plan rendered without a limit verdict"

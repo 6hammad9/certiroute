@@ -143,6 +143,8 @@ _CSS = f"""
   --n500: #98989b; --n600: #7a7a7d; --n700: #5d5d60; --n800: #424244;
   --n900: #2b2b2d;
 
+  --alert: #9c5a33; --alert-wash: #f6efe9; --alert-deep: #7d4526;
+
   --a100: #eef6ff; --a200: #d6ebff; --a300: #b5d9fd; --a400: #94bce3;
   --a500: #749dc4; --a600: #597ea3; --a700: #416180; --a800: #2c455d;
   --a900: #1d2d3d;
@@ -466,6 +468,59 @@ h1.hero-heading {{ margin: 0 0 10px; max-width: 22ch; }}
   line-height: 1.5;
   color: var(--n600);
   margin: 14px 0 0;
+}}
+
+/* --- Heat limit verdict ------------------------------------------------ */
+
+.limit {{ border: 1px solid var(--color-divider); margin: 0 0 18px; }}
+.limit-head {{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 10px 20px; border-bottom: 1px solid var(--color-divider);
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--n600);
+}}
+.limit-flag {{ padding: 3px 9px; color: var(--n100); background: var(--n900); }}
+.limit-body {{ padding: 18px 20px 6px; }}
+.limit-body h4 {{
+  margin: 0 0 8px; font-family: var(--font-display); font-weight: 600;
+  font-size: 26px; line-height: 1.1; letter-spacing: .01em;
+}}
+.limit-body p {{
+  margin: 0; font-size: 14px; line-height: 1.55;
+  max-width: 62ch; color: var(--n800);
+}}
+.limit-rows {{ padding: 14px 20px 18px; display: grid; gap: 7px; }}
+.limit-row {{
+  display: grid; grid-template-columns: 5.5em 1fr auto;
+  gap: 12px; align-items: baseline;
+  font-size: 12.5px; padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}}
+.limit-row .lr-start {{ font-family: var(--font-mono); font-size: 12px; }}
+.limit-row .lr-note {{ color: var(--n700); }}
+.limit-row .lr-peak {{
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}}
+.limit-row.is-clear .lr-peak {{ color: var(--a700); }}
+.limit-row.is-over .lr-peak {{ color: var(--alert-deep); }}
+.limit-row.is-baseline .lr-start {{ font-weight: 600; }}
+
+.limit.v-clear {{
+  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+}}
+.limit.v-clear .limit-flag {{ background: var(--a700); }}
+.limit.v-move {{
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}}
+.limit.v-move .limit-flag {{ background: var(--a800); }}
+.limit.v-none {{ background: var(--alert-wash); border-color: var(--alert); }}
+.limit.v-none .limit-flag {{ background: var(--alert-deep); }}
+.limit.v-none .limit-body h4 {{ color: var(--alert-deep); }}
+
+@media (max-width: 640px) {{
+  .limit-row {{ grid-template-columns: 4.5em 1fr; }}
+  .limit-row .lr-peak {{ grid-column: 2; }}
 }}
 
 /* --- Panels and strips ------------------------------------------------- */
