@@ -95,11 +95,18 @@ from certiroute.map_scenario import (
     undo_last_point,
 )
 from certiroute.measured import (
-    daily_peaks,
     DEFAULT_PROFILE_PATH,
     MeasuredProfilesUnavailableError,
     load_measured_profiles,
 )
+
+try:
+    from certiroute.measured import daily_peaks
+except ImportError:  # pragma: no cover - only a lagging deployment reaches this
+    # Limit guidance is a convenience, and a hosted deployment can serve a
+    # library older than the checkout it runs. Losing the caption is a fair
+    # price; refusing to start the whole app over it is not.
+    daily_peaks = None
 from certiroute.optimization import (
     ConditionPoint,
     InfeasibleScheduleError,
@@ -545,7 +552,11 @@ def limit_guidance(area_id: str, limit_c: float) -> str | None:
     than left to guess.
     """
 
-    peaks = sorted(daily_peaks(area_id, path=PROJECT_ROOT / DEFAULT_PROFILE_PATH).values())
+    if daily_peaks is None:
+        return None
+    peaks = sorted(
+        daily_peaks(area_id, path=PROJECT_ROOT / DEFAULT_PROFILE_PATH).values()
+    )
     if len(peaks) < 3:
         return None
 
@@ -568,7 +579,9 @@ def limit_guidance(area_id: str, limit_c: float) -> str | None:
             f"and the limit barely distinguishes them. Try {balanced:.1f} &deg;C"
         )
     elif breaching <= total * 0.1:
-        reading = f"only {breaching} of {total} reached it, so it flags extreme days only"
+        reading = (
+            f"only {breaching} of {total} reached it, so it flags extreme days only"
+        )
     else:
         reading = (
             f"{breaching} of {total} reached it, so it separates the hot days "
@@ -2751,7 +2764,13 @@ def render_same_day_result(
         return
 
     render_start_decision(plan)
-    assessment = assess_limit(plan, heat_limit_c)
+    try:
+        assessment = assess_limit(plan, heat_limit_c)
+    except TypeError:  # pragma: no cover - only a lagging deployment reaches this
+        # Same reasoning as the optional guidance import: a hosted deployment
+        # can run a library older than the checkout. The start time is the
+        # product, so it is never withheld because an addition to it is missing.
+        assessment = None
     if assessment is not None:
         render_limit_verdict(assessment, site_count=len(plan.crew_plan.stops))
     render_day_playback(plan)

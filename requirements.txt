@@ -10,6 +10,9 @@ pydantic-settings>=2.4,<3
 streamlit>=1.37,<2
 streamlit-folium>=0.27,<0.28
 
-# The app imports certiroute from src/; installing the project itself puts it
-# on the path without any sys.path manipulation in app/main.py.
+# The app imports certiroute from src/. Streamlit Community Cloud installs this
+# once and then only pulls files on later deploys, so a version bump is what
+# tells it to reinstall - without one, app/main.py moves ahead while the
+# library it calls stays at the version first deployed. app/main.py also puts
+# the checkout's src/ first on sys.path, so the repository wins either way.
 -e .

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "certiroute"
-version = "0.1.0"
+version = "0.2.0"
 description = "Certainty-aware heat-risk scheduling for mobile outdoor crews"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -41,3 +41,10 @@ extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# app/main.py puts the checkout's src/ on sys.path before importing certiroute,
+# so that a hosted deployment cannot serve a library older than the app script
+# calling it. That has to run ahead of those imports, which E402 reads as
+# imports out of place.
+"app/main.py" = ["E402"]
