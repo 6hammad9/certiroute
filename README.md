@@ -1,5 +1,9 @@
 # CertiRoute
 
+**[Open the live app](https://certiroute.streamlit.app)** &middot; no login, no install.
+Reviewing a finished day runs entirely on measurements committed to this
+repository, so it costs nothing and works on a cold deployment.
+
 CertiRoute tells an outdoor crew **what time to start today**.
 
 A dispatcher marks the crew base and work sites on a map. CertiRoute reads
