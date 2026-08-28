@@ -8,6 +8,7 @@ a separate planner view so they remain auditable without crowding the route.
 from __future__ import annotations
 
 import csv
+import json
 import os
 import sys
 from collections.abc import Mapping
@@ -66,11 +67,19 @@ from certiroute.forecasting import InsufficientHistoryError
 from certiroute.fortyguard import FortyGuardClient
 from certiroute.fortyguard.errors import FortyGuardError, FortyGuardHTTPError
 from certiroute.fortyguard.heatmap_profiles import HeatmapCoverageError
-from certiroute.heat_limit import (
-    DayLimitAssessment,
-    DayVerdict,
-    assess_day_against_limit,
-)
+
+try:
+    from certiroute.heat_limit import (
+        DayLimitAssessment,
+        DayVerdict,
+        assess_day_against_limit,
+    )
+except ImportError:  # pragma: no cover - only a lagging deployment reaches this
+    # A deployment that installed certiroute before this module existed cannot
+    # import it at all. The heat limit is an addition to a decision that stands
+    # without it, so the start time is still delivered and only the verdict
+    # panel goes missing.
+    DayLimitAssessment = DayVerdict = assess_day_against_limit = None
 from certiroute.job_manifest import (
     MAX_MANIFEST_JOBS,
     MIN_MANIFEST_JOBS,
@@ -95,23 +104,85 @@ from certiroute.map_scenario import (
     undo_last_point,
 )
 from certiroute.measured import (
-    DEFAULT_LEVEL_PATH,
     DEFAULT_PROFILE_PATH,
-    MeasuredLevelUnavailableError,
     MeasuredProfilesUnavailableError,
-    available_days,
-    level_days,
-    load_measured_level,
     load_measured_profiles,
 )
 
-try:
-    from certiroute.measured import daily_peaks
-except ImportError:  # pragma: no cover - only a lagging deployment reaches this
-    # Limit guidance is a convenience, and a hosted deployment can serve a
-    # library older than the checkout it runs. Losing the caption is a fair
-    # price; refusing to start the whole app over it is not.
-    daily_peaks = None
+# The committed-reading lookups are read here rather than imported, because a
+# hosted deployment installs certiroute once and afterwards only pulls files:
+# app/main.py is re-read every run while the library it calls can stay at the
+# version first deployed. Twice that skew took the whole app down at import.
+# These read a committed JSON file and nothing else, so keeping them in the
+# file that is always fresh removes the failure mode rather than guarding it.
+# certiroute.measured holds the same lookups for the tests and scripts.
+DEFAULT_LEVEL_PATH = Path("data/evidence/measured_levels.json")
+_MEASURED_SCHEMA_VERSION = 1
+
+
+class MeasuredLevelUnavailableError(LookupError):
+    """No committed whole-day level exists for this area and date."""
+
+
+def _committed(path: Path, area_id: str) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    if payload.get("schema_version") != _MEASURED_SCHEMA_VERSION:
+        return {}
+    return payload.get("areas", {}).get(area_id, {})
+
+
+def load_measured_level(
+    area_id: str, target_date: date, *, path: Path | None = None
+) -> dict[str, float]:
+    """Each site's committed whole-day level - the reading a plan is built on."""
+
+    day = _committed(path or DEFAULT_LEVEL_PATH, area_id).get(target_date.isoformat())
+    if not day:
+        raise MeasuredLevelUnavailableError(
+            f"no committed level for {area_id} on {target_date.isoformat()}"
+        )
+    return {job_id: float(value) for job_id, value in day.items()}
+
+
+def level_days(area_id: str, *, path: Path | None = None) -> tuple[date, ...]:
+    """Every day this area can be planned with no request at all."""
+
+    return tuple(
+        sorted(
+            date.fromisoformat(d)
+            for d in _committed(path or DEFAULT_LEVEL_PATH, area_id)
+        )
+    )
+
+
+def available_days(area_id: str, *, path: Path | None = None) -> tuple[date, ...]:
+    """Every day this area can be reviewed against measured hours."""
+
+    return tuple(
+        sorted(
+            date.fromisoformat(d)
+            for d in _committed(path or PROJECT_ROOT / DEFAULT_PROFILE_PATH, area_id)
+        )
+    )
+
+
+def daily_peaks(area_id: str, *, path: Path | None = None) -> dict[date, float]:
+    """The hottest measured moment of each day, for choosing a heat limit."""
+
+    return {
+        date.fromisoformat(day): max(
+            float(v) for site in sites.values() for v in site.values()
+        )
+        for day, sites in _committed(
+            path or PROJECT_ROOT / DEFAULT_PROFILE_PATH, area_id
+        ).items()
+        if sites
+    }
+
+
 from certiroute.optimization import (
     ConditionPoint,
     InfeasibleScheduleError,
@@ -1127,6 +1198,8 @@ def review_limit_assessment(
     is what makes reviewing a finished day worth doing at all.
     """
 
+    if assess_day_against_limit is None:
+        return None
     candidates = candidate_starts_for(shift_start, shift_end)
     if not candidates:
         return None
@@ -2845,7 +2918,11 @@ def render_same_day_result(
 
     render_start_decision(plan)
     try:
-        assessment = assess_limit(plan, heat_limit_c)
+        assessment = (
+            None
+            if assess_day_against_limit is None
+            else assess_limit(plan, heat_limit_c)
+        )
     except TypeError:  # pragma: no cover - only a lagging deployment reaches this
         # Same reasoning as the optional guidance import: a hosted deployment
         # can run a library older than the checkout. The start time is the
