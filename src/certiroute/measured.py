@@ -92,6 +92,31 @@ def available_days(area_id: str, *, path: Path | None = None) -> tuple[date, ...
     )
 
 
+def daily_peaks(area_id: str, *, path: Path | None = None) -> dict[date, float]:
+    """The hottest measured moment of each day, for choosing a limit.
+
+    A heat ceiling is only useful if it sits inside the range the area
+    actually reaches. Forty degrees never binds in Miami and binds on almost
+    every Phoenix day, so a dispatcher picking one needs to see what their own
+    area measured rather than guess from a number they read somewhere.
+    """
+
+    source = path if path is not None else DEFAULT_PROFILE_PATH
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        return {}
+    return {
+        date.fromisoformat(day): max(
+            float(value) for site in sites.values() for value in site.values()
+        )
+        for day, sites in payload.get("areas", {}).get(area_id, {}).items()
+        if sites
+    }
+
+
 def build_payload(
     profiles_by_area_day: Mapping[str, Mapping[date, Mapping[str, TemperatureProfile]]],
 ) -> dict:
@@ -126,5 +151,6 @@ __all__ = [
     "MeasuredProfilesUnavailableError",
     "available_days",
     "build_payload",
+    "daily_peaks",
     "load_measured_profiles",
 ]

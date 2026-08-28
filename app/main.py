@@ -9,12 +9,24 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, time, timedelta
 from html import escape
 from io import StringIO
 from pathlib import Path
 from urllib.parse import urlencode
+
+# Streamlit Community Cloud installs the project once and then only pulls files
+# on later deploys, without reinstalling. app/main.py is re-read from the
+# checkout every run, but certiroute was being imported from that first
+# install - so the app script moved ahead while the library it calls stayed
+# frozen, and a signature added to both in one commit arrived in only one of
+# them. Putting the checkout's src/ first makes the repository the single
+# source of truth, whatever is installed alongside it.
+_SRC = Path(__file__).resolve().parents[1] / "src"
+if _SRC.is_dir() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import pandas as pd
 import pydeck as pdk
@@ -83,6 +95,7 @@ from certiroute.map_scenario import (
     undo_last_point,
 )
 from certiroute.measured import (
+    daily_peaks,
     DEFAULT_PROFILE_PATH,
     MeasuredProfilesUnavailableError,
     load_measured_profiles,
@@ -501,6 +514,69 @@ def render_landing_proof(state: MapScenarioState) -> None:
     st.iframe(
         route_playback_html_from_payload(graded.payload),
         height=playback_height(graded.payload),
+    )
+
+
+def selected_operating_area_id() -> str:
+    """Which area is chosen, read without touching session state.
+
+    This runs before the map is drawn, and load_map_scenario() initialises the
+    scenario when none is stored. Calling that here would seed session state
+    ahead of the map setup that owns it, so the value is only read.
+    """
+
+    saved = st.session_state.get(MAP_SCENARIO_KEY)
+    if isinstance(saved, MapScenarioState):
+        return saved.operating_area_id
+    if isinstance(saved, Mapping):
+        area_id = saved.get("operating_area_id")
+        if isinstance(area_id, str) and area_id in OPERATING_AREA_BY_ID:
+            return area_id
+    return DEFAULT_OPERATING_AREA_ID
+
+
+def limit_guidance(area_id: str, limit_c: float) -> str | None:
+    """Say what this limit would have done against the days actually measured.
+
+    A ceiling is only useful if it sits inside the range the area reaches.
+    Forty degrees never binds in Miami and binds on twenty of twenty-four
+    Phoenix days, so a number that sounds cautious can mean "every day" in one
+    city and "no day" in another. The dispatcher is shown their own area rather
+    than left to guess.
+    """
+
+    peaks = sorted(daily_peaks(area_id, path=PROJECT_ROOT / DEFAULT_PROFILE_PATH).values())
+    if len(peaks) < 3:
+        return None
+
+    breaching = sum(1 for peak in peaks if peak >= limit_c)
+    total = len(peaks)
+    span = f"{peaks[0]:.1f}-{peaks[-1]:.1f} &deg;C"
+    # A limit that every day trips, or that no day reaches, tells the crew
+    # nothing they did not already know. The median peak is the value that
+    # divides the days most evenly, so it is offered when the entered one does
+    # not discriminate.
+    balanced = round(peaks[len(peaks) // 2] * 2) / 2
+    if breaching == 0:
+        reading = (
+            f"no day came near it. Nothing here will ever breach this limit; "
+            f"try {balanced:.1f} &deg;C to see it bite"
+        )
+    elif breaching >= total * 0.9:
+        reading = (
+            f"{breaching} of {total} reached it, so nearly every day is flagged "
+            f"and the limit barely distinguishes them. Try {balanced:.1f} &deg;C"
+        )
+    elif breaching <= total * 0.1:
+        reading = f"only {breaching} of {total} reached it, so it flags extreme days only"
+    else:
+        reading = (
+            f"{breaching} of {total} reached it, so it separates the hot days "
+            "from the ordinary ones"
+        )
+    return (
+        f"Across {total} measured days here the hottest moment ranged {span}, and "
+        f"{reading}."
     )
 
 
@@ -1801,6 +1877,9 @@ def render_workday_settings(
             ),
             key=f"heat_limit_{scenario_token}",
         )
+        guidance = limit_guidance(selected_operating_area_id(), heat_limit_c)
+        if guidance:
+            st.caption(guidance, unsafe_allow_html=True)
 
     if selected_date > today:
         mode_label = "Planning tomorrow"
